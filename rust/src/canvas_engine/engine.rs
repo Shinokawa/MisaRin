@@ -48,6 +48,45 @@ const RESAMPLE_BACKLOG_MEDIUM: u64 = 64;
 const RESAMPLE_BACKLOG_LARGE: u64 = 128;
 const RESAMPLE_BACKLOG_XL: u64 = 256;
 
+#[cfg(target_os = "windows")]
+const PRESENT_WAIT_LOG_EVERY: u64 = 120;
+#[cfg(target_os = "windows")]
+static PRESENT_WAIT_ACCUM_US: AtomicU64 = AtomicU64::new(0);
+#[cfg(target_os = "windows")]
+static PRESENT_WAIT_MAX_US: AtomicU64 = AtomicU64::new(0);
+#[cfg(target_os = "windows")]
+static PRESENT_WAIT_COUNT: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(target_os = "windows")]
+fn record_present_wait(waited_us: u64) {
+    PRESENT_WAIT_ACCUM_US.fetch_add(waited_us, Ordering::Relaxed);
+    let mut prev = PRESENT_WAIT_MAX_US.load(Ordering::Relaxed);
+    while waited_us > prev {
+        match PRESENT_WAIT_MAX_US.compare_exchange(
+            prev,
+            waited_us,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => break,
+            Err(next) => prev = next,
+        }
+    }
+    let count = PRESENT_WAIT_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+    if count % PRESENT_WAIT_LOG_EVERY == 0 {
+        let sum = PRESENT_WAIT_ACCUM_US.swap(0, Ordering::Relaxed);
+        let max = PRESENT_WAIT_MAX_US.swap(0, Ordering::Relaxed);
+        let avg_ms = (sum as f64) / (PRESENT_WAIT_LOG_EVERY as f64) / 1000.0;
+        let max_ms = (max as f64) / 1000.0;
+        debug::log(
+            LogLevel::Info,
+            format_args!(
+                "[perf] present wait avg={avg_ms:.2}ms max={max_ms:.2}ms"
+            ),
+        );
+    }
+}
+
 pub(crate) enum EngineCommand {
     AttachPresentTexture {
         mtl_texture_ptr: usize,
@@ -1981,6 +2020,10 @@ fn render_thread_main(
                         if block_present {
                             // Avoid overwriting a frame that is still in-flight or unconsumed.
                         } else {
+                            #[cfg(target_os = "windows")]
+                            if let Some(since) = pending_present_since {
+                                record_present_wait(since.elapsed().as_micros() as u64);
+                            }
                             pending_present = false;
                             pending_present_since = None;
                             if forced_present {

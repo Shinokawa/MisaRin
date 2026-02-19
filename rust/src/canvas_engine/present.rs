@@ -1,6 +1,10 @@
 use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+#[cfg(target_os = "windows")]
+use std::sync::atomic::AtomicU64;
+#[cfg(target_os = "windows")]
+use std::time::Instant;
 
 use crate::gpu::debug::{self, LogLevel};
 
@@ -75,6 +79,15 @@ pub(crate) struct PresentRenderer {
     pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
 }
+
+#[cfg(target_os = "windows")]
+const PRESENT_GPU_LOG_EVERY: u64 = 120;
+#[cfg(target_os = "windows")]
+static PRESENT_GPU_ACCUM_US: AtomicU64 = AtomicU64::new(0);
+#[cfg(target_os = "windows")]
+static PRESENT_GPU_MAX_US: AtomicU64 = AtomicU64::new(0);
+#[cfg(target_os = "windows")]
+static PRESENT_GPU_COUNT: AtomicU64 = AtomicU64::new(0);
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -440,6 +453,8 @@ pub(crate) fn signal_frame_ready(
     frame_in_flight: Arc<AtomicBool>,
 ) {
     debug::log(LogLevel::Verbose, format_args!("frame_ready queued"));
+    #[cfg(target_os = "windows")]
+    let submitted_at = Instant::now();
     // Mark in-flight; only flip to ready once GPU work completes.
     frame_ready.store(false, Ordering::Release);
     frame_in_flight.store(true, Ordering::Release);
@@ -449,6 +464,36 @@ pub(crate) fn signal_frame_ready(
         frame_in_flight_done.store(false, Ordering::Release);
         frame_ready_done.store(true, Ordering::Release);
         debug::log(LogLevel::Verbose, format_args!("frame_ready done"));
+        #[cfg(target_os = "windows")]
+        {
+            let elapsed_us = submitted_at.elapsed().as_micros() as u64;
+            PRESENT_GPU_ACCUM_US.fetch_add(elapsed_us, Ordering::Relaxed);
+            let mut prev = PRESENT_GPU_MAX_US.load(Ordering::Relaxed);
+            while elapsed_us > prev {
+                match PRESENT_GPU_MAX_US.compare_exchange(
+                    prev,
+                    elapsed_us,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                ) {
+                    Ok(_) => break,
+                    Err(next) => prev = next,
+                }
+            }
+            let count = PRESENT_GPU_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+            if count % PRESENT_GPU_LOG_EVERY == 0 {
+                let sum = PRESENT_GPU_ACCUM_US.swap(0, Ordering::Relaxed);
+                let max = PRESENT_GPU_MAX_US.swap(0, Ordering::Relaxed);
+                let avg_ms = (sum as f64) / (PRESENT_GPU_LOG_EVERY as f64) / 1000.0;
+                let max_ms = (max as f64) / 1000.0;
+                debug::log(
+                    LogLevel::Info,
+                    format_args!(
+                        "[perf] present gpu done avg={avg_ms:.2}ms max={max_ms:.2}ms"
+                    ),
+                );
+            }
+        }
     });
 }
 
