@@ -201,6 +201,16 @@ class BrushLibrary extends ChangeNotifier {
       orderedPresets.add(preset);
     }
 
+    if (orderedPresets.isEmpty) {
+      final BrushPreset fallback = _fallbackPreset(l10n);
+      basePresets[fallback.id] = fallback;
+      sources[fallback.id] = _BrushSource.asset('fallback');
+      orderedPresets.add(fallback);
+      debugPrint(
+        'BrushLibrary: no built-in brushes loaded; using fallback preset.',
+      );
+    }
+
     Map<String, BrushPreset> overrides = <String, BrushPreset>{};
     String? selectedId;
     bool patchedOverrides = false;
@@ -750,6 +760,31 @@ class BrushLibrary extends ChangeNotifier {
       return preset;
     }
     return preset.copyWith(name: localized);
+  }
+
+  static BrushPreset _fallbackPreset(AppLocalizations l10n) {
+    return BrushPreset(
+      id: 'pencil',
+      name: l10n.brushPresetPencil,
+      shape: AppPreferences.defaultBrushShape,
+      shapeId: null,
+      author: _defaultBuiltInAuthor,
+      version: _defaultBuiltInVersion,
+      spacing: 0.15,
+      hardness: 0.8,
+      flow: 1.0,
+      scatter: 0.0,
+      randomRotation: AppPreferences.defaultBrushRandomRotationEnabled,
+      smoothRotation: true,
+      rotationJitter: 1.0,
+      antialiasLevel: AppPreferences.defaultPenAntialiasLevel,
+      hollowEnabled: AppPreferences.defaultHollowStrokeEnabled,
+      hollowRatio: AppPreferences.defaultHollowStrokeRatio,
+      hollowEraseOccludedParts:
+          AppPreferences.defaultHollowStrokeEraseOccludedParts,
+      autoSharpTaper: AppPreferences.defaultAutoSharpPeakEnabled,
+      snapToPixel: false,
+    ).sanitized();
   }
 
   static String _uniqueId(String base, Set<String> ids) {

@@ -94,6 +94,23 @@ jobs:
             default { "x64" }
           }
 
+          $iconPath = "windows\runner\resources\app_icon.ico"
+          if (-not (Test-Path $iconPath)) {
+            Write-Error "未找到安装器图标：$iconPath"
+          }
+          $iconPath = (Resolve-Path $iconPath).Path
+
+          $licensePath = "LICENSE"
+          if (-not (Test-Path $licensePath)) {
+            Write-Error "未找到 LICENSE 文件：$licensePath"
+          }
+          $licensePath = (Resolve-Path $licensePath).Path
+
+          $archInstallLine = ""
+          if ($arch -ne "x86") {
+            $archInstallLine = "ArchitecturesInstallIn64BitMode=$arch"
+          }
+
           @"
           #define MyAppName "Misa Rin"
           #define MyAppVersion "${env:APP_VERSION}"
@@ -106,28 +123,34 @@ jobs:
           AppVersion={#MyAppVersion}
           AppPublisher={#MyAppPublisher}
           DefaultDirName={code:GetAppDir}
-          DefaultGroupName=Misa Rin
+          DefaultGroupName={#MyAppName}
           OutputDir="$artifactDir"
           OutputBaseFilename="$outputBaseName"
+          SetupIconFile="$iconPath"
+          UninstallDisplayIcon={app}\{#MyAppExeName}
           Compression=lzma
           SolidCompression=yes
           ArchitecturesAllowed=$arch
-          DisableWelcomePage=yes
+          $archInstallLine
           WizardStyle=modern
           PrivilegesRequired=lowest
           PrivilegesRequiredOverridesAllowed=dialog
           UsePreviousPrivileges=yes
+          LicenseFile="$licensePath"
 
           [Languages]
           Name: "english"; MessagesFile: "compiler:Default.isl"
           Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+
+          [Tasks]
+          Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
           [Files]
           Source: "$buildDir\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
           [Icons]
           Name: "{autoprograms}\Misa Rin"; Filename: "{app}\{#MyAppExeName}"
-          Name: "{autodesktop}\Misa Rin"; Filename: "{app}\{#MyAppExeName}"
+          Name: "{autodesktop}\Misa Rin"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
           [Run]
           Filename: "{app}\{#MyAppExeName}"; Description: "启动 Misa Rin"; Flags: nowait postinstall skipifsilent
@@ -140,7 +163,7 @@ jobs:
             else
               Result := ExpandConstant('{localappdata}\Programs\Misa Rin');
           end;
-          "@ | Set-Content -Path $installerScript -Encoding UTF8
+          "@ | Set-Content -Path $installerScript -Encoding utf8BOM
 
           $isccPath = Join-Path -Path "${env:ProgramFiles(x86)}" -ChildPath "Inno Setup 6\\ISCC.exe"
           if (-not (Test-Path $isccPath)) {
@@ -174,3 +197,11 @@ jobs:
           name: MisaRin-windows-${{ env.TARGET_ARCH }}-${{ env.APP_VERSION }}.zip
           path: build/artifacts/MisaRin-windows-${{ env.TARGET_ARCH }}-${{ env.APP_VERSION }}.zip
           if-no-files-found: error
+      - name: 列出 Windows 构建产物
+        shell: pwsh
+        run: |
+          Write-Host "=== Windows Build Artifacts ==="
+          Get-ChildItem "build\artifacts\" -File | ForEach-Object {
+            $sizeKB = [math]::Round($_.Length / 1KB, 2)
+            Write-Host "$($_.Name) - ${sizeKB} KB"
+          }

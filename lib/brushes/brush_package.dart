@@ -71,9 +71,17 @@ class BrushPackageCodec {
     if (bytes.isEmpty) {
       return null;
     }
-    final BrushPackageData? textPackage = _decodeText(bytes);
-    if (textPackage != null) {
-      return textPackage;
+    if (_startsWithTextMagic(bytes)) {
+      final BrushPackageData? textPackage =
+          _decodeText(bytes, normalizeCrlf: false);
+      if (textPackage != null) {
+        return textPackage;
+      }
+      final BrushPackageData? normalizedTextPackage =
+          _decodeText(bytes, normalizeCrlf: true);
+      if (normalizedTextPackage != null) {
+        return normalizedTextPackage;
+      }
     }
     return _decodeZip(bytes);
   }
@@ -107,7 +115,10 @@ class BrushPackageCodec {
     );
   }
 
-  static BrushPackageData? _decodeText(Uint8List bytes) {
+  static BrushPackageData? _decodeText(
+    Uint8List bytes, {
+    required bool normalizeCrlf,
+  }) {
     if (!_startsWithTextMagic(bytes)) {
       return null;
     }
@@ -148,7 +159,9 @@ class BrushPackageCodec {
       if (length == null || length < 0) {
         return null;
       }
-      final Uint8List? sectionBytes = cursor.readBytes(length);
+      final Uint8List? sectionBytes = normalizeCrlf
+          ? cursor.readBytesNormalized(length)
+          : cursor.readBytes(length);
       if (sectionBytes == null) {
         return null;
       }
@@ -637,6 +650,32 @@ class _TextCursor {
     }
     final Uint8List out = Uint8List.sublistView(bytes, offset, offset + length);
     offset += length;
+    return out;
+  }
+
+  // Normalizes CRLF to LF to recover text packages from line-ending conversion.
+  Uint8List? readBytesNormalized(int length) {
+    if (length < 0 || isDone) {
+      return null;
+    }
+    final Uint8List out = Uint8List(length);
+    int outIndex = 0;
+    while (outIndex < length && offset < bytes.length) {
+      final int byte = bytes[offset++];
+      if (byte == 0x0d) {
+        if (offset < bytes.length && bytes[offset] == 0x0a) {
+          offset += 1;
+          out[outIndex++] = 0x0a;
+          continue;
+        }
+        out[outIndex++] = 0x0a;
+        continue;
+      }
+      out[outIndex++] = byte;
+    }
+    if (outIndex < length) {
+      return null;
+    }
     return out;
   }
 
