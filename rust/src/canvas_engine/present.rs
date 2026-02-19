@@ -38,6 +38,11 @@ impl PresentTarget {
     pub(crate) fn dxgi_handle(&self) -> Option<usize> {
         self.dxgi_handle.map(|handle| handle as usize)
     }
+
+    #[cfg(target_os = "windows")]
+    pub(crate) fn take_dxgi_handle(&mut self) -> Option<usize> {
+        self.dxgi_handle.take().map(|handle| handle as usize)
+    }
 }
 
 #[cfg(target_os = "windows")]

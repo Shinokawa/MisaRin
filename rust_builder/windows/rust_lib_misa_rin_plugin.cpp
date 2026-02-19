@@ -114,7 +114,8 @@ std::string GetSurfaceId(const flutter::EncodableMap& args) {
 }
 
 struct GpuSurfaceBinding {
-  explicit GpuSurfaceBinding(void* handle, size_t width, size_t height) {
+  explicit GpuSurfaceBinding(void* handle, size_t width, size_t height)
+      : shared_handle(handle) {
     descriptor.struct_size = sizeof(FlutterDesktopGpuSurfaceDescriptor);
     descriptor.handle = handle;
     descriptor.width = width;
@@ -140,11 +141,20 @@ struct GpuSurfaceBinding {
     return binding->GetDescriptor();
   }
 
+  void* shared_handle = nullptr;
   FlutterDesktopGpuSurfaceDescriptor descriptor{};
 };
 
 void ReleaseBinding(void* user_data) {
   auto* keepalive = static_cast<std::shared_ptr<GpuSurfaceBinding>*>(user_data);
+  if (keepalive && *keepalive) {
+    auto handle =
+        static_cast<HANDLE>((*keepalive)->shared_handle);
+    if (handle) {
+      CloseHandle(handle);
+      (*keepalive)->shared_handle = nullptr;
+    }
+  }
   delete keepalive;
 }
 
@@ -376,6 +386,11 @@ struct RustLibMisaRinPlugin::Impl {
           FlutterDesktopTextureRegistrarRegisterExternalTexture(
               texture_registrar_, &texture_info);
       if (texture_id < 0) {
+        auto handle = static_cast<HANDLE>(shared_handle);
+        if (handle) {
+          CloseHandle(handle);
+        }
+        binding->shared_handle = nullptr;
         result->Error("register_texture_failed",
                       "RegisterExternalTexture returned < 0",
                       flutter::EncodableValue());

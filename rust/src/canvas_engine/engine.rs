@@ -2245,20 +2245,22 @@ fn handle_engine_command(
                     new_canvas_size: None,
                 };
             }
-            if let Some(existing) = present.as_ref() {
+            if let Some(existing) = present.as_mut() {
                 if existing.width == width && existing.height == height {
-                    let _ = reply.send(existing.dxgi_handle());
-                    return EngineCommandOutcome {
-                        stop: false,
-                        needs_render: false,
-                        new_canvas_size: None,
-                    };
+                    if let Some(handle) = existing.take_dxgi_handle() {
+                        let _ = reply.send(Some(handle));
+                        return EngineCommandOutcome {
+                            stop: false,
+                            needs_render: false,
+                            new_canvas_size: None,
+                        };
+                    }
                 }
             }
 
             match create_dxgi_shared_present_target(device.as_ref(), width, height) {
-                Ok(target) => {
-                    let handle = target.dxgi_handle();
+                Ok(mut target) => {
+                    let handle = target.take_dxgi_handle();
                     *present = Some(target);
                     if handle.is_some() {
                         // Initialize layers so the first composite is deterministic.
