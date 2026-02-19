@@ -13,6 +13,10 @@ import '../l10n/app_localizations.dart';
 import '../utils/io_shim.dart';
 import 'brush_shape_raster.dart';
 
+Uint8List _byteDataToUint8List(ByteData data) {
+  return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+}
+
 enum BrushShapeFileType { svg, png }
 
 enum BrushShapeSource { builtIn, user, imported }
@@ -274,7 +278,7 @@ class BrushShapeLibrary {
         continue;
       }
       final ByteData data = await rootBundle.load(shape.assetPath);
-      await target.writeAsBytes(data.buffer.asUint8List(), flush: true);
+      await target.writeAsBytes(_byteDataToUint8List(data), flush: true);
     }
   }
 
@@ -358,7 +362,7 @@ class BrushShapeLibrary {
     }
     if (shape.assetPath != null) {
       final ByteData data = await rootBundle.load(shape.assetPath!);
-      return data.buffer.asUint8List();
+      return _byteDataToUint8List(data);
     }
     return Uint8List(0);
   }

@@ -17,6 +17,10 @@ import 'brush_package.dart';
 import 'brush_preset.dart';
 import 'brush_shape_library.dart';
 
+Uint8List _byteDataToUint8List(ByteData data) {
+  return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+}
+
 class BrushLibrary extends ChangeNotifier {
   BrushLibrary._({
     required BrushShapeLibrary shapeLibrary,
@@ -125,7 +129,7 @@ class BrushLibrary extends ChangeNotifier {
     for (final String assetPath in _defaultBrushAssets) {
       final ByteData data = await rootBundle.load(assetPath);
       final BrushPackageData? package =
-          BrushPackageCodec.decode(data.buffer.asUint8List());
+          BrushPackageCodec.decode(_byteDataToUint8List(data));
       if (package == null) {
         continue;
       }
