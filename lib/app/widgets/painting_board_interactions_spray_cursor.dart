@@ -1,6 +1,50 @@
 part of 'painting_board.dart';
 
 extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInteractionMixin {
+  void _trackStylusContact(PointerEvent event) {
+    final bool stylusLike =
+        _isStylusEvent(event) ||
+        event.kind == PointerDeviceKind.stylus ||
+        event.kind == PointerDeviceKind.invertedStylus;
+    if (!stylusLike) {
+      return;
+    }
+    final bool isContactEvent =
+        (event is PointerDownEvent) ||
+        (event is PointerMoveEvent &&
+            (event.down ||
+                event.pressure > 0.0 ||
+                (event.buttons & kPrimaryStylusButton) != 0));
+    if (isContactEvent) {
+      _activeStylusPointers.add(event.pointer);
+      _lastStylusContactEpochMs = DateTime.now().millisecondsSinceEpoch;
+      return;
+    }
+    if (event is PointerUpEvent || event is PointerCancelEvent) {
+      _activeStylusPointers.remove(event.pointer);
+    }
+  }
+
+  bool _shouldRejectTouchAsPalm(PointerEvent event) {
+    if (event.kind != PointerDeviceKind.touch) {
+      return false;
+    }
+    final CanvasTool tool = _effectiveActiveTool;
+    final bool drawingTool =
+        tool == CanvasTool.pen || tool == CanvasTool.eraser || tool == CanvasTool.spray;
+    if (!drawingTool) {
+      return false;
+    }
+    if (!_touchDrawingEnabled) {
+      return true;
+    }
+    if (_activeStylusPointers.isNotEmpty) {
+      return true;
+    }
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    return (now - _lastStylusContactEpochMs) <= 180;
+  }
+
   bool _isPrimaryPointer(PointerEvent event) {
     if (event.kind == PointerDeviceKind.mouse) {
       if (event is PointerUpEvent || event is PointerCancelEvent) {
@@ -9,6 +53,9 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       return (event.buttons & kPrimaryMouseButton) != 0;
     }
     if (event.kind == PointerDeviceKind.touch) {
+      if (_shouldRejectTouchAsPalm(event)) {
+        return false;
+      }
       if (event is PointerUpEvent || event is PointerCancelEvent) {
         return true;
       }
@@ -663,6 +710,34 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       _updateBrushToolsEraserMode(false);
     }
     _setPrimaryColor(color.withAlpha(0xFF), remember: remember);
+  }
+
+  void _handleApplePencilDoubleTap() {
+    if (!mounted) {
+      return;
+    }
+    final bool currentlyEraser = _isBrushEraserEnabled;
+    if (currentlyEraser) {
+      if (_brushToolsEraserMode) {
+        _updateBrushToolsEraserMode(false);
+      }
+      if (_activeTool == CanvasTool.eraser) {
+        final CanvasTool restore =
+            _applePencilLastNonEraserTool == CanvasTool.eraser
+            ? CanvasTool.pen
+            : _applePencilLastNonEraserTool;
+        _setActiveTool(restore);
+      }
+      return;
+    }
+
+    if (_activeTool != CanvasTool.eraser) {
+      _applePencilLastNonEraserTool = _activeTool;
+    }
+    if (_brushToolsEraserMode) {
+      _updateBrushToolsEraserMode(false);
+    }
+    _setActiveTool(CanvasTool.eraser);
   }
 
   void _updateToolCursorOverlay(Offset workspacePosition) {

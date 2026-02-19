@@ -379,6 +379,9 @@ mixin _PaintingBoardInteractionMixin
         _isEyedropperSampling = false;
         _lastEyedropperSample = null;
       }
+      if (tool != CanvasTool.eraser) {
+        _applePencilLastNonEraserTool = tool;
+      }
       _activeTool = tool;
       if (_cursorRequiresOverlay) {
         final Offset? pointer = _lastWorkspacePointer;

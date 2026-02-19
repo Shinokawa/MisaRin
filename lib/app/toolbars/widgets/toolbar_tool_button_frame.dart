@@ -1,4 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/gestures.dart';
 
 typedef ToolbarToolButtonBuilder =
     Widget Function(BuildContext context, Color iconColor, bool isHovered);
@@ -23,6 +25,34 @@ class _ToolbarToolButtonFrameState extends State<ToolbarToolButtonFrame> {
   static const double _buttonExtent = 48;
 
   bool _hovered = false;
+  int _lastStylusPressEpochMs = 0;
+
+  bool _shouldTriggerOnPointerDown(PointerDownEvent event) {
+    final PointerDeviceKind kind = event.kind;
+    if (kind == PointerDeviceKind.stylus ||
+        kind == PointerDeviceKind.invertedStylus ||
+        kind == PointerDeviceKind.touch) {
+      return true;
+    }
+    if (kind == PointerDeviceKind.mouse || kind == PointerDeviceKind.trackpad) {
+      final bool primaryPressed =
+          (event.buttons & kPrimaryMouseButton) != 0 || event.buttons == 0;
+      if (!primaryPressed) {
+        return false;
+      }
+      return defaultTargetPlatform == TargetPlatform.iOS;
+    }
+    return false;
+  }
+
+  void _triggerPressed() {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastStylusPressEpochMs < 180) {
+      return;
+    }
+    _lastStylusPressEpochMs = now;
+    widget.onPressed();
+  }
 
   void _handleHover(bool hovered) {
     if (_hovered == hovered) {
@@ -85,20 +115,29 @@ class _ToolbarToolButtonFrameState extends State<ToolbarToolButtonFrame> {
       cursor: SystemMouseCursors.click,
       onEnter: (_) => _handleHover(true),
       onExit: (_) => _handleHover(false),
-      child: GestureDetector(
-        onTap: widget.onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOut,
-          width: _buttonExtent,
-          height: _buttonExtent,
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: borderColor, width: 1.5),
-            boxShadow: shadows,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (event) {
+          if (_shouldTriggerOnPointerDown(event)) {
+            _triggerPressed();
+          }
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _triggerPressed,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            width: _buttonExtent,
+            height: _buttonExtent,
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: borderColor, width: 1.5),
+              boxShadow: shadows,
+            ),
+            child: widget.builder(context, iconColor, _hovered),
           ),
-          child: widget.builder(context, iconColor, _hovered),
         ),
       ),
     );

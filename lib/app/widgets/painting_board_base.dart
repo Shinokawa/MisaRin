@@ -958,6 +958,31 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     unawaited(AppPreferences.save());
   }
 
+  bool _resetViewportToProjectDefault() {
+    _viewport.reset();
+    _viewportInitialized = false;
+
+    final Size workspaceSize = _workspaceSize;
+    final Size canvasSize = _canvasSize;
+    final bool hasValidWorkspace =
+        workspaceSize.width > 0 &&
+        workspaceSize.height > 0 &&
+        workspaceSize.width.isFinite &&
+        workspaceSize.height.isFinite;
+    final bool hasValidCanvas =
+        canvasSize.width > 0 &&
+        canvasSize.height > 0 &&
+        canvasSize.width.isFinite &&
+        canvasSize.height.isFinite;
+
+    if (!hasValidWorkspace || !hasValidCanvas) {
+      return false;
+    }
+
+    _initializeViewportIfNeeded();
+    return true;
+  }
+
   void _initializeViewportIfNeeded() {
     if (_viewportInitialized) {
       return;

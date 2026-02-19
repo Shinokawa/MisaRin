@@ -219,6 +219,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           onStreamlineChanged: _updateStreamlineStrength,
           stylusPressureEnabled: _stylusPressureEnabled,
           onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
+          touchDrawingEnabled: _touchDrawingEnabled,
+          onTouchDrawingEnabledChanged: _updateTouchDrawingEnabled,
           simulatePenPressure: _simulatePenPressure,
           onSimulatePenPressureChanged: _updatePenPressureSimulation,
           penPressureProfile: _penPressureProfile,
@@ -351,6 +353,10 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
               onKeyEvent: _handleWorkspaceKeyEvent,
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
+                supportedDevices: const <PointerDeviceKind>{
+                  PointerDeviceKind.touch,
+                  PointerDeviceKind.trackpad,
+                },
                 onScaleStart: _handleScaleStart,
                 onScaleUpdate: _handleScaleUpdate,
                 onScaleEnd: _handleScaleEnd,

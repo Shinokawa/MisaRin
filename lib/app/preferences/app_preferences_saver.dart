@@ -139,6 +139,7 @@ Future<void> _saveAppPreferences() async {
     (newCanvasBackgroundColorValue >> 8) & 0xff,
     (newCanvasBackgroundColorValue >> 16) & 0xff,
     (newCanvasBackgroundColorValue >> 24) & 0xff,
+    prefs.touchDrawingEnabled ? 1 : 0,
   ]);
   await _writePreferencesPayload(payload);
 }

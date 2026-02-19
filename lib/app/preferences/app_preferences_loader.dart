@@ -104,6 +104,10 @@ Future<AppPreferences> _loadAppPreferences() async {
                         (bytes[60] << 24),
                   )
                 : _defaultNewCanvasBackgroundColor;
+            final bool decodedTouchDrawingEnabled =
+              version >= 41 && bytes.length >= 62
+              ? bytes[61] != 0
+              : _defaultTouchDrawingEnabled;
             final bool decodedHollowStrokeEnabled;
             final double decodedHollowStrokeRatio;
             final bool decodedHollowStrokeEraseOccludedParts;
@@ -159,6 +163,7 @@ Future<AppPreferences> _loadAppPreferences() async {
               bucketFillGap: decodedBucketFillGap,
               magicWandTolerance: _clampToleranceValue(bytes[21]),
               brushToolsEraserMode: bytes[22] != 0,
+              touchDrawingEnabled: decodedTouchDrawingEnabled,
               bucketAntialiasLevel: _decodeAntialiasLevel(bytes[23]),
               showFpsOverlay: bytes[24] != 0,
               workspaceLayout: _decodeWorkspaceLayoutPreference(bytes[25]),

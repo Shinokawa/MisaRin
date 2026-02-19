@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/gestures.dart';
 
 class RedoToolButton extends StatefulWidget {
   const RedoToolButton({
@@ -16,6 +17,21 @@ class RedoToolButton extends StatefulWidget {
 
 class _RedoToolButtonState extends State<RedoToolButton> {
   bool _hovered = false;
+  int _lastStylusPressEpochMs = 0;
+
+  bool _isNonMousePointer(PointerDeviceKind kind) {
+    return kind != PointerDeviceKind.mouse &&
+        kind != PointerDeviceKind.trackpad;
+  }
+
+  void _triggerPressed() {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastStylusPressEpochMs < 180) {
+      return;
+    }
+    _lastStylusPressEpochMs = now;
+    widget.onPressed();
+  }
 
   void _handleHover(bool hovered) {
     if (_hovered == hovered) {
@@ -95,20 +111,31 @@ class _RedoToolButtonState extends State<RedoToolButton> {
           _handleHover(false);
         }
       },
-      child: GestureDetector(
-        onTap: enabled ? widget.onPressed : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOut,
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: borderColor, width: 1.5),
-            boxShadow: shadows,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: enabled
+            ? (event) {
+                if (_isNonMousePointer(event.kind)) {
+                  _triggerPressed();
+                }
+              }
+            : null,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: enabled ? _triggerPressed : null,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: borderColor, width: 1.5),
+              boxShadow: shadows,
+            ),
+            child: Icon(FluentIcons.redo, color: iconColor, size: 20),
           ),
-          child: Icon(FluentIcons.redo, color: iconColor, size: 20),
         ),
       ),
     );

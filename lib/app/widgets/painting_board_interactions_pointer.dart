@@ -2,6 +2,7 @@ part of 'painting_board.dart';
 
 extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin {
   Future<void> _handlePointerDownImpl(PointerDownEvent event) async {
+    _trackStylusContact(event);
     if (!_isPrimaryPointer(event)) {
       return;
     }
@@ -256,6 +257,7 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
   }
 
   void _handlePointerMoveImpl(PointerMoveEvent event) {
+    _trackStylusContact(event);
     final bool backendStrokeActive = _backendActivePointer == event.pointer;
     if (!_isPrimaryPointer(event) && !backendStrokeActive) {
       return;
@@ -394,6 +396,7 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
   }
 
   Future<void> _handlePointerUpImpl(PointerUpEvent event) async {
+    _trackStylusContact(event);
     if (_layerTransformModeActive) {
       _handleLayerTransformPointerUp();
       return;
@@ -482,6 +485,7 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
   }
 
   void _handlePointerCancelImpl(PointerCancelEvent event) {
+    _trackStylusContact(event);
     if (_layerTransformModeActive) {
       _handleLayerTransformPointerCancel();
       return;
@@ -737,9 +741,15 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
     if (!shouldScale) {
       return;
     }
+    _scaleGestureStartEpochMs = DateTime.now().millisecondsSinceEpoch;
+    _scaleGestureMaxPointerCount = details.pointerCount;
+    _scaleGestureAccumulatedFocalDistance = 0.0;
+    _scaleGestureMaxScaleDelta = 0.0;
+    _scaleGestureMaxRotationDelta = 0.0;
     _scaleGestureInitialScale = _viewport.scale;
+    _scaleGestureInitialRotation = _viewport.rotation;
     final Offset focalPoint = box.globalToLocal(details.focalPoint);
-    _applyZoom(_viewport.scale, focalPoint);
+    _scaleGestureAnchorBoardLocal = _toBoardLocal(focalPoint);
   }
 
   void _handleScaleUpdateImpl(ScaleUpdateDetails details) {
@@ -751,12 +761,103 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
       return;
     }
     final Offset focalPoint = box.globalToLocal(details.focalPoint);
-    final double targetScale = _scaleGestureInitialScale * details.scale;
-    _applyZoom(targetScale, focalPoint);
+    final Offset? anchorBoardLocal = _scaleGestureAnchorBoardLocal;
+    if (anchorBoardLocal == null) {
+      return;
+    }
+    if (details.pointerCount > _scaleGestureMaxPointerCount) {
+      _scaleGestureMaxPointerCount = details.pointerCount;
+    }
+    _scaleGestureAccumulatedFocalDistance += details.focalPointDelta.distance;
+    _scaleGestureMaxScaleDelta = math.max(
+      _scaleGestureMaxScaleDelta,
+      (details.scale - 1.0).abs(),
+    );
+    _scaleGestureMaxRotationDelta = math.max(
+      _scaleGestureMaxRotationDelta,
+      details.rotation.abs(),
+    );
+    final double targetScale = _viewport.clampScale(
+      _scaleGestureInitialScale * details.scale,
+    );
+    double targetRotation = _scaleGestureInitialRotation + details.rotation;
+    if (targetRotation.isNaN || targetRotation.isInfinite) {
+      targetRotation = _viewport.rotation;
+    }
+
+    final Offset base = _baseOffsetForScale(targetScale);
+    final Offset scaledPoint = anchorBoardLocal * targetScale;
+    final Offset center = Offset(
+      _canvasSize.width * targetScale / 2,
+      _canvasSize.height * targetScale / 2,
+    );
+    final double dx = scaledPoint.dx - center.dx;
+    final double dy = scaledPoint.dy - center.dy;
+    final double cosA = math.cos(targetRotation);
+    final double sinA = math.sin(targetRotation);
+    final Offset rotatedPoint = Offset(
+      dx * cosA - dy * sinA + center.dx,
+      dx * sinA + dy * cosA + center.dy,
+    );
+    final Offset targetTopLeft = focalPoint - rotatedPoint;
+    final Offset targetOffset = targetTopLeft - base;
+
+    setState(() {
+      _viewport.setScale(targetScale);
+      _viewport.setRotation(targetRotation);
+      _viewport.setOffset(targetOffset);
+    });
+    _notifyViewInfoChanged();
   }
 
   void _handleScaleEndImpl(ScaleEndDetails details) {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    final int elapsedMs = _scaleGestureStartEpochMs > 0
+        ? (now - _scaleGestureStartEpochMs)
+        : 0;
+    final bool isTwoFingerGesture = _scaleGestureMaxPointerCount >= 2;
+
+    final bool tapLikeTwoFinger =
+        isTwoFingerGesture &&
+        elapsedMs <= 320 &&
+        _scaleGestureAccumulatedFocalDistance <= 26.0 &&
+        _scaleGestureMaxScaleDelta <= 0.08 &&
+        _scaleGestureMaxRotationDelta <= 0.20;
+
+    final Offset v = details.velocity.pixelsPerSecond;
+    final double velocity = v.distance;
+    final bool quickTwoFingerSwipe =
+        isTwoFingerGesture &&
+        !tapLikeTwoFinger &&
+        _scaleGestureAccumulatedFocalDistance >= 120.0 &&
+        velocity >= 1800.0;
+
+    if (tapLikeTwoFinger) {
+      if (now - _twoFingerLastTapEpochMs <= 360) {
+        _twoFingerLastTapEpochMs = 0;
+        _handleUndo();
+      } else {
+        _twoFingerLastTapEpochMs = now;
+      }
+    }
+
+    if (quickTwoFingerSwipe) {
+      bool viewInfoNotified = false;
+      setState(() {
+        viewInfoNotified = _resetViewportToProjectDefault();
+      });
+      if (!viewInfoNotified) {
+        _notifyViewInfoChanged();
+      }
+    }
+
     _isScalingGesture = false;
+    _scaleGestureAnchorBoardLocal = null;
+    _scaleGestureStartEpochMs = 0;
+    _scaleGestureMaxPointerCount = 0;
+    _scaleGestureAccumulatedFocalDistance = 0.0;
+    _scaleGestureMaxScaleDelta = 0.0;
+    _scaleGestureMaxRotationDelta = 0.0;
   }
 
   void _handleUndoImpl() {
