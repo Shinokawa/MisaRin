@@ -1188,6 +1188,7 @@ fn render_thread_main(
     let mut selection_mask_active = false;
     let mut spray_active_layer: Option<u32> = None;
     let mut pending_present = false;
+    let mut pending_present_since: Option<Instant> = None;
 
     loop {
         match &present {
@@ -1940,21 +1941,44 @@ fn render_thread_main(
                 }
 
                 if needs_render {
+                    if !pending_present {
+                        pending_present_since = Some(Instant::now());
+                    }
                     pending_present = true;
                 }
 
                 if pending_present {
                     if let Some(target) = &present {
-                        let block_present = if cfg!(target_os = "windows") {
+                        let mut block_present = if cfg!(target_os = "windows") {
                             frame_in_flight.load(Ordering::Acquire)
                                 || frame_ready.load(Ordering::Acquire)
                         } else {
                             false
                         };
+                        let mut forced_present = false;
+                        if block_present && cfg!(target_os = "windows") {
+                            if let Some(since) = pending_present_since {
+                                if since.elapsed() >= Duration::from_millis(100) {
+                                    block_present = false;
+                                    forced_present = true;
+                                }
+                            }
+                        }
                         if block_present {
                             // Avoid overwriting a frame that is still in-flight or unconsumed.
                         } else {
                             pending_present = false;
+                            pending_present_since = None;
+                            if forced_present {
+                                debug::log(
+                                    LogLevel::Warn,
+                                    format_args!(
+                                        "present render forced after stalled ready frame seq={} active_layer={}",
+                                        debug::next_seq(),
+                                        active_layer_index,
+                                    ),
+                                );
+                            }
                             if debug::level() >= LogLevel::Info {
                                 debug::log(
                                     LogLevel::Info,
