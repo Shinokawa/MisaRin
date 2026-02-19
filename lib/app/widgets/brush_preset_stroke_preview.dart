@@ -336,6 +336,15 @@ Future<ui.Image?> _buildPreviewImage({
       );
     }
 
+    if (_kPreviewLog) {
+      final _AlphaStats stats = _computeAlphaStats(surface.pixels);
+      debugPrint(
+        '[brush-preview] alpha id=${preset.id} aa=$antialias '
+        'nonZero=${stats.nonZero} partial=${stats.partial} '
+        'min=${stats.min} max=${stats.max}',
+      );
+    }
+
     if (surface.isClean) {
       return null;
     }
@@ -634,6 +643,53 @@ double _strokeStampSpacing(double radius, double spacing) {
   }
   s = s.clamp(0.02, 2.5);
   return math.max(r * 2.0 * s, 0.1);
+}
+
+class _AlphaStats {
+  const _AlphaStats({
+    required this.nonZero,
+    required this.partial,
+    required this.min,
+    required this.max,
+  });
+
+  final int nonZero;
+  final int partial;
+  final int min;
+  final int max;
+}
+
+_AlphaStats _computeAlphaStats(Uint32List pixels) {
+  int nonZero = 0;
+  int partial = 0;
+  int minAlpha = 255;
+  int maxAlpha = 0;
+  for (final int argb in pixels) {
+    final int alpha = (argb >> 24) & 0xff;
+    if (alpha == 0) {
+      continue;
+    }
+    nonZero += 1;
+    if (alpha < minAlpha) {
+      minAlpha = alpha;
+    }
+    if (alpha > maxAlpha) {
+      maxAlpha = alpha;
+    }
+    if (alpha < 255) {
+      partial += 1;
+    }
+  }
+  if (nonZero == 0) {
+    minAlpha = 0;
+    maxAlpha = 0;
+  }
+  return _AlphaStats(
+    nonZero: nonZero,
+    partial: partial,
+    min: minAlpha,
+    max: maxAlpha,
+  );
 }
 
 Uint8List _argbToRgba(Uint32List pixels) {

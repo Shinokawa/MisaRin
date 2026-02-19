@@ -97,6 +97,13 @@ pub extern "C" fn engine_create_present_dxgi_surface(
         return std::ptr::null_mut();
     };
 
+    debug::log(
+        LogLevel::Info,
+        format_args!(
+            "dxgi_surface request handle={handle} size={width}x{height}"
+        ),
+    );
+
     let (tx, rx) = mpsc::channel();
     if entry
         .cmd_tx
@@ -107,12 +114,43 @@ pub extern "C" fn engine_create_present_dxgi_surface(
         })
         .is_err()
     {
+        debug::log(
+            LogLevel::Warn,
+            format_args!(
+                "dxgi_surface request failed (send) handle={handle} size={width}x{height}"
+            ),
+        );
         return std::ptr::null_mut();
     }
 
     match rx.recv() {
-        Ok(Some(shared_handle)) => shared_handle as *mut c_void,
-        _ => std::ptr::null_mut(),
+        Ok(Some(shared_handle)) => {
+            debug::log(
+                LogLevel::Info,
+                format_args!(
+                    "dxgi_surface ready handle={handle} shared=0x{shared_handle:x}"
+                ),
+            );
+            shared_handle as *mut c_void
+        }
+        Ok(None) => {
+            debug::log(
+                LogLevel::Warn,
+                format_args!(
+                    "dxgi_surface failed (null) handle={handle} size={width}x{height}"
+                ),
+            );
+            std::ptr::null_mut()
+        }
+        Err(_) => {
+            debug::log(
+                LogLevel::Warn,
+                format_args!(
+                    "dxgi_surface failed (recv) handle={handle} size={width}x{height}"
+                ),
+            );
+            std::ptr::null_mut()
+        }
     }
 }
 

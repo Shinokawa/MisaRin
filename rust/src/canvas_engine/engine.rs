@@ -2272,6 +2272,12 @@ fn handle_engine_command(
             if let Some(existing) = present.as_mut() {
                 if existing.width == width && existing.height == height {
                     if let Some(handle) = existing.take_dxgi_handle() {
+                        debug::log(
+                            LogLevel::Info,
+                            format_args!(
+                                "AttachPresentDxgi reuse size={width}x{height} shared=0x{handle:x}"
+                            ),
+                        );
                         let _ = reply.send(Some(handle));
                         return EngineCommandOutcome {
                             stop: false,
@@ -2287,6 +2293,14 @@ fn handle_engine_command(
                     let handle = target.take_dxgi_handle();
                     *present = Some(target);
                     if handle.is_some() {
+                        if let Some(shared) = handle {
+                            debug::log(
+                                LogLevel::Info,
+                                format_args!(
+                                    "AttachPresentDxgi ok size={width}x{height} shared=0x{shared:x}"
+                                ),
+                            );
+                        }
                         // Initialize layers so the first composite is deterministic.
                         // Layer 0 is the background fill layer (default white), others start transparent.
                         layer_uniform.resize(*layer_count, None);

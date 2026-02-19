@@ -2,6 +2,8 @@ use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use crate::gpu::debug::{self, LogLevel};
+
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 use metal::foreign_types::ForeignType;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -369,6 +371,7 @@ pub(crate) fn signal_frame_ready(
     frame_ready: Arc<AtomicBool>,
     frame_in_flight: Arc<AtomicBool>,
 ) {
+    debug::log(LogLevel::Verbose, format_args!("frame_ready queued"));
     // Mark in-flight; only flip to ready once GPU work completes.
     frame_ready.store(false, Ordering::Release);
     frame_in_flight.store(true, Ordering::Release);
@@ -377,6 +380,7 @@ pub(crate) fn signal_frame_ready(
     queue.on_submitted_work_done(move || {
         frame_in_flight_done.store(false, Ordering::Release);
         frame_ready_done.store(true, Ordering::Release);
+        debug::log(LogLevel::Verbose, format_args!("frame_ready done"));
     });
 }
 
