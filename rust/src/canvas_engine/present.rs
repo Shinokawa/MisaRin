@@ -320,9 +320,10 @@ impl PresentRenderer {
         bind_group: &wgpu::BindGroup,
         present_view: &wgpu::TextureView,
         frame_ready: Arc<AtomicBool>,
+        frame_in_flight: Arc<AtomicBool>,
     ) {
         self.render_base(device, queue, bind_group, present_view);
-        signal_frame_ready(queue, frame_ready);
+        signal_frame_ready(queue, frame_ready, frame_in_flight);
     }
 
     pub(crate) fn render_base(
@@ -358,10 +359,18 @@ impl PresentRenderer {
     }
 }
 
-pub(crate) fn signal_frame_ready(queue: &wgpu::Queue, frame_ready: Arc<AtomicBool>) {
-    frame_ready.store(true, Ordering::Release);
+pub(crate) fn signal_frame_ready(
+    queue: &wgpu::Queue,
+    frame_ready: Arc<AtomicBool>,
+    frame_in_flight: Arc<AtomicBool>,
+) {
+    // Mark in-flight; only flip to ready once GPU work completes.
+    frame_ready.store(false, Ordering::Release);
+    frame_in_flight.store(true, Ordering::Release);
     let frame_ready_done = Arc::clone(&frame_ready);
+    let frame_in_flight_done = Arc::clone(&frame_in_flight);
     queue.on_submitted_work_done(move || {
+        frame_in_flight_done.store(false, Ordering::Release);
         frame_ready_done.store(true, Ordering::Release);
     });
 }

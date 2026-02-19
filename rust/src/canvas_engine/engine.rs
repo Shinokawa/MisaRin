@@ -233,6 +233,7 @@ pub(crate) struct EngineInputBatch {
 pub(crate) struct EngineEntry {
     pub(crate) mtl_device_ptr: usize,
     pub(crate) frame_ready: Arc<AtomicBool>,
+    pub(crate) frame_in_flight: Arc<AtomicBool>,
     pub(crate) cmd_tx: mpsc::Sender<EngineCommand>,
     pub(crate) input_tx: mpsc::Sender<EngineInputBatch>,
     pub(crate) input_queue_len: Arc<AtomicU64>,
@@ -1070,6 +1071,7 @@ fn spawn_render_thread(
     cmd_rx: mpsc::Receiver<EngineCommand>,
     input_rx: mpsc::Receiver<EngineInputBatch>,
     frame_ready: Arc<AtomicBool>,
+    frame_in_flight: Arc<AtomicBool>,
     input_queue_len: Arc<AtomicU64>,
     canvas_width: u32,
     canvas_height: u32,
@@ -1084,6 +1086,7 @@ fn spawn_render_thread(
                 cmd_rx,
                 input_rx,
                 frame_ready,
+                frame_in_flight,
                 input_queue_len,
                 canvas_width,
                 canvas_height,
@@ -1098,6 +1101,7 @@ fn render_thread_main(
     cmd_rx: mpsc::Receiver<EngineCommand>,
     input_rx: mpsc::Receiver<EngineInputBatch>,
     frame_ready: Arc<AtomicBool>,
+    frame_in_flight: Arc<AtomicBool>,
     input_queue_len: Arc<AtomicU64>,
     canvas_width: u32,
     canvas_height: u32,
@@ -1183,6 +1187,7 @@ fn render_thread_main(
     let mut preview_state: Option<PreviewStrokeState> = None;
     let mut selection_mask_active = false;
     let mut spray_active_layer: Option<u32> = None;
+    let mut pending_present = false;
 
     loop {
         match &present {
@@ -1242,6 +1247,7 @@ fn render_thread_main(
                                 &present_bind_group,
                                 &target.view,
                                 Arc::clone(&frame_ready),
+                                Arc::clone(&frame_in_flight),
                             );
                         }
                     }
@@ -1934,77 +1940,102 @@ fn render_thread_main(
                 }
 
                 if needs_render {
+                    pending_present = true;
+                }
+
+                if pending_present {
                     if let Some(target) = &present {
-                        if debug::level() >= LogLevel::Info {
-                            debug::log(
-                                LogLevel::Info,
-                                format_args!(
-                                    "present render call seq={} active_layer={} streamline_active={}",
-                                    debug::next_seq(),
-                                    active_layer_index,
-                                    streamline_animation.is_some()
-                                ),
-                            );
-                        }
-                        if let Some(state) = preview_state.as_ref() {
-                            present_renderer.render_base(
-                                device.as_ref(),
-                                queue.as_ref(),
-                                &present_bind_group,
-                                &target.view,
-                            );
-                            let layer_idx = state.layer_index as usize;
-                            let layer_visible_value =
-                                layer_visible.get(layer_idx).copied().unwrap_or(true);
-                            let layer_opacity_value =
-                                layer_opacity.get(layer_idx).copied().unwrap_or(1.0);
-                            if layer_visible_value && layer_opacity_value > 0.0001 {
-                                let preview_points: &[(
-                                    Point2D,
-                                    f32,
-                                )] = if let Some(animation) = streamline_animation.as_ref() {
-                                    if animation.scratch.is_empty() {
-                                        state.points.as_slice()
+                        let block_present = if cfg!(target_os = "windows") {
+                            frame_in_flight.load(Ordering::Acquire)
+                                || frame_ready.load(Ordering::Acquire)
+                        } else {
+                            false
+                        };
+                        if block_present {
+                            // Avoid overwriting a frame that is still in-flight or unconsumed.
+                        } else {
+                            pending_present = false;
+                            if debug::level() >= LogLevel::Info {
+                                debug::log(
+                                    LogLevel::Info,
+                                    format_args!(
+                                        "present render call seq={} active_layer={} streamline_active={}",
+                                        debug::next_seq(),
+                                        active_layer_index,
+                                        streamline_animation.is_some()
+                                    ),
+                                );
+                            }
+                            if let Some(state) = preview_state.as_ref() {
+                                present_renderer.render_base(
+                                    device.as_ref(),
+                                    queue.as_ref(),
+                                    &present_bind_group,
+                                    &target.view,
+                                );
+                                let layer_idx = state.layer_index as usize;
+                                let layer_visible_value =
+                                    layer_visible.get(layer_idx).copied().unwrap_or(true);
+                                let layer_opacity_value =
+                                    layer_opacity.get(layer_idx).copied().unwrap_or(1.0);
+                                if layer_visible_value && layer_opacity_value > 0.0001 {
+                                    let preview_points: &[(
+                                        Point2D,
+                                        f32,
+                                    )] = if let Some(animation) = streamline_animation.as_ref() {
+                                        if animation.scratch.is_empty() {
+                                            state.points.as_slice()
+                                        } else {
+                                            animation.scratch.as_slice()
+                                        }
                                     } else {
-                                        animation.scratch.as_slice()
-                                    }
-                                } else {
-                                    state.points.as_slice()
-                                };
-                                if !preview_points.is_empty() {
-                                    let segments =
-                                        build_preview_segments(preview_points, &state.brush_settings);
-                                    if !segments.is_empty() {
-                                        let preview = preview_renderer
-                                            .get_or_insert_with(|| PreviewRenderer::new(device.as_ref()));
-                                        let config = build_preview_config(
+                                        state.points.as_slice()
+                                    };
+                                    if !preview_points.is_empty() {
+                                        let segments = build_preview_segments(
+                                            preview_points,
                                             &state.brush_settings,
-                                            canvas_width,
-                                            canvas_height,
-                                            view_flags,
-                                            layer_opacity_value,
                                         );
-                                        preview.render(
-                                            device.as_ref(),
-                                            queue.as_ref(),
-                                            &target.view,
-                                            config,
-                                            &segments,
-                                            state.use_accumulate,
-                                        );
+                                        if !segments.is_empty() {
+                                            let preview = preview_renderer.get_or_insert_with(
+                                                || PreviewRenderer::new(device.as_ref()),
+                                            );
+                                            let config = build_preview_config(
+                                                &state.brush_settings,
+                                                canvas_width,
+                                                canvas_height,
+                                                view_flags,
+                                                layer_opacity_value,
+                                            );
+                                            preview.render(
+                                                device.as_ref(),
+                                                queue.as_ref(),
+                                                &target.view,
+                                                config,
+                                                &segments,
+                                                state.use_accumulate,
+                                            );
+                                        }
                                     }
                                 }
+                                signal_frame_ready(
+                                    queue.as_ref(),
+                                    Arc::clone(&frame_ready),
+                                    Arc::clone(&frame_in_flight),
+                                );
+                            } else {
+                                present_renderer.render(
+                                    device.as_ref(),
+                                    queue.as_ref(),
+                                    &present_bind_group,
+                                    &target.view,
+                                    Arc::clone(&frame_ready),
+                                    Arc::clone(&frame_in_flight),
+                                );
                             }
-                            signal_frame_ready(queue.as_ref(), Arc::clone(&frame_ready));
-                        } else {
-                            present_renderer.render(
-                                device.as_ref(),
-                                queue.as_ref(),
-                                &present_bind_group,
-                                &target.view,
-                                Arc::clone(&frame_ready),
-                            );
                         }
+                    } else {
+                        pending_present = false;
                     }
                 }
             }
@@ -5380,6 +5411,7 @@ pub(crate) fn create_engine(width: u32, height: u32) -> Result<u64, String> {
     let (input_tx, input_rx) = mpsc::channel();
     let input_queue_len = Arc::new(AtomicU64::new(0));
     let frame_ready = Arc::new(AtomicBool::new(false));
+    let frame_in_flight = Arc::new(AtomicBool::new(false));
     spawn_render_thread(
         Arc::clone(&ctx.device),
         Arc::clone(&ctx.queue),
@@ -5387,6 +5419,7 @@ pub(crate) fn create_engine(width: u32, height: u32) -> Result<u64, String> {
         cmd_rx,
         input_rx,
         Arc::clone(&frame_ready),
+        Arc::clone(&frame_in_flight),
         Arc::clone(&input_queue_len),
         width,
         height,
@@ -5401,6 +5434,7 @@ pub(crate) fn create_engine(width: u32, height: u32) -> Result<u64, String> {
         EngineEntry {
             mtl_device_ptr,
             frame_ready,
+            frame_in_flight,
             cmd_tx,
             input_tx,
             input_queue_len,
@@ -5419,6 +5453,7 @@ pub(crate) fn lookup_engine(handle: u64) -> Option<EngineEntry> {
     Some(EngineEntry {
         mtl_device_ptr: entry.mtl_device_ptr,
         frame_ready: Arc::clone(&entry.frame_ready),
+        frame_in_flight: Arc::clone(&entry.frame_in_flight),
         cmd_tx: entry.cmd_tx.clone(),
         input_tx: entry.input_tx.clone(),
         input_queue_len: Arc::clone(&entry.input_queue_len),

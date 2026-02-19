@@ -18,6 +18,10 @@ import '../debug/brush_preset_timeline.dart';
 import '../../src/rust/rust_cpu_brush_ffi.dart';
 
 const double _kPreviewPadding = 4.0;
+const bool _kPreviewLog = bool.fromEnvironment(
+  'MISA_RIN_BRUSH_PREVIEW_LOG',
+  defaultValue: false,
+);
 
 class BrushPresetStrokePreview extends StatefulWidget {
   const BrushPresetStrokePreview({
@@ -124,6 +128,15 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
     if (nextSignature == _signature) {
       return;
     }
+    if (_kPreviewLog) {
+      debugPrint(
+        '[brush-preview] schedule id=${preset.id} '
+        'size=${pixelWidth}x${pixelHeight} scale=$scale '
+        'aa=${preset.antialiasLevel} snap=${preset.snapToPixel} '
+        'hardness=${preset.hardness} flow=${preset.flow} '
+        'shape=${preset.shape} rustSupported=${RustCpuBrushFfi.instance.isSupported}',
+      );
+    }
     _signature = nextSignature;
     if (BrushPresetTimeline.enabled) {
       BrushPresetTimeline.mark(
@@ -160,6 +173,12 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
       BrushPresetTimeline.mark(
         'preview_done id=${preset.id} ${pixelWidth}x${pixelHeight} '
         't=${stopwatch.elapsedMilliseconds}ms image=${image != null}',
+      );
+    }
+    if (_kPreviewLog) {
+      debugPrint(
+        '[brush-preview] done id=${preset.id} image=${image != null} '
+        'aa=${preset.antialiasLevel} snap=${preset.snapToPixel}',
       );
     }
     if (!mounted || token != _renderToken) {

@@ -6,6 +6,12 @@
 #include <flutter_plugin_registrar.h>
 #include <flutter_texture_registrar.h>
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <Windows.h>
+#include <dwmapi.h>
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -46,6 +52,9 @@ constexpr int kFallbackLayerCount = 1;
 constexpr uint32_t kFallbackBackground = 0xFFFFFFFF;
 constexpr int kMaxDimension = 16384;
 constexpr int kMaxLayerCount = 1024;
+constexpr int64_t kFallbackIntervalUs = 8000;
+constexpr int64_t kMinIntervalUs = 4000;
+constexpr int64_t kMaxIntervalUs = 33333;
 
 std::optional<int64_t> GetIntValue(const flutter::EncodableValue& value) {
   if (const auto* int32_value = std::get_if<int32_t>(&value)) {
@@ -137,6 +146,37 @@ struct GpuSurfaceBinding {
 void ReleaseBinding(void* user_data) {
   auto* keepalive = static_cast<std::shared_ptr<GpuSurfaceBinding>*>(user_data);
   delete keepalive;
+}
+
+int64_t ClampIntervalUs(int64_t value) {
+  return std::clamp(value, kMinIntervalUs, kMaxIntervalUs);
+}
+
+int64_t QueryRefreshIntervalUs() {
+  DWM_TIMING_INFO timing_info{};
+  timing_info.cbSize = sizeof(timing_info);
+  if (SUCCEEDED(DwmGetCompositionTimingInfo(nullptr, &timing_info))) {
+    const uint32_t num = timing_info.rateRefresh.uiNumerator;
+    const uint32_t den = timing_info.rateRefresh.uiDenominator;
+    if (num > 0 && den > 0) {
+      const double hz = static_cast<double>(num) / static_cast<double>(den);
+      if (hz > 1.0) {
+        return ClampIntervalUs(
+            static_cast<int64_t>(1'000'000.0 / hz));
+      }
+    }
+  }
+
+  DEVMODE dev_mode{};
+  dev_mode.dmSize = sizeof(dev_mode);
+  if (EnumDisplaySettings(nullptr, ENUM_CURRENT_SETTINGS, &dev_mode)) {
+    if (dev_mode.dmDisplayFrequency > 1) {
+      return ClampIntervalUs(
+          static_cast<int64_t>(1'000'000 / dev_mode.dmDisplayFrequency));
+    }
+  }
+
+  return kFallbackIntervalUs;
 }
 
 }  // namespace
@@ -415,6 +455,10 @@ struct RustLibMisaRinPlugin::Impl {
   }
 
   void FrameLoop() {
+    int64_t interval_us = QueryRefreshIntervalUs();
+    auto next_refresh_check = std::chrono::steady_clock::now();
+    auto next_tick = std::chrono::steady_clock::now() +
+                     std::chrono::microseconds(interval_us);
     while (running_.load()) {
       std::vector<std::shared_ptr<SurfaceState>> entries;
       {
@@ -433,7 +477,16 @@ struct RustLibMisaRinPlugin::Impl {
               texture_registrar_, texture_id);
         }
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(8));
+      auto now = std::chrono::steady_clock::now();
+      if (now >= next_refresh_check) {
+        interval_us = QueryRefreshIntervalUs();
+        next_refresh_check = now + std::chrono::seconds(1);
+      }
+      if (next_tick <= now) {
+        next_tick = now + std::chrono::microseconds(interval_us);
+      }
+      std::this_thread::sleep_until(next_tick);
+      next_tick += std::chrono::microseconds(interval_us);
     }
   }
 
