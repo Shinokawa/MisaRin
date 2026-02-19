@@ -33,10 +33,28 @@ function(apply_cargokit target manifest_dir lib_name any_symbol_name)
         set(CARGOKIT_TARGET_PLATFORM "windows-x64")
     endif()
 
+    # Resolve the manifest directory to avoid symlink + ".." normalization issues
+    # when plugins are built from .plugin_symlinks.
+    if (IS_ABSOLUTE "${manifest_dir}")
+        set(CARGOKIT_MANIFEST_DIR_RAW "${manifest_dir}")
+    else()
+        set(CARGOKIT_MANIFEST_DIR_RAW "${CMAKE_CURRENT_SOURCE_DIR}/${manifest_dir}")
+    endif()
+    get_filename_component(CARGOKIT_MANIFEST_DIR_REAL "${CARGOKIT_MANIFEST_DIR_RAW}" REALPATH)
+    if (CARGOKIT_MANIFEST_DIR_REAL)
+        set(CARGOKIT_MANIFEST_DIR "${CARGOKIT_MANIFEST_DIR_REAL}")
+    else()
+        set(CARGOKIT_MANIFEST_DIR "${CARGOKIT_MANIFEST_DIR_RAW}")
+    endif()
+    if(WIN32)
+        # REALPATH does not properly resolve symlinks on windows :-/
+        execute_process(COMMAND powershell -ExecutionPolicy Bypass -File "${CMAKE_CURRENT_LIST_DIR}/resolve_symlinks.ps1" "${CARGOKIT_MANIFEST_DIR}" OUTPUT_VARIABLE CARGOKIT_MANIFEST_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
+    endif()
+
     set(CARGOKIT_ENV
         "CARGOKIT_CMAKE=${CMAKE_COMMAND}"
         "CARGOKIT_CONFIGURATION=$<CONFIG>"
-        "CARGOKIT_MANIFEST_DIR=${CMAKE_CURRENT_SOURCE_DIR}/${manifest_dir}"
+        "CARGOKIT_MANIFEST_DIR=${CARGOKIT_MANIFEST_DIR}"
         "CARGOKIT_TARGET_TEMP_DIR=${CARGOKIT_TEMP_DIR}"
         "CARGOKIT_OUTPUT_DIR=${CARGOKIT_OUTPUT_DIR}"
         "CARGOKIT_TARGET_PLATFORM=${CARGOKIT_TARGET_PLATFORM}"
@@ -44,10 +62,10 @@ function(apply_cargokit target manifest_dir lib_name any_symbol_name)
         "CARGOKIT_ROOT_PROJECT_DIR=${CMAKE_SOURCE_DIR}"
     )
 
-    set(CARGOKIT_MANIFEST_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${manifest_dir}/Cargo.toml")
-    set(CARGOKIT_LOCK_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${manifest_dir}/Cargo.lock")
+    set(CARGOKIT_MANIFEST_PATH "${CARGOKIT_MANIFEST_DIR}/Cargo.toml")
+    set(CARGOKIT_LOCK_PATH "${CARGOKIT_MANIFEST_DIR}/Cargo.lock")
     file(GLOB_RECURSE CARGOKIT_RUST_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/${manifest_dir}/src/*.rs"
+        "${CARGOKIT_MANIFEST_DIR}/src/*.rs"
     )
     set(CARGOKIT_DEPENDS ${CARGOKIT_MANIFEST_PATH} ${CARGOKIT_RUST_SOURCES})
     if (EXISTS "${CARGOKIT_LOCK_PATH}")
