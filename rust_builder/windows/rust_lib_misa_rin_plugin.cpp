@@ -204,9 +204,9 @@ bool IsPresentLogEnabled() {
     if (_dupenv_s(&raw, &len, "MISA_RIN_WIN_PRESENT_LOG") != 0 || !raw) {
       return false;
     }
-    const bool enabled = raw[0] != '\0' && raw[0] != '0';
+    const bool is_enabled = raw[0] != '\0' && raw[0] != '0';
     std::free(raw);
-    return enabled;
+    return is_enabled;
   }();
   return enabled;
 }
