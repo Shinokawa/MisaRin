@@ -519,6 +519,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     if (!_isBackendDrawingPointer(event)) {
       return;
     }
+    _suppressRasterOutputForBackendStroke();
     if (_kDebugBackendCanvasInput) {
       debugPrint(
         '[backend_canvas] begin backend stroke '
@@ -695,6 +696,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     _lastStrokeBoardPosition = null;
     _strokeStabilizer.reset();
     _resetPerspectiveLock();
+    _restoreRasterOutputAfterBackendStroke();
   }
 
   bool _drawBackendStraightLine({
