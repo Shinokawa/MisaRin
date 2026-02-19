@@ -165,6 +165,8 @@ part 'painting_board_perspective.dart';
 	part 'painting_board_text_painter.dart';
 	part 'painting_board_clipboard.dart';
 	part 'painting_board_interactions.dart';
+	part 'painting_board_interactions_backend.dart';
+	part 'painting_board_interactions_pointer.dart';
 	part 'painting_board_interactions_preferences.dart';
 	part 'painting_board_interactions_stroke.dart';
 	part 'painting_board_interactions_spray_cursor.dart';
