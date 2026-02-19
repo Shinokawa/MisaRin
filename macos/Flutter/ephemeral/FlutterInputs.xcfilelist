@@ -740,6 +740,12 @@
 /Library/Afolder/FlutterProject/misa-rin/lib/app/palette/palette_exporter.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/palette/palette_importer.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/preferences/app_preferences.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/app/preferences/app_preferences_codec.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/app/preferences/app_preferences_defaults.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/app/preferences/app_preferences_loader.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/app/preferences/app_preferences_models.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/app/preferences/app_preferences_saver.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/app/preferences/app_preferences_storage.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/project/project_binary_codec.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/project/project_document.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/project/project_repository.dart
@@ -816,7 +822,9 @@
 /Library/Afolder/FlutterProject/misa-rin/lib/app/widgets/painting_board_filters_preview_capture.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/widgets/painting_board_filters_worker.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/widgets/painting_board_interactions.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/app/widgets/painting_board_interactions_backend.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/widgets/painting_board_interactions_layer_curve.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/app/widgets/painting_board_interactions_pointer.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/widgets/painting_board_interactions_preferences.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/widgets/painting_board_interactions_spray_cursor.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/app/widgets/painting_board_interactions_stabilizers.dart

@@ -1171,6 +1171,22 @@ class PaintingBoardState extends _PaintingBoardBase
     });
   }
 
+  Future<bool> undo() {
+    return _PaintingBoardInteractionPointerImpl(this).undo();
+  }
+
+  Future<bool> redo() {
+    return _PaintingBoardInteractionPointerImpl(this).redo();
+  }
+
+  bool zoomIn() {
+    return _PaintingBoardInteractionPointerImpl(this).zoomIn();
+  }
+
+  bool zoomOut() {
+    return _PaintingBoardInteractionPointerImpl(this).zoomOut();
+  }
+
 }
 
 class _CanvasHistoryEntry {
