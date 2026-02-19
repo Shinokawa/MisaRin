@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:ffi';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -9,26 +8,36 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-// ignore: unused_import
-import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
 
-import '../app/debug/rust_canvas_timeline.dart';
+import '../app/debug/backend_canvas_timeline.dart';
 import '../backend/canvas_painting_worker.dart';
 import '../backend/canvas_raster_backend.dart';
 import '../backend/rgba_utils.dart';
+import '../brushes/brush_shape_raster.dart';
+import '../canvas/canvas_backend.dart';
+import '../canvas/canvas_facade.dart';
+import '../canvas/canvas_frame.dart';
 import '../canvas/canvas_layer.dart';
+import '../canvas/canvas_layer_info.dart';
+import '../canvas/canvas_composite_layer.dart';
 import '../canvas/canvas_settings.dart';
 import '../canvas/canvas_tools.dart';
+import '../canvas/canvas_tool_host.dart';
 import '../canvas/brush_random_rotation.dart';
 import '../canvas/text_renderer.dart';
 import '../src/rust/api/bucket_fill.dart' as rust_bucket_fill;
-import '../src/rust/api/gpu_brush.dart' as rust_gpu_brush;
+import '../backend/rust_wgpu_brush.dart' as rust_wgpu_brush;
+import '../src/rust/api/cpu_brush.dart' as rust;
 import '../src/rust/api/image_ops.dart' as rust_image_ops;
+import '../src/rust/rust_cpu_blend_ffi.dart';
+import '../src/rust/rust_cpu_brush_ffi.dart';
+import '../src/rust/rust_cpu_image_ffi.dart';
+import '../src/rust/rust_cpu_filters_ffi.dart';
+import '../src/rust/rust_cpu_transform_ffi.dart';
 import '../src/rust/rust_init.dart';
-import 'bitmap_blend_utils.dart' as blend_utils;
+import 'ffi/cpu_buffer.dart';
 import 'bitmap_canvas.dart';
 import 'bitmap_layer_state.dart';
-import 'raster_frame.dart';
 import 'raster_tile_cache.dart';
 import 'raster_int_rect.dart';
 import 'soft_brush_profile.dart';
@@ -44,11 +53,12 @@ part 'controller_fill.dart';
 part 'controller_composite.dart';
 part 'controller_paint_commands.dart';
 part 'controller_filters.dart';
-part 'controller_filters_gpu.dart';
+part 'controller_filters_shader.dart';
 part 'controller_worker_queue.dart';
 part 'controller_text.dart';
 
-class BitmapCanvasController extends ChangeNotifier {
+class BitmapCanvasController extends ChangeNotifier
+    implements CanvasToolHost, CanvasFacade {
   BitmapCanvasController({
     required int width,
     required int height,
@@ -56,6 +66,7 @@ class BitmapCanvasController extends ChangeNotifier {
     List<CanvasLayerData>? initialLayers,
     CanvasCreationLogic creationLogic = CanvasCreationLogic.multiThread,
     bool enableRasterOutput = true,
+    CanvasBackend backend = CanvasBackend.rustWgpu,
   }) : _width = width,
        _height = height,
        _backgroundColor = backgroundColor,
@@ -66,6 +77,8 @@ class BitmapCanvasController extends ChangeNotifier {
        _rasterBackend = CanvasRasterBackend(
          width: width,
          height: height,
+         tileSize: kIsWeb ? 1024 : 256,
+         backend: backend,
        ) {
     if (creationLogic == CanvasCreationLogic.multiThread && !_isMultithreaded) {
       debugPrint('CanvasPaintingWorker 未启用：当前平台不支持多线程画布，已自动回退到单线程。');
@@ -93,9 +106,12 @@ class BitmapCanvasController extends ChangeNotifier {
   final bool _isMultithreaded;
   bool _rasterOutputEnabled;
   bool _synchronousRasterOverride = false;
+  bool _forceSynchronousRaster = false;
 
   final List<Offset> _currentStrokePoints = <Offset>[];
   final List<double> _currentStrokeRadii = <double>[];
+  final List<Offset> _currentStrokePreviewPoints = <Offset>[];
+  final List<double> _currentStrokePreviewRadii = <double>[];
   final List<PaintingDrawCommand> _deferredStrokeCommands =
       <PaintingDrawCommand>[];
   final List<PaintingDrawCommand> _committingStrokes =
@@ -107,6 +123,8 @@ class BitmapCanvasController extends ChangeNotifier {
   double _currentStrokeScatter = 0.0;
   double _currentStrokeRotationJitter = 1.0;
   bool _currentStrokeSnapToPixel = false;
+  double _currentStrokeStreamlineStrength = 0.0;
+  bool _currentStrokeDeferRaster = false;
   bool _currentStrokeStylusPressureEnabled = false;
   double _currentStylusCurve = 1.0;
   double? _currentStylusLastPressure;
@@ -114,7 +132,10 @@ class BitmapCanvasController extends ChangeNotifier {
   bool _currentStrokeHasMoved = false;
   BrushShape _currentBrushShape = BrushShape.circle;
   bool _currentStrokeRandomRotationEnabled = false;
+  bool _currentStrokeSmoothRotationEnabled = false;
   int _currentStrokeRotationSeed = 0;
+  String? _customBrushShapeId;
+  BrushShapeRaster? _customBrushShapeRaster;
   final StrokePressureSimulator _strokePressureSimulator =
       StrokePressureSimulator();
   Color _currentStrokeColor = const Color(0xFF000000);
@@ -139,8 +160,8 @@ class BitmapCanvasController extends ChangeNotifier {
   String? _paintingWorkerSyncedLayerId;
   int _paintingWorkerSyncedRevision = -1;
   bool _paintingWorkerSelectionDirty = true;
-  final Map<String, int> _gpuBrushSyncedRevisions = <String, int>{};
-  Future<void> _gpuBrushQueue = Future<void>.value();
+  final Map<String, int> _rustWgpuBrushSyncedRevisions = <String, int>{};
+  Future<void> _rustWgpuBrushQueue = Future<void>.value();
 
   static const int _kAntialiasCenterWeight = 4;
   static const List<int> _kAntialiasDx = <int>[-1, 0, 1, -1, 1, -1, 0, 1];
@@ -193,14 +214,28 @@ class BitmapCanvasController extends ChangeNotifier {
   static const int _kGaussianKernel5x5Weight = 256;
   static const int _kMaxWorkerBatchCommands = 24;
   static const int _kMaxWorkerBatchPixels = 512 * 512;
+  static const int _kWebCompositeMinIntervalMs = 16;
+  static const int _kWebRasterFlushMinIntervalMs = 16;
+  static const int _kCommitOverlayFadeMs = 140;
+  static const int _kCommitOverlayFadeTickMs = 16;
 
   bool _refreshScheduled = false;
   bool _compositeProcessing = false;
+  bool _realtimeStrokeFlushScheduled = false;
+  Timer? _webCompositeTimer;
+  Timer? _webRasterFlushTimer;
+  int _lastWebCompositeMs = 0;
+  int _lastWebRasterFlushMs = 0;
+  Timer? _commitOverlayFadeTimer;
+  final Map<PaintingDrawCommand, _CommitOverlayFade> _commitOverlayFades =
+      <PaintingDrawCommand, _CommitOverlayFade>{};
+  int _commitOverlayNowMs = 0;
+  int _commitOverlayFadeVersion = 0;
   Uint8List? _selectionMask;
   final CanvasRasterBackend _rasterBackend;
   final CanvasTextRenderer _textRenderer = CanvasTextRenderer();
   late final RasterTileCache _tileCache;
-  BitmapCanvasFrame? _currentFrame;
+  CanvasFrame? _currentFrame;
   final List<ui.Image> _pendingTileDisposals = <ui.Image>[];
   bool _tileDisposalScheduled = false;
   Uint32List? _activeLayerTranslationSnapshot;
@@ -231,18 +266,44 @@ class BitmapCanvasController extends ChangeNotifier {
     return null;
   }
 
-  UnmodifiableListView<BitmapLayerState> get layers =>
-      UnmodifiableListView<BitmapLayerState>(_layers);
+  UnmodifiableListView<CanvasLayerInfo> get layers =>
+      UnmodifiableListView<CanvasLayerInfo>(
+        _layers.cast<CanvasLayerInfo>(),
+      );
+
+  UnmodifiableListView<CanvasCompositeLayer> get compositeLayers =>
+      UnmodifiableListView<CanvasCompositeLayer>(
+        _layers.cast<CanvasCompositeLayer>(),
+      );
 
   bool get isMultithreaded => _isMultithreaded;
 
   // Active stroke state for client-side prediction
-  List<Offset> get activeStrokePoints =>
-      UnmodifiableListView(_currentStrokePoints);
-  List<double> get activeStrokeRadii =>
-      UnmodifiableListView(_currentStrokeRadii);
+  List<Offset> get activeStrokePoints {
+    final List<Offset> source =
+        _currentStrokePreviewPoints.isNotEmpty &&
+                _currentStrokePreviewPoints.length ==
+                    _currentStrokePreviewRadii.length
+            ? _currentStrokePreviewPoints
+            : _currentStrokePoints;
+    return UnmodifiableListView(source);
+  }
+
+  List<double> get activeStrokeRadii {
+    final List<double> source =
+        _currentStrokePreviewRadii.isNotEmpty &&
+                _currentStrokePreviewPoints.length ==
+                    _currentStrokePreviewRadii.length
+            ? _currentStrokePreviewRadii
+            : _currentStrokeRadii;
+    return UnmodifiableListView(source);
+  }
   List<PaintingDrawCommand> get committingStrokes =>
       UnmodifiableListView(_committingStrokes);
+  int get commitOverlayFadeVersion => _commitOverlayFadeVersion;
+  double commitOverlayOpacityFor(PaintingDrawCommand command) =>
+      _commitOverlayOpacityFor(command);
+  bool get activeStrokeSnapToPixel => _currentStrokeSnapToPixel;
   Color get activeStrokeColor => _currentStrokeColor;
   double get activeStrokeRadius => _currentStrokeRadius;
   BrushShape get activeStrokeShape => _currentBrushShape;
@@ -257,7 +318,8 @@ class BitmapCanvasController extends ChangeNotifier {
   String? get activeLayerId =>
       _layers.isEmpty ? null : _layers[_activeIndex].id;
 
-  BitmapLayerState get activeLayer => _activeLayer;
+  CanvasLayerInfo get activeLayer => _activeLayer;
+  CanvasBackend get rasterBackend => _rasterBackend.backend;
 
   void _flushDeferredStrokeCommands() =>
       _controllerFlushDeferredStrokeCommands(this);
@@ -275,12 +337,37 @@ class BitmapCanvasController extends ChangeNotifier {
       _controllerDispatchDirectPaintCommand(this, command);
 
   bool get _useWorkerForRaster =>
-      _isMultithreaded && !_synchronousRasterOverride;
+      _isMultithreaded && !_synchronousRasterOverride && !_forceSynchronousRaster;
+
+  void setCustomBrushShape({
+    required String? shapeId,
+    required BrushShapeRaster? raster,
+  }) {
+    _customBrushShapeId = shapeId;
+    _customBrushShapeRaster = raster;
+    _forceSynchronousRaster = _isCustomShapeId(shapeId) && raster != null;
+  }
+
+  BrushShapeRaster? get customBrushShapeRaster => _customBrushShapeRaster;
+
+  static bool _isCustomShapeId(String? id) {
+    if (id == null || id.isEmpty) {
+      return false;
+    }
+    switch (id) {
+      case 'circle':
+      case 'triangle':
+      case 'square':
+      case 'star':
+        return false;
+    }
+    return true;
+  }
 
   Rect? _dirtyRectForCommand(PaintingDrawCommand command) =>
       _controllerDirtyRectForCommand(this, command);
 
-  BitmapCanvasFrame? get frame => _currentFrame;
+  CanvasFrame? get frame => _currentFrame;
   bool get rasterOutputEnabled => _rasterOutputEnabled;
   Color get backgroundColor => _backgroundColor;
   int get width => _width;
@@ -327,9 +414,9 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void _notify() => notifyListeners();
 
-  Future<T> _enqueueGpuBrushTask<T>(Future<T> Function() task) {
-    final Future<T> future = _gpuBrushQueue.then((_) => task());
-    _gpuBrushQueue = future.then((_) {}, onError: (_, __) {});
+  Future<T> _enqueueRustWgpuBrushTask<T>(Future<T> Function() task) {
+    final Future<T> future = _rustWgpuBrushQueue.then((_) => task());
+    _rustWgpuBrushQueue = future.then((_) {}, onError: (_, __) {});
     return future;
   }
 
@@ -355,7 +442,7 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void configureStylusPressure({
     required bool enabled,
-    required double curve,
+    double? curve,
   }) => _strokeConfigureStylusPressure(this, enabled: enabled, curve: curve);
 
   void configureSharpTips({required bool enabled}) =>
@@ -429,7 +516,7 @@ class BitmapCanvasController extends ChangeNotifier {
 
   Future<ui.Image> snapshotImage() async {
     await _rasterBackend.composite(
-      layers: _layers,
+      layers: _layers.cast<CanvasCompositeLayer>(),
       requiresFullSurface: true,
       regions: null,
       translatingLayerId: _translatingLayerIdForComposite,
@@ -439,6 +526,13 @@ class BitmapCanvasController extends ChangeNotifier {
   }
 
   Future<void> disposeController() async {
+    _webCompositeTimer?.cancel();
+    _webCompositeTimer = null;
+    _webRasterFlushTimer?.cancel();
+    _webRasterFlushTimer = null;
+    _commitOverlayFadeTimer?.cancel();
+    _commitOverlayFadeTimer = null;
+    _commitOverlayFades.clear();
     _tileCache.dispose();
     await _rasterBackend.dispose();
     await _paintingWorker?.dispose();
@@ -513,6 +607,7 @@ class BitmapCanvasController extends ChangeNotifier {
     BrushShape brushShape = BrushShape.circle,
     bool enableNeedleTips = false,
     bool randomRotation = false,
+    bool smoothRotation = false,
     int? rotationSeed,
     double spacing = 0.15,
     double hardness = 0.8,
@@ -520,6 +615,7 @@ class BitmapCanvasController extends ChangeNotifier {
     double scatter = 0.0,
     double rotationJitter = 1.0,
     bool snapToPixel = false,
+    double streamlineStrength = 0.0,
     bool erase = false,
     bool hollow = false,
     double hollowRatio = 0.0,
@@ -541,6 +637,7 @@ class BitmapCanvasController extends ChangeNotifier {
     brushShape: brushShape,
     enableNeedleTips: enableNeedleTips,
     randomRotation: randomRotation,
+    smoothRotation: smoothRotation,
     rotationSeed: rotationSeed,
     spacing: spacing,
     hardness: hardness,
@@ -548,6 +645,7 @@ class BitmapCanvasController extends ChangeNotifier {
     scatter: scatter,
     rotationJitter: rotationJitter,
     snapToPixel: snapToPixel,
+    streamlineStrength: streamlineStrength,
     erase: erase,
     hollow: hollow,
     hollowRatio: hollowRatio,
@@ -620,6 +718,92 @@ class BitmapCanvasController extends ChangeNotifier {
     _dispatchDirectPaintCommand(command);
   }
 
+  bool drawSprayPoints({
+    required Float32List points,
+    required int pointCount,
+    required Color color,
+    required BrushShape brushShape,
+    int antialiasLevel = 0,
+    bool erase = false,
+    double softness = 0.0,
+    bool accumulate = true,
+  }) {
+    if (_layers.isEmpty || _activeLayer.locked) {
+      return false;
+    }
+    if (pointCount <= 0 || points.isEmpty) {
+      return false;
+    }
+    if (!RustCpuBrushFfi.instance.supportsSpray) {
+      return false;
+    }
+    final int needed = pointCount * 4;
+    if (points.length < needed) {
+      return false;
+    }
+
+    double minX = double.infinity;
+    double minY = double.infinity;
+    double maxX = -double.infinity;
+    double maxY = -double.infinity;
+    final double clampedSoftness = softness.clamp(0.0, 1.0);
+    final double softnessPad =
+        clampedSoftness > 0.0 ? softBrushExtentMultiplier(clampedSoftness) : 0.0;
+    for (int i = 0; i < needed; i += 4) {
+      final double x = points[i];
+      final double y = points[i + 1];
+      final double r = points[i + 2];
+      if (!x.isFinite || !y.isFinite || !r.isFinite || r <= 0.0) {
+        continue;
+      }
+      final double expand = r + (r * softnessPad) + 1.5;
+      minX = math.min(minX, x - expand);
+      maxX = math.max(maxX, x + expand);
+      minY = math.min(minY, y - expand);
+      maxY = math.max(maxY, y + expand);
+    }
+    if (!minX.isFinite ||
+        !minY.isFinite ||
+        !maxX.isFinite ||
+        !maxY.isFinite) {
+      return false;
+    }
+
+    final Rect dirty = Rect.fromLTRB(minX, minY, maxX, maxY).intersect(
+      Rect.fromLTWH(0, 0, _width.toDouble(), _height.toDouble()),
+    );
+    if (dirty.isEmpty) {
+      return false;
+    }
+
+    final bool ok = RustCpuBrushFfi.instance.drawSpray(
+      pixelsPtr: _activeLayer.surface.pointerAddress,
+      pixelsLen: _activeLayer.surface.pixels.length,
+      width: _width,
+      height: _height,
+      points: points,
+      pointCount: pointCount,
+      colorArgb: color.value,
+      brushShape: brushShape.index,
+      antialiasLevel: antialiasLevel.clamp(0, 9),
+      softness: clampedSoftness,
+      erase: erase,
+      accumulate: accumulate,
+      selectionMask: _selectionMask,
+    );
+    if (!ok) {
+      return false;
+    }
+    _activeLayer.surface.markDirty();
+    _resetWorkerSurfaceSync();
+    _markDirty(
+      region: dirty,
+      layerId: _activeLayer.id,
+      pixelsDirty: true,
+    );
+    return true;
+  }
+
   Future<bool> applyAntialiasToActiveLayer(
     int level, {
     bool previewOnly = false,
@@ -679,7 +863,7 @@ class BitmapCanvasController extends ChangeNotifier {
   List<CanvasLayerData> snapshotLayers() => _layerManagerSnapshotLayers(this);
   Future<void> waitForPendingWorkerTasks() async {
     await _waitForPendingWorkerTasks();
-    await _gpuBrushQueue;
+    await _rustWgpuBrushQueue;
   }
 
   CanvasLayerData? buildClipboardLayer(String id, {Uint8List? mask}) =>
@@ -687,6 +871,50 @@ class BitmapCanvasController extends ChangeNotifier {
 
   void clearLayerRegion(String id, {Uint8List? mask}) =>
       _layerManagerClearRegion(this, id, mask: mask);
+
+  Uint32List? readLayerPixels(String id) {
+    for (final BitmapLayerState layer in _layers) {
+      if (layer.id == id) {
+        return Uint32List.fromList(layer.surface.pixels);
+      }
+    }
+    return null;
+  }
+
+  Size? readLayerSurfaceSize(String id) {
+    for (final BitmapLayerState layer in _layers) {
+      if (layer.id == id) {
+        return Size(
+          layer.surface.width.toDouble(),
+          layer.surface.height.toDouble(),
+        );
+      }
+    }
+    return null;
+  }
+
+  bool writeLayerPixels(
+    String id,
+    Uint32List pixels, {
+    bool markDirty = true,
+  }) {
+    for (final BitmapLayerState layer in _layers) {
+      if (layer.id != id) {
+        continue;
+      }
+      if (layer.surface.pixels.length != pixels.length) {
+        return false;
+      }
+      layer.surface.pixels.setAll(0, pixels);
+      layer.surface.markDirty();
+      if (markDirty) {
+        _markDirty(layerId: id, pixelsDirty: true);
+        _notify();
+      }
+      return true;
+    }
+    return false;
+  }
 
   String insertLayerFromData(CanvasLayerData data, {String? aboveLayerId}) =>
       _layerManagerInsertFromData(this, data, aboveLayerId: aboveLayerId);
@@ -878,6 +1106,92 @@ class BitmapCanvasController extends ChangeNotifier {
   }
 
   void _scheduleCompositeRefresh() => _compositeScheduleRefresh(this);
+
+  void _startCommitOverlayFade(PaintingDrawCommand command) {
+    if (!_committingStrokes.contains(command)) {
+      return;
+    }
+    if (_commitOverlayFades.containsKey(command)) {
+      return;
+    }
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    _commitOverlayNowMs = now;
+    _commitOverlayFades[command] = _CommitOverlayFade(startMs: now);
+    _ensureCommitOverlayFadeTimer();
+    _commitOverlayFadeVersion++;
+    _notify();
+  }
+
+  void _removeCommitOverlay(PaintingDrawCommand command, {bool notify = true}) {
+    final bool removed = _committingStrokes.remove(command);
+    final bool fadeRemoved = _commitOverlayFades.remove(command) != null;
+    if (_commitOverlayFades.isEmpty) {
+      _commitOverlayFadeTimer?.cancel();
+      _commitOverlayFadeTimer = null;
+    }
+    if ((removed || fadeRemoved) && notify) {
+      _commitOverlayFadeVersion++;
+      _notify();
+    }
+  }
+
+  double _commitOverlayOpacityFor(PaintingDrawCommand command) {
+    final _CommitOverlayFade? fade = _commitOverlayFades[command];
+    if (fade == null) {
+      return 1.0;
+    }
+    int now = _commitOverlayNowMs;
+    if (now == 0) {
+      now = DateTime.now().millisecondsSinceEpoch;
+      _commitOverlayNowMs = now;
+    }
+    final int elapsed = now - fade.startMs;
+    if (elapsed <= 0) {
+      return 1.0;
+    }
+    final double t = elapsed / _kCommitOverlayFadeMs;
+    if (t >= 1.0) {
+      return 0.0;
+    }
+    return 1.0 - t;
+  }
+
+  void _ensureCommitOverlayFadeTimer() {
+    if (_commitOverlayFadeTimer != null) {
+      return;
+    }
+    _commitOverlayFadeTimer = Timer.periodic(
+      const Duration(milliseconds: _kCommitOverlayFadeTickMs),
+      (_) => _tickCommitOverlayFade(),
+    );
+  }
+
+  void _tickCommitOverlayFade() {
+    if (_commitOverlayFades.isEmpty) {
+      _commitOverlayFadeTimer?.cancel();
+      _commitOverlayFadeTimer = null;
+      return;
+    }
+    _commitOverlayNowMs = DateTime.now().millisecondsSinceEpoch;
+    final List<PaintingDrawCommand> completed = <PaintingDrawCommand>[];
+    _commitOverlayFades.forEach((command, fade) {
+      if (_commitOverlayNowMs - fade.startMs >= _kCommitOverlayFadeMs) {
+        completed.add(command);
+      }
+    });
+    if (completed.isNotEmpty) {
+      for (final PaintingDrawCommand command in completed) {
+        _commitOverlayFades.remove(command);
+        _committingStrokes.remove(command);
+      }
+      if (_commitOverlayFades.isEmpty) {
+        _commitOverlayFadeTimer?.cancel();
+        _commitOverlayFadeTimer = null;
+      }
+    }
+    _commitOverlayFadeVersion++;
+    _notify();
+  }
 
   Future<void> _waitForNextFrame() {
     if (_nextFrameCompleter == null || _nextFrameCompleter!.isCompleted) {
@@ -1072,4 +1386,10 @@ class BitmapCanvasController extends ChangeNotifier {
     pixels: pixels,
     tolerance: tolerance,
   );
+}
+
+class _CommitOverlayFade {
+  const _CommitOverlayFade({required this.startMs});
+
+  final int startMs;
 }

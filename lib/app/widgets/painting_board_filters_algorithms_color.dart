@@ -345,6 +345,18 @@ bool _filterBitmapHasVisiblePixels(Uint8List bitmap) {
   return false;
 }
 
+bool _filterBitmapEquals(Uint8List a, Uint8List b) {
+  if (a.length != b.length) {
+    return false;
+  }
+  for (int i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 Future<_ScanPaperDrawingComputeResult> _generateScanPaperDrawingResult(
   Uint8List? bitmap,
   Color? fillColor, {
@@ -493,50 +505,73 @@ _ScanPaperDrawingComputeResult _computeScanPaperDrawing(List<Object?> args) {
   bool hadVisiblePixels = false;
 
   if (processed != null) {
-    for (int i = 0; i + 3 < processed.length; i += 4) {
-      final int alpha = processed[i + 3];
-      if (alpha == 0) {
-        continue;
+    final Uint8List? rustProcessed = _tryApplyRustCpuFilter(
+      filterType: _kFilterTypeScanPaperDrawing,
+      bitmap: processed,
+      width: processed.length ~/ 4,
+      height: 1,
+      param0: blackPoint,
+      param1: whitePoint,
+      param2: midTone,
+    );
+    if (rustProcessed != null) {
+      processed = rustProcessed;
+      hadVisiblePixels = _filterBitmapHasVisiblePixels(processed);
+      if (bitmap != null && !_filterBitmapEquals(processed, bitmap)) {
+        changed = true;
       }
-      hadVisiblePixels = true;
-      final int r = processed[i];
-      final int g = processed[i + 1];
-      final int b = processed[i + 2];
-      final int mapped = toneMappingEnabled
-          ? _scanPaperDrawingMapRgbToArgbWithToneMapping(
-              r,
-              g,
-              b,
-              black: blackNorm,
-              invRange: invRange,
-              gamma: gamma,
-            )
-          : _scanPaperDrawingMapRgbToArgb(r, g, b);
-      if (mapped == 0) {
-        if (alpha != 0) {
+      if (!hadVisiblePixels) {
+        processed = null;
+        if (bitmap != null && _filterBitmapHasVisiblePixels(bitmap)) {
           changed = true;
         }
-        processed[i] = 0;
-        processed[i + 1] = 0;
-        processed[i + 2] = 0;
-        processed[i + 3] = 0;
-        continue;
       }
-      final int targetR = (mapped >> 16) & 0xFF;
-      final int targetG = (mapped >> 8) & 0xFF;
-      final int targetB = mapped & 0xFF;
-      if (alpha != 255 || r != targetR || g != targetG || b != targetB) {
-        changed = true;
+    } else {
+      for (int i = 0; i + 3 < processed.length; i += 4) {
+        final int alpha = processed[i + 3];
+        if (alpha == 0) {
+          continue;
+        }
+        hadVisiblePixels = true;
+        final int r = processed[i];
+        final int g = processed[i + 1];
+        final int b = processed[i + 2];
+        final int mapped = toneMappingEnabled
+            ? _scanPaperDrawingMapRgbToArgbWithToneMapping(
+                r,
+                g,
+                b,
+                black: blackNorm,
+                invRange: invRange,
+                gamma: gamma,
+              )
+            : _scanPaperDrawingMapRgbToArgb(r, g, b);
+        if (mapped == 0) {
+          if (alpha != 0) {
+            changed = true;
+          }
+          processed[i] = 0;
+          processed[i + 1] = 0;
+          processed[i + 2] = 0;
+          processed[i + 3] = 0;
+          continue;
+        }
+        final int targetR = (mapped >> 16) & 0xFF;
+        final int targetG = (mapped >> 8) & 0xFF;
+        final int targetB = mapped & 0xFF;
+        if (alpha != 255 || r != targetR || g != targetG || b != targetB) {
+          changed = true;
+        }
+        processed[i] = targetR;
+        processed[i + 1] = targetG;
+        processed[i + 2] = targetB;
+        processed[i + 3] = 255;
       }
-      processed[i] = targetR;
-      processed[i + 1] = targetG;
-      processed[i + 2] = targetB;
-      processed[i + 3] = 255;
-    }
-    if (!_filterBitmapHasVisiblePixels(processed)) {
-      processed = null;
-      if (hadVisiblePixels) {
-        changed = true;
+      if (!_filterBitmapHasVisiblePixels(processed)) {
+        processed = null;
+        if (hadVisiblePixels) {
+          changed = true;
+        }
       }
     }
   }

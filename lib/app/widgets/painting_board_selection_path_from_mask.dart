@@ -9,10 +9,14 @@ Path? _selectionPathFromMask(Uint8List mask, int width) {
   }
 
   try {
-    final Uint32List vertices = rust_selection_path.selectionPathVerticesFromMask(
-      mask: mask,
-      width: width,
-    );
+    final Uint32List? vertices =
+        CanvasBackendFacade.instance.selectionPathVerticesFromMask(
+          mask: mask,
+          width: width,
+        );
+    if (vertices == null) {
+      return null;
+    }
     return _selectionPathFromVertices(vertices);
   } catch (_) {
     return null;

@@ -5,16 +5,24 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../l10n/locale_controller.dart';
 import '../l10n/l10n.dart';
 import '../theme/theme_controller.dart';
 import '../preferences/app_preferences.dart';
 import '../utils/tablet_input_bridge.dart';
+import '../widgets/app_notification.dart';
 import '../../performance/stroke_latency_monitor.dart';
 import 'misarin_dialog.dart';
+import '../../canvas/canvas_backend.dart';
+import '../../brushes/brush_library.dart';
+import '../utils/file_manager.dart';
 
-Future<void> showSettingsDialog(BuildContext context) {
+Future<void> showSettingsDialog(
+  BuildContext context, {
+  bool openAboutTab = false,
+}) {
   final GlobalKey<_SettingsDialogContentState> contentKey =
       GlobalKey<_SettingsDialogContentState>();
   return showDialog<void>(
@@ -23,9 +31,13 @@ Future<void> showSettingsDialog(BuildContext context) {
       final l10n = dialogContext.l10n;
       return MisarinDialog(
         title: Text(l10n.settingsTitle),
-        content: _SettingsDialogContent(key: contentKey),
-        contentWidth: 420,
-        maxWidth: 520,
+        content: _SettingsDialogContent(
+          key: contentKey,
+          initialSection:
+              openAboutTab ? _SettingsSection.about : _SettingsSection.language,
+        ),
+        contentWidth: null,
+        maxWidth: 920,
         actions: [
           Button(
             onPressed: () => contentKey.currentState?.openTabletDiagnostic(),
@@ -54,8 +66,24 @@ enum _AppLocaleOption {
   chineseTraditional,
 }
 
+enum _SettingsSection {
+  language,
+  theme,
+  stylus,
+  brush,
+  history,
+  canvasBackend,
+  developer,
+  about,
+}
+
 class _SettingsDialogContent extends StatefulWidget {
-  const _SettingsDialogContent({super.key});
+  const _SettingsDialogContent({
+    super.key,
+    required this.initialSection,
+  });
+
+  final _SettingsSection initialSection;
 
   @override
   State<_SettingsDialogContent> createState() => _SettingsDialogContentState();
@@ -68,6 +96,10 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late double _stylusCurve;
   late PenStrokeSliderRange _penSliderRange;
   late bool _fpsOverlayEnabled;
+  late CanvasBackend _canvasBackend;
+  late _SettingsSection _selectedSection;
+  PackageInfo? _packageInfo;
+  String? _brushShapeFolderPath;
 
   @override
   void initState() {
@@ -78,22 +110,127 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     _stylusCurve = AppPreferences.instance.stylusPressureCurve;
     _penSliderRange = AppPreferences.instance.penStrokeSliderRange;
     _fpsOverlayEnabled = AppPreferences.instance.showFpsOverlay;
+    _canvasBackend = AppPreferences.instance.canvasBackend;
+    _selectedSection = widget.initialSection;
+    unawaited(_loadPackageInfo());
+    unawaited(_loadBrushShapeFolderPath());
+  }
+
+  Future<void> _loadBrushShapeFolderPath() async {
+    final String? path =
+        await BrushLibrary.instance.shapeLibrary.resolveShapeDirectoryPath();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _brushShapeFolderPath = path);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
-    final l10n = context.l10n;
-    final ThemeController controller = ThemeController.of(context);
-    final ThemeMode themeMode = controller.themeMode;
-    final int minHistory = AppPreferences.minHistoryLimit;
-    final int maxHistory = AppPreferences.maxHistoryLimit;
+    final List<_SettingsSection> sections = [
+      _SettingsSection.language,
+      _SettingsSection.theme,
+      _SettingsSection.stylus,
+      _SettingsSection.brush,
+      _SettingsSection.history,
+      if (!kIsWeb) _SettingsSection.canvasBackend,
+      if (!kIsWeb) _SettingsSection.developer,
+      _SettingsSection.about,
+    ];
 
-    final Widget body = Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final Widget body = Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        InfoLabel(
+        SizedBox(
+          width: 220,
+          child: _buildSectionTabs(context, sections),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.resources.subtleFillColorTertiary,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.resources.controlStrokeColorDefault,
+              ),
+            ),
+            child: SingleChildScrollView(
+              primary: true,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: _buildSectionContent(context, _selectedSection),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    return SizedBox(
+      height: 520,
+      child: body,
+    );
+  }
+
+  Widget _buildSectionTabs(
+    BuildContext context,
+    List<_SettingsSection> sections,
+  ) {
+    final theme = FluentTheme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.resources.subtleFillColorTertiary,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.resources.controlStrokeColorDefault,
+        ),
+      ),
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (int index = 0; index < sections.length; index++) ...[
+            _buildSectionTab(context, sections[index]),
+            if (index != sections.length - 1) const SizedBox(height: 4),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTab(BuildContext context, _SettingsSection section) {
+    final theme = FluentTheme.of(context);
+    final bool selected = _selectedSection == section;
+    return ListTile.selectable(
+      title: Text(
+        _sectionLabel(context, section),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      selected: selected,
+      onPressed: () => setState(() => _selectedSection = section),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      tileColor: WidgetStateProperty.resolveWith(
+        (states) => states.isHovered || selected
+            ? theme.resources.subtleFillColorSecondary
+            : Colors.transparent,
+      ),
+    );
+  }
+
+  Widget _buildSectionContent(BuildContext context, _SettingsSection section) {
+    final l10n = context.l10n;
+    final theme = FluentTheme.of(context);
+    switch (section) {
+      case _SettingsSection.language:
+        return InfoLabel(
           label: l10n.languageLabel,
           child: ComboBox<_AppLocaleOption>(
             isExpanded: true,
@@ -121,9 +258,11 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
               }
             },
           ),
-        ),
-        const SizedBox(height: 16),
-        InfoLabel(
+        );
+      case _SettingsSection.theme:
+        final ThemeController controller = ThemeController.of(context);
+        final ThemeMode themeMode = controller.themeMode;
+        return InfoLabel(
           label: l10n.themeModeLabel,
           child: ComboBox<ThemeMode>(
             isExpanded: true,
@@ -145,9 +284,9 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
               }
             },
           ),
-        ),
-        const SizedBox(height: 16),
-        InfoLabel(
+        );
+      case _SettingsSection.stylus:
+        return InfoLabel(
           label: l10n.stylusPressureSettingsLabel,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,9 +324,9 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 16),
-        InfoLabel(
+        );
+      case _SettingsSection.brush:
+        return InfoLabel(
           label: l10n.brushSizeSliderRangeLabel,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,11 +354,34 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
                 l10n.brushSizeSliderRangeDesc,
                 style: theme.typography.caption,
               ),
+              if (!kIsWeb) ...[
+                const SizedBox(height: 16),
+                Text(
+                  l10n.brushShapeFolderLabel,
+                  style: theme.typography.bodyStrong,
+                ),
+                const SizedBox(height: 8),
+                Button(
+                  onPressed: _brushShapeFolderPath == null
+                      ? null
+                      : () => revealInFileManager(_brushShapeFolderPath!),
+                  child: Text(l10n.openBrushShapesFolder),
+                ),
+                if (_brushShapeFolderPath != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    _brushShapeFolderPath!,
+                    style: theme.typography.caption,
+                  ),
+                ],
+              ],
             ],
           ),
-        ),
-        const SizedBox(height: 16),
-        InfoLabel(
+        );
+      case _SettingsSection.history:
+        final int minHistory = AppPreferences.minHistoryLimit;
+        final int maxHistory = AppPreferences.maxHistoryLimit;
+        return InfoLabel(
           label: l10n.historyLimitLabel,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,44 +415,132 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
               ),
             ],
           ),
-        ),
-        if (!kIsWeb) ...[
-          const SizedBox(height: 16),
-          InfoLabel(
-            label: l10n.developerOptionsLabel,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(child: Text(l10n.performanceOverlayLabel)),
-                    ToggleSwitch(
-                      checked: _fpsOverlayEnabled,
-                      onChanged: (value) {
-                        setState(() => _fpsOverlayEnabled = value);
-                        final AppPreferences prefs = AppPreferences.instance;
-                        prefs.updateShowFpsOverlay(value);
-                        unawaited(AppPreferences.save());
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  l10n.performanceOverlayDesc,
-                  style: theme.typography.caption,
-                ),
-              ],
-            ),
+        );
+      case _SettingsSection.canvasBackend:
+        if (kIsWeb) {
+          return const SizedBox.shrink();
+        }
+        return InfoLabel(
+          label: l10n.canvasBackendLabel,
+          child: ComboBox<CanvasBackend>(
+            isExpanded: true,
+            value: _canvasBackend,
+            items: CanvasBackend.values
+                .map(
+                  (backend) => ComboBoxItem<CanvasBackend>(
+                    value: backend,
+                    child: Text(_canvasBackendLabel(backend)),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (backend) {
+              if (backend == null || backend == _canvasBackend) {
+                return;
+              }
+              _updateCanvasBackend(backend);
+            },
           ),
-        ],
-      ],
-    );
+        );
+      case _SettingsSection.developer:
+        if (kIsWeb) {
+          return const SizedBox.shrink();
+        }
+        return InfoLabel(
+          label: l10n.developerOptionsLabel,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: Text(l10n.performanceOverlayLabel)),
+                  ToggleSwitch(
+                    checked: _fpsOverlayEnabled,
+                    onChanged: (value) {
+                      setState(() => _fpsOverlayEnabled = value);
+                      final AppPreferences prefs = AppPreferences.instance;
+                      prefs.updateShowFpsOverlay(value);
+                      unawaited(AppPreferences.save());
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.performanceOverlayDesc,
+                style: theme.typography.caption,
+              ),
+            ],
+          ),
+        );
+      case _SettingsSection.about:
+        final PackageInfo? info = _packageInfo;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.aboutDescription, style: theme.typography.body),
+            const SizedBox(height: 12),
+            InfoLabel(
+              label: l10n.aboutAppIdLabel,
+              child: SelectableText(
+                'com.aimessoft.misarin',
+                style: theme.typography.bodyStrong,
+              ),
+            ),
+            const SizedBox(height: 12),
+            InfoLabel(
+              label: l10n.aboutAppVersionLabel,
+              child: SelectableText(
+                info?.version ?? '—',
+                style: theme.typography.bodyStrong,
+              ),
+            ),
+            const SizedBox(height: 12),
+            InfoLabel(
+              label: l10n.aboutDeveloperLabel,
+              child: SelectableText(
+                'Aimes Soft',
+                style: theme.typography.bodyStrong,
+              ),
+            ),
+          ],
+        );
+    }
+  }
 
-    return SingleChildScrollView(
-      primary: true,
-      child: body,
-    );
+  String _sectionLabel(BuildContext context, _SettingsSection section) {
+    final l10n = context.l10n;
+    switch (section) {
+      case _SettingsSection.language:
+        return l10n.languageLabel;
+      case _SettingsSection.theme:
+        return l10n.themeModeLabel;
+      case _SettingsSection.stylus:
+        return l10n.stylusPressureSettingsLabel;
+      case _SettingsSection.brush:
+        return l10n.brushSizeSliderRangeLabel;
+      case _SettingsSection.history:
+        return l10n.historyLimitLabel;
+      case _SettingsSection.canvasBackend:
+        return l10n.canvasBackendLabel;
+      case _SettingsSection.developer:
+        return l10n.developerOptionsLabel;
+      case _SettingsSection.about:
+        return l10n.aboutTitle;
+    }
+  }
+
+  Future<void> _loadPackageInfo() async {
+    try {
+      final PackageInfo info = await PackageInfo.fromPlatform();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _packageInfo = info;
+      });
+    } catch (_) {
+      // Ignore lookup failures; show placeholder instead.
+    }
   }
 
   void _updatePenSliderRange(PenStrokeSliderRange range) {
@@ -320,6 +570,30 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         return l10n.penSliderRangeMedium;
       case PenStrokeSliderRange.full:
         return l10n.penSliderRangeFull;
+    }
+  }
+
+  void _updateCanvasBackend(CanvasBackend backend) {
+    setState(() => _canvasBackend = backend);
+    final AppPreferences prefs = AppPreferences.instance;
+    if (prefs.canvasBackend != backend) {
+      prefs.canvasBackend = backend;
+      unawaited(AppPreferences.save());
+      AppNotifications.show(
+        context,
+        message: context.l10n.canvasBackendRestartHint,
+        severity: InfoBarSeverity.warning,
+      );
+    }
+  }
+
+  String _canvasBackendLabel(CanvasBackend backend) {
+    final l10n = context.l10n;
+    switch (backend) {
+      case CanvasBackend.rustWgpu:
+        return l10n.canvasBackendGpu;
+      case CanvasBackend.rustCpu:
+        return l10n.canvasBackendCpu;
     }
   }
 
@@ -381,6 +655,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     final int defaultHistory = AppPreferences.defaultHistoryLimit;
     final ThemeMode defaultTheme = AppPreferences.defaultThemeMode;
     final Locale? defaultLocale = AppPreferences.defaultLocaleOverride;
+    final CanvasBackend defaultBackend = AppPreferences.defaultCanvasBackend;
     controller.onThemeModeChanged(defaultTheme);
     localeController.onLocaleChanged(defaultLocale);
     setState(() {
@@ -390,6 +665,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       _stylusCurve = AppPreferences.defaultStylusCurve;
       _penSliderRange = AppPreferences.defaultPenStrokeSliderRange;
       _fpsOverlayEnabled = AppPreferences.defaultShowFpsOverlay;
+      _canvasBackend = defaultBackend;
     });
     prefs.historyLimit = defaultHistory;
     prefs.themeMode = defaultTheme;
@@ -398,6 +674,14 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     prefs.stylusPressureCurve = _stylusCurve;
     prefs.penStrokeSliderRange = _penSliderRange;
     prefs.updateShowFpsOverlay(_fpsOverlayEnabled);
+    if (prefs.canvasBackend != defaultBackend) {
+      prefs.canvasBackend = defaultBackend;
+      AppNotifications.show(
+        context,
+        message: context.l10n.canvasBackendRestartHint,
+        severity: InfoBarSeverity.warning,
+      );
+    }
     _clampPenWidthForRange(prefs, _penSliderRange);
     unawaited(AppPreferences.save());
   }

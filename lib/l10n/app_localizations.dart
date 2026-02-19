@@ -518,6 +518,30 @@ abstract class AppLocalizations {
   /// **'Adjust how many undo/redo steps are kept. Range {min}-{max}.'**
   String historyLimitDesc(Object min, Object max);
 
+  /// No description provided for @canvasBackendLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Canvas backend'**
+  String get canvasBackendLabel;
+
+  /// No description provided for @canvasBackendGpu.
+  ///
+  /// In en, this message translates to:
+  /// **'Rust WGPU'**
+  String get canvasBackendGpu;
+
+  /// No description provided for @canvasBackendCpu.
+  ///
+  /// In en, this message translates to:
+  /// **'Rust CPU'**
+  String get canvasBackendCpu;
+
+  /// No description provided for @canvasBackendRestartHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Canvas backend change will take effect after restart.'**
+  String get canvasBackendRestartHint;
+
   /// No description provided for @developerOptionsLabel.
   ///
   /// In en, this message translates to:
@@ -817,6 +841,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Select All'**
   String get menuSelectAll;
+
+  /// No description provided for @menuDeselect.
+  ///
+  /// In en, this message translates to:
+  /// **'Deselect'**
+  String get menuDeselect;
 
   /// No description provided for @menuInvertSelection.
   ///
@@ -2048,17 +2078,89 @@ abstract class AppLocalizations {
   /// **'Brush Shape'**
   String get brushShape;
 
+  /// No description provided for @brushAuthorLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Author'**
+  String get brushAuthorLabel;
+
+  /// No description provided for @brushVersionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get brushVersionLabel;
+
+  /// No description provided for @importBrush.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Brush'**
+  String get importBrush;
+
+  /// No description provided for @exportBrush.
+  ///
+  /// In en, this message translates to:
+  /// **'Export Brush'**
+  String get exportBrush;
+
+  /// No description provided for @exportBrushTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export Brush'**
+  String get exportBrushTitle;
+
+  /// No description provided for @unsavedBrushChangesPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Brush settings have been modified. Save changes?'**
+  String get unsavedBrushChangesPrompt;
+
+  /// No description provided for @discardChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard Changes'**
+  String get discardChanges;
+
+  /// No description provided for @brushShapeFolderLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Brush Shape Folder'**
+  String get brushShapeFolderLabel;
+
+  /// No description provided for @openBrushShapesFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Brush Shape Folder'**
+  String get openBrushShapesFolder;
+
   /// No description provided for @randomRotation.
   ///
   /// In en, this message translates to:
   /// **'Random rotation'**
   String get randomRotation;
 
+  /// No description provided for @smoothRotation.
+  ///
+  /// In en, this message translates to:
+  /// **'Smooth rotation'**
+  String get smoothRotation;
+
   /// No description provided for @selectionShape.
   ///
   /// In en, this message translates to:
   /// **'Selection Shape'**
   String get selectionShape;
+
+  /// No description provided for @selectionAdditive.
+  ///
+  /// In en, this message translates to:
+  /// **'Additive Selection'**
+  String get selectionAdditive;
+
+  /// No description provided for @selectionAdditiveDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'When enabled, new selections are added without holding Shift.'**
+  String get selectionAdditiveDesc;
 
   /// No description provided for @fontSize.
   ///

@@ -1,0 +1,40 @@
+MRB-TEXT 1
+[brush.json]
+length:546
+{
+  "formatVersion": 1,
+  "id": "triangle",
+  "name": "triangle",
+  "author": "Misa Rin",
+  "version": "1.0.0",
+  "shape": 1,
+  "shapeId": "triangle",
+  "shapeFile": "triangle.svg",
+  "shapeType": "svg",
+  "spacing": 0.15,
+  "hardness": 0.85,
+  "flow": 1.0,
+  "scatter": 0.0,
+  "randomRotation": false,
+  "smoothRotation": false,
+  "rotationJitter": 0.0,
+  "antialiasLevel": 1,
+  "hollowEnabled": false,
+  "hollowRatio": 0.0,
+  "hollowEraseOccludedParts": false,
+  "autoSharpTaper": false,
+  "snapToPixel": false,
+  "langFile": "brush_lang.txt"
+}
+[brush_lang.txt]
+length:86
+triangle|en|Triangle
+triangle|ja|三角形
+triangle|ko|삼각형
+triangle|zh|三角形
+[triangle.svg]
+length:121
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <polygon points="50,8 92,92 8,92" fill="black"/>
+</svg>
+

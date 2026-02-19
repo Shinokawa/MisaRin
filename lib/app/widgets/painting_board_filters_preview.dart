@@ -2,8 +2,22 @@ part of 'painting_board.dart';
 
 extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
   void _requestFilterPreview({bool immediate = false}) {
-    // Only used for final apply now
-    _applyFilterPreview();
+    final _FilterSession? session = _filterSession;
+    if (session == null) {
+      return;
+    }
+    _filterPreviewDebounceTimer?.cancel();
+    if (_shouldUseBackendFilterPreview(session)) {
+      return;
+    }
+    if (immediate) {
+      _applyFilterPreview();
+      return;
+    }
+    _filterPreviewDebounceTimer = Timer(
+      _PaintingBoardFilterMixin._filterPreviewDebounceDuration,
+      _applyFilterPreview,
+    );
   }
 
   void _applyFilterPreview() {
@@ -78,7 +92,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
       return;
     }
 
-    if (_canUseRustCanvasEngine() && _supportsRustFilter(session.type)) {
+    if (_supportsBackendFilter(session.type)) {
       setState(() {
         _filterApplying = true;
       });
@@ -86,9 +100,9 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
 
       bool applied = false;
       try {
-        applied = await _applyRustFilter(session);
+        applied = await _applyBackendFilter(session);
       } catch (error, stackTrace) {
-        debugPrint('Rust filter apply failed: $error');
+        debugPrint('Backend filter apply failed: $error');
         debugPrint('$stackTrace');
       }
 
@@ -136,21 +150,19 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     await _finalizeFilterApply(session, result);
   }
 
-  Future<bool> _applyRustFilter(_FilterSession session) async {
-    final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
+  Future<bool> _applyBackendFilter(_FilterSession session) async {
+    if (!_supportsBackendFilter(session.type)) {
       return false;
     }
-    final int? layerIndex = _rustCanvasLayerIndexForId(session.activeLayerId);
-    if (layerIndex == null) {
+    final String layerId = session.activeLayerId;
+    if (!_backend.hasBackendLayer(layerId: layerId)) {
       return false;
     }
     bool applied = false;
     switch (session.type) {
       case _FilterPanelType.hueSaturation:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToBackend(
+          layerId: layerId,
           filterType: _kFilterTypeHueSaturation,
           param0: session.hueSaturation.hue,
           param1: session.hueSaturation.saturation,
@@ -158,18 +170,16 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
         );
         break;
       case _FilterPanelType.brightnessContrast:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToBackend(
+          layerId: layerId,
           filterType: _kFilterTypeBrightnessContrast,
           param0: session.brightnessContrast.brightness,
           param1: session.brightnessContrast.contrast,
         );
         break;
       case _FilterPanelType.blackWhite:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToBackend(
+          layerId: layerId,
           filterType: _kFilterTypeBlackWhite,
           param0: session.blackWhite.blackPoint,
           param1: session.blackWhite.whitePoint,
@@ -177,49 +187,43 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
         );
         break;
       case _FilterPanelType.binarize:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToBackend(
+          layerId: layerId,
           filterType: _kFilterTypeBinarize,
           param0: session.binarize.alphaThreshold,
         );
         break;
       case _FilterPanelType.gaussianBlur:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToBackend(
+          layerId: layerId,
           filterType: _kFilterTypeGaussianBlur,
           param0: session.gaussianBlur.radius,
         );
         break;
       case _FilterPanelType.leakRemoval:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToBackend(
+          layerId: layerId,
           filterType: _kFilterTypeLeakRemoval,
           param0: session.leakRemoval.radius,
         );
         break;
       case _FilterPanelType.lineNarrow:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToBackend(
+          layerId: layerId,
           filterType: _kFilterTypeLineNarrow,
           param0: session.lineNarrow.radius,
         );
         break;
       case _FilterPanelType.fillExpand:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToBackend(
+          layerId: layerId,
           filterType: _kFilterTypeFillExpand,
           param0: session.fillExpand.radius,
         );
         break;
       case _FilterPanelType.scanPaperDrawing:
-        applied = CanvasEngineFfi.instance.applyFilter(
-          handle: handle,
-          layerIndex: layerIndex,
+        applied = _backend.applyFilterToBackend(
+          layerId: layerId,
           filterType: _kFilterTypeScanPaperDrawing,
           param0: session.blackWhite.blackPoint,
           param1: session.blackWhite.whitePoint,
@@ -227,29 +231,34 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
         );
         break;
     }
-    if (applied) {
-      _recordRustHistoryAction(layerId: session.activeLayerId);
-      if (mounted) {
-        setState(() {});
-      }
-      _markDirty();
-    }
     return applied;
   }
 
-  bool _supportsRustFilter(_FilterPanelType type) {
+  CanvasFilterType? _backendFilterType(_FilterPanelType type) {
     switch (type) {
       case _FilterPanelType.hueSaturation:
+        return CanvasFilterType.hueSaturation;
       case _FilterPanelType.brightnessContrast:
+        return CanvasFilterType.brightnessContrast;
       case _FilterPanelType.blackWhite:
+        return CanvasFilterType.blackWhite;
       case _FilterPanelType.binarize:
+        return CanvasFilterType.binarize;
       case _FilterPanelType.gaussianBlur:
+        return CanvasFilterType.gaussianBlur;
       case _FilterPanelType.leakRemoval:
+        return CanvasFilterType.leakRemoval;
       case _FilterPanelType.lineNarrow:
+        return CanvasFilterType.lineNarrow;
       case _FilterPanelType.fillExpand:
+        return CanvasFilterType.fillExpand;
       case _FilterPanelType.scanPaperDrawing:
-        return true;
+        return CanvasFilterType.scanPaperDrawing;
     }
+  }
+
+  bool _supportsBackendFilter(_FilterPanelType type) {
+    return _backend.supportsFilterType(_backendFilterType(type));
   }
 
   Uint8List _argbPixelsToRgba(Uint32List pixels) {
@@ -286,7 +295,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     }
 
     final l10n = context.l10n;
-    if (_canUseRustCanvasEngine() && _supportsRustFilter(session.type)) {
+    if (_supportsBackendFilter(session.type)) {
       setState(() {
         _filterApplying = true;
       });
@@ -294,9 +303,9 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
 
       bool applied = false;
       try {
-        applied = await _applyRustFilter(session);
+        applied = await _applyBackendFilter(session);
       } catch (error, stackTrace) {
-        debugPrint('Rust scan paper drawing apply failed: $error');
+        debugPrint('Backend scan paper drawing apply failed: $error');
         debugPrint('$stackTrace');
       }
 
@@ -429,7 +438,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     _tryFinalizeFilterApplyAfterFrameChange();
   }
 
-  void _tryFinalizeFilterApplyAfterFrameChange([BitmapCanvasFrame? frame]) {
+  void _tryFinalizeFilterApplyAfterFrameChange([CanvasFrame? frame]) {
     if (!_filterAwaitingFrameSwap) {
       return;
     }
@@ -445,13 +454,12 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     }
   }
 
-  void _handleFilterApplyFrameProgressInternal(BitmapCanvasFrame? frame) {
+  void _handleFilterApplyFrameProgressInternal(CanvasFrame? frame) {
     _tryFinalizeFilterApplyAfterFrameChange(frame);
   }
 
   bool _isFilterSessionIdentity(_FilterSession session) {
-    final bool allowRust =
-        _canUseRustCanvasEngine() && _supportsRustFilter(session.type);
+    final bool allowBackend = _supportsBackendFilter(session.type);
     switch (session.type) {
       case _FilterPanelType.hueSaturation:
         final _HueSaturationSettings settings = session.hueSaturation;
@@ -469,7 +477,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
             (layer.bitmapWidth ?? 0) > 0 &&
             (layer.bitmapHeight ?? 0) > 0;
         final bool hasFill = layer.fillColor != null;
-        return !hasBitmap && !hasFill && !allowRust;
+        return !hasBitmap && !hasFill && !allowBackend;
       case _FilterPanelType.scanPaperDrawing:
         final CanvasLayerData layer =
             session.originalLayers[session.activeLayerIndex];
@@ -480,7 +488,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
         final bool hasFill = layer.fillColor != null;
         return !hasBitmap && !hasFill;
       case _FilterPanelType.binarize:
-        if (allowRust) {
+        if (allowBackend) {
           return false;
         }
         final CanvasLayerData layer =
@@ -516,7 +524,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
             layer.bitmap != null &&
             (layer.bitmapWidth ?? 0) > 0 &&
             (layer.bitmapHeight ?? 0) > 0;
-        return radius <= 0 || (!hasBitmap && !allowRust);
+        return radius <= 0 || (!hasBitmap && !allowBackend);
       case _FilterPanelType.leakRemoval:
         final double radius = session.leakRemoval.radius;
         final CanvasLayerData layer =
@@ -525,7 +533,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
             layer.bitmap != null &&
             (layer.bitmapWidth ?? 0) > 0 &&
             (layer.bitmapHeight ?? 0) > 0;
-        return radius <= 0 || (!hasBitmap && !allowRust);
+        return radius <= 0 || (!hasBitmap && !allowBackend);
       case _FilterPanelType.lineNarrow:
       case _FilterPanelType.fillExpand:
         final double radius = session.type == _FilterPanelType.lineNarrow
@@ -537,7 +545,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
             layer.bitmap != null &&
             (layer.bitmapWidth ?? 0) > 0 &&
             (layer.bitmapHeight ?? 0) > 0;
-        return radius <= 0 || (!hasBitmap && !allowRust);
+        return radius <= 0 || (!hasBitmap && !allowBackend);
     }
   }
 
@@ -571,6 +579,9 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     _controller.replaceLayer(session.activeLayerId, adjusted);
     _controller.setActiveLayer(session.activeLayerId);
     setState(() {});
+    if (!_shouldUseBackendFilterPreview(session) && _backend.isReady) {
+      unawaited(_backend.commitActiveLayerToBackend(recordUndo: false));
+    }
     _onFilterPreviewRequestComplete();
   }
 
@@ -596,6 +607,9 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     if (shouldNotify) {
       setState(() {});
     }
+    if (!_shouldUseBackendFilterPreview(session) && _backend.isReady) {
+      unawaited(_backend.commitActiveLayerToBackend(recordUndo: false));
+    }
   }
 
   void _cancelFilterPreviewTasks() {
@@ -611,7 +625,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     _filterOverlayEntry?.remove();
     _filterOverlayEntry = null;
     _cancelFilterPreviewTasks();
-    _restoreRustLayerAfterFilterPreview();
+    _restoreBackendLayerAfterFilterPreview();
     final _FilterSession? session = _filterSession;
     if (restoreOriginal && session != null) {
       _restoreFilterPreviewToOriginal(session);
@@ -714,7 +728,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
 
   Future<void> scanPaperDrawing() async {
     final l10n = context.l10n;
-    if (_controller.frame == null && !_canUseRustCanvasEngine()) {
+    if (_controller.frame == null && !_backend.isReady) {
       _showFilterMessage(l10n.canvasNotReady);
       return;
     }
@@ -723,7 +737,7 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
       _showFilterMessage(l10n.selectEditableLayerFirst);
       return;
     }
-    final BitmapLayerState? layer = _layerById(activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(activeLayerId);
     if (layer == null) {
       _showFilterMessage(l10n.cannotLocateLayer);
       return;

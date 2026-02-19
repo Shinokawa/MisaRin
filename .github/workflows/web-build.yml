@@ -28,11 +28,39 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          EXTRA_FLAGS=()
           if flutter build web --help | grep -q -- '--web-renderer'; then
-            flutter build web --release --web-renderer canvaskit
-          else
-            flutter build web --release
+            EXTRA_FLAGS+=(--web-renderer canvaskit)
           fi
+          if flutter build web --help | grep -q -- '--no-wasm-dry-run'; then
+            EXTRA_FLAGS+=(--no-wasm-dry-run)
+          fi
+          flutter build web --release "${EXTRA_FLAGS[@]}"
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: 安装 wasm-bindgen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo install wasm-bindgen-cli --locked
+      - name: 构建 Rust wasm 并写入 Web 包
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path rust/Cargo.toml \
+            --release \
+            --target wasm32-unknown-unknown
+          RUST_WASM="rust/target/wasm32-unknown-unknown/release/rust_lib_misa_rin.wasm"
+          PKG_DIR="build/web/pkg"
+          mkdir -p "$PKG_DIR"
+          wasm-bindgen \
+            --target no-modules \
+            --no-typescript \
+            --out-dir "$PKG_DIR" \
+            --out-name rust_lib_misa_rin \
+            "$RUST_WASM"
       - name: 打包 ZIP
         shell: bash
         run: |

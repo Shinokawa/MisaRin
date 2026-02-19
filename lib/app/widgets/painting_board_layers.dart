@@ -14,7 +14,10 @@ mixin _PaintingBoardLayerMixin
   final FlyoutController _layerContextMenuController = FlyoutController();
   final FlyoutController _blendModeFlyoutController = FlyoutController();
   bool? _rasterizeMenuEnabled;
-  bool get rustLayerSupported => CanvasEngineFfi.instance.isSupported;
+  // Layer operations are always supported by the Dart controller.
+  // When the backend canvas is active, we additionally sync changes
+  // via `_backendCanvasSet*` helpers (they are no-ops when backend is unavailable).
+  bool get backendLayerSupported => true;
 
   List<CanvasLayerData> _buildInitialLayers() {
     final List<CanvasLayerData>? provided = widget.initialLayers;
@@ -40,17 +43,17 @@ mixin _PaintingBoardLayerMixin
     if (_layers.isEmpty) {
       return widget.settings.backgroundColor;
     }
-    final BitmapLayerState baseLayer = _layers.first;
-    final Uint32List pixels = baseLayer.surface.pixels;
-    if (pixels.isNotEmpty && (pixels[0] >> 24) != 0) {
+    final CanvasLayerInfo baseLayer = _layers.first;
+    final Uint32List? pixels = _controller.readLayerPixels(baseLayer.id);
+    if (pixels != null && pixels.isNotEmpty && (pixels[0] >> 24) != 0) {
       return BitmapSurface.decodeColor(pixels[0]);
     }
     return widget.settings.backgroundColor;
   }
 
   void _handleLayerVisibilityChanged(String id, bool visible) async {
-    BitmapLayerState? target;
-    for (final BitmapLayerState layer in _layers) {
+    CanvasLayerInfo? target;
+    for (final CanvasLayerInfo layer in _layers) {
       if (layer.id == id) {
         target = layer;
         break;
@@ -61,7 +64,7 @@ mixin _PaintingBoardLayerMixin
     }
     await _pushUndoSnapshot();
     _controller.updateLayerVisibility(id, visible);
-    _rustCanvasSetLayerVisibleById(id, visible);
+    _backendCanvasSetLayerVisibleById(id, visible);
     setState(() {});
     _markDirty();
   }
@@ -72,9 +75,10 @@ mixin _PaintingBoardLayerMixin
     }
     _layerOpacityPreviewReset(this);
     _controller.setActiveLayer(id);
-    _rustCanvasSetActiveLayerById(id);
+    _backendCanvasSetActiveLayerById(id);
     setState(() {});
     _syncRasterizeMenuAvailability();
+    _syncMenuAvailability();
   }
 
   void _handleLayerRenameFocusChange() {
@@ -83,12 +87,12 @@ mixin _PaintingBoardLayerMixin
     }
   }
 
-  Future<void> _beginLayerRename(BitmapLayerState layer) async {
+  Future<void> _beginLayerRename(CanvasLayerInfo layer) async {
     if (layer.locked) {
       return;
     }
 
-    final BitmapLayerState? target = _layerById(layer.id);
+    final CanvasLayerInfo? target = _layerById(layer.id);
     if (target == null || target.locked) {
       return;
     }
@@ -163,7 +167,7 @@ mixin _PaintingBoardLayerMixin
       return;
     }
 
-    final BitmapLayerState? refreshed = _layerById(layer.id);
+    final CanvasLayerInfo? refreshed = _layerById(layer.id);
     if (refreshed == null || refreshed.locked || refreshed.name == nextName) {
       return;
     }
@@ -186,8 +190,8 @@ mixin _PaintingBoardLayerMixin
     if (cancel || nextName.isEmpty) {
       return;
     }
-    BitmapLayerState? target;
-    for (final BitmapLayerState layer in _layers) {
+    CanvasLayerInfo? target;
+    for (final CanvasLayerInfo layer in _layers) {
       if (layer.id == targetId) {
         target = layer;
         break;
@@ -205,36 +209,32 @@ mixin _PaintingBoardLayerMixin
   void _handleAddLayer() async {
     await _pushUndoSnapshot();
     final String? insertAbove =
-        _canUseRustCanvasEngine()
+        _backend.isReady
             ? (_layers.isEmpty ? null : _layers.last.id)
             : _activeLayerId;
     _controller.addLayer(aboveLayerId: insertAbove);
     setState(() {});
     _markDirty();
-    _syncRustCanvasLayersToEngine();
+    _syncBackendCanvasLayersToEngine();
   }
 
   void _handleRemoveLayer(String id) async {
     if (_layers.length <= 1) {
       return;
     }
-    if (_canUseRustCanvasEngine()) {
-      await _controller.waitForPendingWorkerTasks();
-      if (!_syncAllLayerPixelsFromRust()) {
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
-        return;
-      }
+    if (!await _backend.syncAllLayerPixelsFromBackend(
+      waitForPending: true,
+      warnIfFailed: true,
+    )) {
+      return;
     }
-    await _pushUndoSnapshot(rustPixelsSynced: _canUseRustCanvasEngine());
+    final bool backendSynced = _backend.isReady;
+    await _pushUndoSnapshot(backendPixelsSynced: backendSynced);
     _controller.removeLayer(id);
     setState(() {});
     _markDirty();
-    _syncRustCanvasLayersToEngine();
-    if (_canUseRustCanvasEngine()) {
-      if (!_syncAllLayerPixelsToRust()) {
-        _showRustCanvasMessage('Rust 画布写入图层失败。');
-      }
-    }
+    _syncBackendCanvasLayersToEngine();
+    await _backend.syncAllLayerPixelsToBackend(warnIfFailed: true);
   }
 
   Widget _buildAddLayerButton() {
@@ -275,36 +275,35 @@ mixin _PaintingBoardLayerMixin
     if (actualOldIndex == actualNewIndex) {
       return;
     }
-    if (_canUseRustCanvasEngine()) {
-      await _controller.waitForPendingWorkerTasks();
-      if (!_syncAllLayerPixelsFromRust()) {
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
-        return;
-      }
+    if (!await _backend.syncAllLayerPixelsFromBackend(
+      waitForPending: true,
+      warnIfFailed: true,
+    )) {
+      return;
     }
-    await _pushUndoSnapshot(rustPixelsSynced: _canUseRustCanvasEngine());
+    final bool backendSynced = _backend.isReady;
+    await _pushUndoSnapshot(backendPixelsSynced: backendSynced);
     _controller.reorderLayer(actualOldIndex, actualNewIndex);
-    if (_canUseRustCanvasEngine()) {
-      CanvasEngineFfi.instance.reorderLayer(
-        handle: _rustCanvasEngineHandle!,
+    if (backendSynced) {
+      _backend.reorderBackendLayer(
         fromIndex: actualOldIndex,
         toIndex: actualNewIndex,
       );
       final String? activeLayerId = _activeLayerId;
       if (activeLayerId != null) {
-        _rustCanvasSetActiveLayerById(activeLayerId);
+        _backendCanvasSetActiveLayerById(activeLayerId);
       }
     }
     setState(() {});
     _markDirty();
   }
 
-  BitmapLayerState? _currentActiveLayer() {
+  CanvasLayerInfo? _currentActiveLayer() {
     final String? activeId = _activeLayerId;
     if (activeId == null) {
       return null;
     }
-    for (final BitmapLayerState layer in _layers) {
+    for (final CanvasLayerInfo layer in _layers) {
       if (layer.id == activeId) {
         return layer;
       }
@@ -313,7 +312,7 @@ mixin _PaintingBoardLayerMixin
   }
 
   Future<bool> rasterizeActiveTextLayer() async {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null) {
       return false;
     }
@@ -321,14 +320,22 @@ mixin _PaintingBoardLayerMixin
   }
 
   bool get canRasterizeActiveLayer {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null) {
       return false;
     }
     return layer.text != null && !layer.locked;
   }
 
-  Future<bool> _rasterizeTextLayer(BitmapLayerState layer) async {
+  bool get canMergeActiveLayerDown {
+    final CanvasLayerInfo? layer = _currentActiveLayer();
+    if (layer == null) {
+      return false;
+    }
+    return _canMergeLayerDown(layer);
+  }
+
+  Future<bool> _rasterizeTextLayer(CanvasLayerInfo layer) async {
     if (layer.text == null || layer.locked) {
       return false;
     }
@@ -350,7 +357,7 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleLayerOpacityChangeStart(double _) {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null) {
       return;
     }
@@ -360,7 +367,7 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityGestureActive = true;
     _layerOpacityGestureLayerId = layer.id;
     _layerOpacityUndoOriginalValue = layer.opacity;
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.supportsAntialias) {
       _layerOpacityPreviewReset(this);
       return;
     }
@@ -375,7 +382,7 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityUndoOriginalValue = null;
     final double clampedValue = value.clamp(0.0, 1.0);
     final bool applied = _applyLayerOpacityValue(targetLayerId, clampedValue);
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.supportsAntialias) {
       if (targetLayerId != null && originalValue != null) {
         unawaited(_commitLayerOpacityUndoSnapshot(targetLayerId, originalValue));
       }
@@ -405,11 +412,11 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _handleLayerOpacityChanged(double value) {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null) {
       return;
     }
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.supportsAntialias) {
       if (!_layerOpacityGestureActive || _layerOpacityGestureLayerId != layer.id) {
         _layerOpacityGestureActive = true;
         _layerOpacityGestureLayerId = layer.id;
@@ -432,7 +439,7 @@ mixin _PaintingBoardLayerMixin
     if (layerId == null) {
       return false;
     }
-    final BitmapLayerState? layer = _layerById(layerId);
+    final CanvasLayerInfo? layer = _layerById(layerId);
     if (layer == null) {
       return false;
     }
@@ -441,13 +448,13 @@ mixin _PaintingBoardLayerMixin
       return false;
     }
     _controller.setLayerOpacity(layerId, clamped);
-    _rustCanvasSetLayerOpacityById(layerId, clamped);
+    _backendCanvasSetLayerOpacityById(layerId, clamped);
     setState(() {});
     _markDirty();
     return true;
   }
 
-  void _ensureLayerOpacityPreview(BitmapLayerState layer) {
+  void _ensureLayerOpacityPreview(CanvasLayerInfo layer) {
     bool needsImages =
         _layerOpacityPreviewLayerId != layer.id ||
             _layerOpacityPreviewActiveLayerImage == null;
@@ -469,8 +476,8 @@ mixin _PaintingBoardLayerMixin
     }
   }
 
-  bool _hasVisibleLayersBelow(BitmapLayerState target) {
-    for (final BitmapLayerState layer in _layers) {
+  bool _hasVisibleLayersBelow(CanvasLayerInfo target) {
+    for (final CanvasLayerInfo layer in _layers) {
       if (layer.id == target.id) {
         break;
       }
@@ -485,13 +492,16 @@ mixin _PaintingBoardLayerMixin
     String layerId,
     int requestId,
   ) async {
-    final List<BitmapLayerState> snapshot = _layers.toList();
+    final List<CanvasCompositeLayer> compositeSnapshot =
+        _controller.compositeLayers.toList();
+    final List<CanvasLayerInfo> signatureSnapshot = _controller.layers.toList();
     _LayerPreviewImages previews;
     try {
       previews = await _captureLayerPreviewImages(
         controller: _controller,
-        layers: snapshot,
+        layers: compositeSnapshot,
         activeLayerId: layerId,
+        useBackendCanvas: _backend.isSupported,
         captureActiveLayerAtFullOpacity: true,
       );
     } catch (error, stackTrace) {
@@ -510,7 +520,7 @@ mixin _PaintingBoardLayerMixin
     _layerOpacityPreviewActiveLayerImage = previews.active;
     _layerOpacityPreviewForeground = previews.foreground;
     _layerOpacityPreviewCapturedSignature =
-        _layerOpacityPreviewSignature(snapshot);
+        _layerOpacityPreviewSignature(signatureSnapshot);
     setState(() {});
   }
 
@@ -548,7 +558,7 @@ mixin _PaintingBoardLayerMixin
     }
   }
 
-  void _applyLayerLockedState(BitmapLayerState layer, bool locked) async {
+  void _applyLayerLockedState(CanvasLayerInfo layer, bool locked) async {
     if (layer.locked == locked) {
       return;
     }
@@ -561,19 +571,19 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _updateActiveLayerLocked(bool locked) {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null) {
       return;
     }
     _applyLayerLockedState(layer, locked);
   }
 
-  void _handleLayerLockToggle(BitmapLayerState layer) {
+  void _handleLayerLockToggle(CanvasLayerInfo layer) {
     _applyLayerLockedState(layer, !layer.locked);
   }
 
-  BitmapLayerState? _layerById(String id) {
-    for (final BitmapLayerState candidate in _layers) {
+  CanvasLayerInfo? _layerById(String id) {
+    for (final CanvasLayerInfo candidate in _layers) {
       if (candidate.id == id) {
         return candidate;
       }
@@ -581,7 +591,7 @@ mixin _PaintingBoardLayerMixin
     return null;
   }
 
-  bool _canMergeLayerDown(BitmapLayerState layer) {
+  bool _canMergeLayerDown(CanvasLayerInfo layer) {
     if (layer.locked) {
       return false;
     }
@@ -591,51 +601,66 @@ mixin _PaintingBoardLayerMixin
     if (index <= 0) {
       return false;
     }
-    final BitmapLayerState below = _layers[index - 1];
+    final CanvasLayerInfo below = _layers[index - 1];
     return !below.locked;
   }
 
-  void _handleMergeLayerDown(BitmapLayerState layer) async {
+  void _handleMergeLayerDown(CanvasLayerInfo layer) async {
     if (!_canMergeLayerDown(layer)) {
       return;
     }
-    if (!_canUseRustCanvasEngine()) {
-      _showRustCanvasMessage('Rust 画布尚未准备好。');
+    final bool useBackendCanvas = _backend.isSupported;
+    if (!useBackendCanvas) {
+      await _pushUndoSnapshot();
+      if (!_controller.mergeLayerDown(layer.id)) {
+        return;
+      }
+      setState(() {});
+      _markDirty();
       return;
     }
-    await _controller.waitForPendingWorkerTasks();
-    if (!_syncAllLayerPixelsFromRust()) {
-      _showRustCanvasMessage('Rust 画布同步图层失败。');
+    if (!await _backend.syncAllLayerPixelsFromBackend(
+      waitForPending: true,
+      warnIfFailed: true,
+      skipIfUnavailable: false,
+    )) {
       return;
     }
-    await _pushUndoSnapshot(rustPixelsSynced: true);
+    await _pushUndoSnapshot(backendPixelsSynced: true);
     if (!_controller.mergeLayerDown(layer.id)) {
       return;
     }
-    _syncRustCanvasLayersToEngine();
-    if (!_syncAllLayerPixelsToRust()) {
-      _showRustCanvasMessage('Rust 画布写入图层失败。');
-    }
+    _syncBackendCanvasLayersToEngine();
+    await _backend.syncAllLayerPixelsToBackend(
+      warnIfFailed: true,
+      skipIfUnavailable: false,
+    );
     setState(() {});
     _markDirty();
   }
 
-  void _handleLayerClippingToggle(BitmapLayerState layer) async {
+  void _handleLayerClippingToggle(CanvasLayerInfo layer) async {
     if (layer.locked) {
       return;
     }
     final bool nextValue = !layer.clippingMask;
     await _pushUndoSnapshot();
     _controller.setLayerClippingMask(layer.id, nextValue);
-    _rustCanvasSetLayerClippingById(layer.id, nextValue);
+    _backendCanvasSetLayerClippingById(layer.id, nextValue);
     setState(() {});
     _markDirty();
   }
 
-  void _handleDuplicateLayer(BitmapLayerState layer) async {
-    if (_canUseRustCanvasEngine()) {
-      _showRustCanvasMessage('Rust 画布目前暂不支持复制图层。');
-      return;
+  void _handleDuplicateLayer(CanvasLayerInfo layer) async {
+    final bool backendReady = _backend.isReady;
+    if (backendReady) {
+      if (!await _backend.syncAllLayerPixelsFromBackend(
+        waitForPending: true,
+        warnIfFailed: true,
+        skipIfUnavailable: false,
+      )) {
+        return;
+      }
     }
     final CanvasLayerData? snapshot = _controller.buildClipboardLayer(layer.id);
     if (snapshot == null) {
@@ -652,14 +677,21 @@ mixin _PaintingBoardLayerMixin
       locked: false,
       clippingMask: layer.clippingMask,
     );
-    await _pushUndoSnapshot();
+    await _pushUndoSnapshot(backendPixelsSynced: backendReady);
     _controller.insertLayerFromData(duplicate, aboveLayerId: layer.id);
     _controller.setActiveLayer(newId);
     setState(() {});
     _markDirty();
+    _syncBackendCanvasLayersToEngine();
+    if (backendReady) {
+      await _backend.syncAllLayerPixelsToBackend(
+        warnIfFailed: true,
+        skipIfUnavailable: false,
+      );
+    }
   }
 
-  void _showLayerContextMenu(BitmapLayerState layer, Offset position) {
+  void _showLayerContextMenu(CanvasLayerInfo layer, Offset position) {
     _handleLayerSelected(layer.id);
     _layerContextMenuController.showFlyout(
       position: position,
@@ -668,7 +700,7 @@ mixin _PaintingBoardLayerMixin
       transitionDuration: Duration.zero,
       reverseTransitionDuration: Duration.zero,
       builder: (context) {
-        final BitmapLayerState? target = _layerById(layer.id);
+        final CanvasLayerInfo? target = _layerById(layer.id);
         if (target == null) {
           return const SizedBox.shrink();
         }
@@ -677,7 +709,7 @@ mixin _PaintingBoardLayerMixin
     );
   }
 
-  List<MenuFlyoutItemBase> _buildLayerContextMenuItems(BitmapLayerState layer) {
+  List<MenuFlyoutItemBase> _buildLayerContextMenuItems(CanvasLayerInfo layer) {
     final bool canDelete = _layers.length > 1 && !layer.locked;
     final bool canMerge = _canMergeLayerDown(layer);
     final bool isLocked = layer.locked;
@@ -738,24 +770,24 @@ mixin _PaintingBoardLayerMixin
   }
 
   void _updateActiveLayerClipping(bool clipping) async {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null || layer.clippingMask == clipping) {
       return;
     }
     await _pushUndoSnapshot();
     _controller.setLayerClippingMask(layer.id, clipping);
-    _rustCanvasSetLayerClippingById(layer.id, clipping);
+    _backendCanvasSetLayerClippingById(layer.id, clipping);
     setState(() {});
   }
 
   void _updateActiveLayerBlendMode(CanvasLayerBlendMode mode) async {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null || layer.blendMode == mode) {
       return;
     }
     await _pushUndoSnapshot();
     _controller.setLayerBlendMode(layer.id, mode);
-    _rustCanvasSetLayerBlendModeById(layer.id, mode);
+    _backendCanvasSetLayerBlendModeById(layer.id, mode);
     setState(() {});
   }
 
@@ -776,28 +808,22 @@ mixin _PaintingBoardLayerMixin
   }
 
   Future<bool> applyLayerAntialiasLevel(int level) async {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null || layer.locked) {
       return false;
     }
     final int clamped = level.clamp(0, 9);
-    if (_canUseRustCanvasEngine()) {
-      final int? handle = _rustCanvasEngineHandle;
+    if (_backend.supportsAntialias) {
       final String? layerId = _activeLayerId;
-      if (handle == null || layerId == null) {
+      if (layerId == null) {
         return false;
       }
-      final int? index = _rustCanvasLayerIndexForId(layerId);
-      if (index == null) {
-        return false;
-      }
-      final bool applied = CanvasEngineFfi.instance.applyAntialias(
-        handle: handle,
-        layerIndex: index,
+      final bool applied = _backend.applyAntialiasById(
+        layerId: layerId,
         level: clamped,
       );
       if (applied) {
-        _recordRustHistoryAction(layerId: layerId);
+        _recordBackendHistoryAction(layerId: layerId);
         setState(() {});
         _markDirty();
       }
@@ -836,7 +862,7 @@ mixin _PaintingBoardLayerMixin
 
   Widget? _buildLayerControlStrip(
     FluentThemeData theme,
-    BitmapLayerState? activeLayer,
+    CanvasLayerInfo? activeLayer,
   ) {
     return _buildLayerControlStripImpl(theme, activeLayer);
   }
@@ -845,11 +871,11 @@ mixin _PaintingBoardLayerMixin
     return _computeLayerTileDimStatesImpl();
   }
 
-  void _pruneLayerPreviewCache(Iterable<BitmapLayerState> layers) {
+  void _pruneLayerPreviewCache(Iterable<CanvasLayerInfo> layers) {
     _pruneLayerPreviewCacheImpl(layers);
   }
 
-  void _ensureLayerPreview(BitmapLayerState layer) {
+  void _ensureLayerPreview(CanvasLayerInfo layer) {
     _ensureLayerPreviewImpl(layer);
   }
 
@@ -859,13 +885,11 @@ mixin _PaintingBoardLayerMixin
 
   Future<void> _captureLayerPreviewThumbnail({
     required String layerId,
-    required BitmapSurface surface,
     required int revision,
     required int requestId,
   }) async {
     await _captureLayerPreviewThumbnailImpl(
       layerId: layerId,
-      surface: surface,
       revision: revision,
       requestId: requestId,
     );
@@ -885,8 +909,12 @@ mixin _PaintingBoardLayerMixin
     );
   }
 
-  _LayerPreviewPixels? _buildLayerPreviewPixels(BitmapSurface surface) {
-    return _buildLayerPreviewPixelsImpl(surface);
+  _LayerPreviewPixels? _buildLayerPreviewPixels(
+    Uint32List pixels,
+    int width,
+    int height,
+  ) {
+    return _buildLayerPreviewPixelsImpl(pixels, width, height);
   }
 
   void _disposeLayerPreviewCache() {

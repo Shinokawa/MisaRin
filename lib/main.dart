@@ -1,13 +1,15 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_performance_pulse/flutter_performance_pulse.dart';
 import 'package:misa_rin/l10n/app_localizations.dart';
+import 'package:misa_rin/utils/io_shim.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
@@ -15,26 +17,32 @@ import 'brushes/brush_library.dart';
 import 'app/l10n/l10n.dart';
 import 'app/preferences/app_preferences.dart';
 import 'app/utils/tablet_input_bridge.dart';
-import 'app/widgets/rust_canvas_surface.dart';
+import 'app/widgets/backend_canvas_surface.dart';
 import 'backend/canvas_raster_backend.dart';
+import 'canvas/canvas_backend.dart';
+import 'canvas/canvas_backend_state.dart';
 import 'src/rust/rust_init.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   TabletInputBridge.instance.ensureInitialized();
 
+  await AppPreferences.load();
+  await _configureSystemUi();
   try {
     await ensureRustInitialized();
     if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-      // Initialize the GPU compositor and pre-warm shaders/pipelines.
-      await CanvasRasterBackend.prewarmGpuEngine();
-      // Also pre-warm the Texture engine used by RustCanvasSurface.
-      await RustCanvasSurface.prewarmTextureEngine();
+      if (CanvasBackendState.backend == CanvasBackend.rustWgpu) {
+        // Initialize the Rust WGPU compositor and pre-warm shaders/pipelines.
+        await CanvasRasterBackend.prewarmRustWgpuEngine();
+        // Also pre-warm the Texture engine used by BackendCanvasSurface.
+        await BackendCanvasSurface.prewarmTextureEngine();
+      }
       // Pre-warm Flutter's image decoding pipeline.
       await _prewarmImageDecoder();
     }
   } catch (error, stackTrace) {
-    debugPrint('GPU init failed: $error\n$stackTrace');
+    debugPrint('Rust WGPU init failed: $error\n$stackTrace');
     // We continue anyway, but canvas might fail later.
   }
 
@@ -48,16 +56,32 @@ Future<void> main() async {
 
   await _initializeDesktopWindowIfNeeded();
 
-  final bool showCustomMenu =
-      kIsWeb || (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS));
-  final bool showCustomMenuItems =
-      kIsWeb || (!kIsWeb && (Platform.isWindows || Platform.isLinux));
+  final bool showCustomMenu = kIsWeb ||
+      (!kIsWeb &&
+          (Platform.isWindows ||
+              Platform.isLinux ||
+              Platform.isMacOS ||
+              Platform.isAndroid ||
+              Platform.isIOS));
+  final bool showCustomMenuItems = kIsWeb ||
+      (!kIsWeb &&
+          (Platform.isWindows ||
+              Platform.isLinux ||
+              Platform.isAndroid ||
+              Platform.isIOS));
   final app = MisarinApp(
     showCustomMenu: showCustomMenu,
     showCustomMenuItems: showCustomMenuItems,
   );
 
   runApp(app);
+}
+
+Future<void> _configureSystemUi() async {
+  if (kIsWeb || !Platform.isIOS) {
+    return;
+  }
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 }
 
 Future<void> _preloadCoreServices() async {
@@ -117,7 +141,18 @@ Future<void> _waitForMaximized() async {
 
 Future<void> _initializePerformancePulse() async {
   try {
-    final bool enableBatteryMonitoring = !Platform.isWindows;
+    bool enableBatteryMonitoring = !Platform.isWindows;
+    if (Platform.isIOS) {
+      try {
+        final IosDeviceInfo info = await DeviceInfoPlugin().iosInfo;
+        if (!info.isPhysicalDevice) {
+          enableBatteryMonitoring = false;
+        }
+      } catch (_) {
+        // Disable on simulator/unknown environments to avoid noisy errors.
+        enableBatteryMonitoring = false;
+      }
+    }
     await PerformanceMonitor.instance.initialize(
       config: MonitorConfig(
         showMemory: true,

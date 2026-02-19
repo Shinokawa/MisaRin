@@ -245,6 +245,18 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get canvasBackendLabel => '캔버스 백엔드';
+
+  @override
+  String get canvasBackendGpu => 'Rust WGPU';
+
+  @override
+  String get canvasBackendCpu => 'Rust CPU';
+
+  @override
+  String get canvasBackendRestartHint => '백엔드 변경은 재시작 후 적용됩니다.';
+
+  @override
   String get developerOptionsLabel => '개발자 옵션';
 
   @override
@@ -400,6 +412,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get menuSelectAll => '전체 선택';
+
+  @override
+  String get menuDeselect => '선택 해제';
 
   @override
   String get menuInvertSelection => '선택 반전';
@@ -1059,10 +1074,46 @@ class AppLocalizationsKo extends AppLocalizations {
   String get brushShape => '브러시 모양';
 
   @override
+  String get brushAuthorLabel => '작성자';
+
+  @override
+  String get brushVersionLabel => '버전';
+
+  @override
+  String get importBrush => '브러시 가져오기';
+
+  @override
+  String get exportBrush => '브러시 내보내기';
+
+  @override
+  String get exportBrushTitle => '브러시 내보내기';
+
+  @override
+  String get unsavedBrushChangesPrompt => '브러시 설정이 변경되었습니다. 저장할까요?';
+
+  @override
+  String get discardChanges => '변경 사항 버리기';
+
+  @override
+  String get brushShapeFolderLabel => '브러시 모양 폴더';
+
+  @override
+  String get openBrushShapesFolder => '브러시 모양 폴더 열기';
+
+  @override
   String get randomRotation => '무작위 회전';
 
   @override
+  String get smoothRotation => '부드러운 회전';
+
+  @override
   String get selectionShape => '선택 모양';
+
+  @override
+  String get selectionAdditive => '선택 추가';
+
+  @override
+  String get selectionAdditiveDesc => '켜면 Shift 없이도 선택을 여러 번 추가할 수 있습니다.';
 
   @override
   String get fontSize => '글꼴 크기';

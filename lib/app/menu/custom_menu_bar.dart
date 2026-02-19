@@ -2,14 +2,15 @@ import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../utils/platform_target.dart';
 import '../widgets/window_drag_area.dart';
-import 'menu_action_dispatcher.dart';
 import 'menu_definitions.dart';
+import 'menu_helpers.dart';
+import 'touch_menu_overlay.dart';
 
 class CustomMenuBarOverlay {
   static final ValueNotifier<Widget?> centerOverlay = ValueNotifier<Widget?>(
@@ -90,6 +91,19 @@ class CustomMenuBar extends StatefulWidget {
 class _CustomMenuBarState extends State<CustomMenuBar> {
   FlyoutController? _openController;
   final ValueNotifier<bool> _menuOpenNotifier = ValueNotifier<bool>(false);
+  OverlayEntry? _touchMenuEntry;
+  MenuDefinition? _touchMenuDefinition;
+  Rect _touchMenuAnchor = Rect.zero;
+  double _menuBarHeight = 0;
+
+  bool get _useTouchMenu {
+    if (kIsWeb) {
+      return false;
+    }
+    return defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.fuchsia;
+  }
 
   void _handleMenuWillOpen(FlyoutController controller) {
     if (_openController == controller) {
@@ -115,8 +129,57 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
 
   @override
   void dispose() {
+    _touchMenuEntry?.remove();
     _menuOpenNotifier.dispose();
     super.dispose();
+  }
+
+  bool _isTouchMenuOpenFor(MenuDefinition menu) {
+    return _touchMenuEntry != null &&
+        _touchMenuDefinition?.label == menu.label;
+  }
+
+  void _openTouchMenu(MenuDefinition menu, Rect anchorRect) {
+    if (!_useTouchMenu) {
+      return;
+    }
+    if (_openController?.isOpen ?? false) {
+      _openController!.forceClose();
+      _openController = null;
+    }
+    _touchMenuDefinition = menu;
+    _touchMenuAnchor = anchorRect;
+    if (_touchMenuEntry == null) {
+      _touchMenuEntry = OverlayEntry(
+        builder: (context) {
+          final MenuDefinition? definition = _touchMenuDefinition;
+          if (definition == null) {
+            return const SizedBox.shrink();
+          }
+          return TouchMenuOverlay(
+            anchorRect: _touchMenuAnchor,
+            entries: definition.entries,
+            menuBarHeight: _menuBarHeight,
+            onDismiss: _closeTouchMenu,
+          );
+        },
+      );
+      Overlay.of(context, rootOverlay: true)?.insert(_touchMenuEntry!);
+    } else {
+      _touchMenuEntry!.markNeedsBuild();
+    }
+    if (!_menuOpenNotifier.value) {
+      _menuOpenNotifier.value = true;
+    }
+  }
+
+  void _closeTouchMenu() {
+    _touchMenuEntry?.remove();
+    _touchMenuEntry = null;
+    _touchMenuDefinition = null;
+    if (_menuOpenNotifier.value) {
+      _menuOpenNotifier.value = false;
+    }
   }
 
   @override
@@ -156,11 +219,15 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
             final List<Widget> children = <Widget>[
               for (int i = 0; i < visibleMenus.length; i++) ...[
                 _MenuButton(
+                  key: ValueKey(visibleMenus[i].label),
                   definition: visibleMenus[i],
                   navigatorKey: widget.navigatorKey,
                   onMenuWillOpen: _handleMenuWillOpen,
                   onMenuClosed: _handleMenuClosed,
                   isAnyMenuOpen: anyMenuOpen,
+                  onTouchMenuRequested: _openTouchMenu,
+                  onTouchMenuClose: _closeTouchMenu,
+                  isTouchMenuOpen: _isTouchMenuOpenFor,
                 ),
                 if (i != visibleMenus.length - 1) const SizedBox(width: 4),
               ],
@@ -215,6 +282,8 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
       },
     );
 
+    final double topInset = MediaQuery.of(context).viewPadding.top;
+    _menuBarHeight = topInset + 36;
     return Container(
       decoration: BoxDecoration(
         color: theme.micaBackgroundColor,
@@ -225,8 +294,8 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
           ),
         ),
       ),
-      child: SafeArea(
-        bottom: false,
+      child: Padding(
+        padding: EdgeInsets.only(top: topInset),
         child: SizedBox(height: 36, child: rowContent),
       ),
     );
@@ -235,11 +304,15 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
 
 class _MenuButton extends StatefulWidget {
   const _MenuButton({
+    super.key,
     required this.definition,
     this.navigatorKey,
     this.onMenuWillOpen,
     this.onMenuClosed,
     this.isAnyMenuOpen = false,
+    this.onTouchMenuRequested,
+    this.onTouchMenuClose,
+    this.isTouchMenuOpen,
   });
 
   final MenuDefinition definition;
@@ -247,6 +320,10 @@ class _MenuButton extends StatefulWidget {
   final ValueChanged<FlyoutController>? onMenuWillOpen;
   final ValueChanged<FlyoutController>? onMenuClosed;
   final bool isAnyMenuOpen;
+  final void Function(MenuDefinition definition, Rect anchorRect)?
+      onTouchMenuRequested;
+  final VoidCallback? onTouchMenuClose;
+  final bool Function(MenuDefinition definition)? isTouchMenuOpen;
 
   @override
   State<_MenuButton> createState() => _MenuButtonState();
@@ -256,10 +333,28 @@ class _MenuButtonState extends State<_MenuButton> {
   late final FlyoutController _flyoutController = FlyoutController();
   bool _hovered = false;
 
+  bool get _isTouchPlatform {
+    if (kIsWeb) {
+      return false;
+    }
+    return defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.fuchsia;
+  }
+
   @override
   void dispose() {
     _flyoutController.dispose();
     super.dispose();
+  }
+
+  Rect? _resolveButtonRect() {
+    final RenderObject? renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) {
+      return null;
+    }
+    final Offset global = renderObject.localToGlobal(Offset.zero);
+    return global & renderObject.size;
   }
 
   void _openMenu({bool toggleIfOpen = true}) {
@@ -327,7 +422,50 @@ class _MenuButtonState extends State<_MenuButton> {
         onExit: (_) => setState(() => _hovered = false),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () => _openMenu(toggleIfOpen: true),
+          onTap: _isTouchPlatform
+              ? null
+              : () {
+                  if (kDebugMode) {
+                    debugPrint(
+                      '[menu_bar] tap label=${widget.definition.label}',
+                    );
+                  }
+                  _openMenu(toggleIfOpen: true);
+                },
+          onTapDown: (details) {
+            if (kDebugMode) {
+              debugPrint(
+                '[menu_bar] tap_down label=${widget.definition.label} local=${details.localPosition} global=${details.globalPosition}',
+              );
+            }
+          },
+          onTapUp: (details) {
+            if (kDebugMode) {
+              debugPrint(
+                '[menu_bar] tap_up label=${widget.definition.label} local=${details.localPosition} global=${details.globalPosition}',
+              );
+            }
+            if (_isTouchPlatform) {
+              final Rect? rect = _resolveButtonRect();
+              if (rect == null) {
+                return;
+              }
+              final bool isOpen =
+                  widget.isTouchMenuOpen?.call(widget.definition) ?? false;
+              if (isOpen) {
+                widget.onTouchMenuClose?.call();
+              } else {
+                widget.onTouchMenuRequested?.call(widget.definition, rect);
+              }
+            }
+          },
+          onTapCancel: () {
+            if (kDebugMode) {
+              debugPrint(
+                '[menu_bar] tap_cancel label=${widget.definition.label}',
+              );
+            }
+          },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -375,13 +513,13 @@ class _MenuButtonState extends State<_MenuButton> {
   MenuFlyoutItemBase? _convertEntry(BuildContext context, MenuEntry entry) {
     if (entry is MenuActionEntry) {
       final bool resolvedEnabled = entry.isEnabled;
-      final VoidCallback? action = _wrapAction(entry.action);
+      final VoidCallback? action = wrapMenuAction(entry.action);
       if (action == null && resolvedEnabled) {
         return null;
       }
       final bool enabled = resolvedEnabled && action != null;
       final VoidCallback? onPressed = enabled ? action : null;
-      final String? shortcutLabel = _formatShortcut(entry.shortcut);
+      final String? shortcutLabel = formatMenuShortcut(entry.shortcut);
       final TextStyle? shortcutStyle = FluentTheme.of(context)
           .typography
           .caption
@@ -410,6 +548,8 @@ class _MenuButtonState extends State<_MenuButton> {
       return MenuFlyoutSubItem(
         text: Text(entry.label),
         items: (context) => _buildMenuItems(context, children),
+        showBehavior:
+            _isTouchPlatform ? SubItemShowAction.press : SubItemShowAction.hover,
       );
     }
     return null;
@@ -597,59 +737,4 @@ class _CaptionButtonState extends State<_CaptionButton> {
   Color _contrastingColor(Color background) {
     return background.computeLuminance() > 0.5 ? Colors.black : Colors.white;
   }
-}
-
-VoidCallback? _wrapAction(MenuAsyncAction? action) {
-  if (action == null) {
-    return null;
-  }
-  return () => unawaited(Future.sync(action));
-}
-
-String? _formatShortcut(MenuSerializableShortcut? shortcut) {
-  if (shortcut == null) {
-    return null;
-  }
-  if (shortcut is! SingleActivator) {
-    return null;
-  }
-  final bool isMac = isResolvedPlatformMacOS();
-  final List<String> parts = <String>[];
-
-  if (shortcut.control) {
-    parts.add(isMac ? '⌃' : 'Ctrl');
-  }
-  if (shortcut.meta) {
-    parts.add(isMac ? '⌘' : 'Ctrl');
-  }
-  if (shortcut.alt) {
-    parts.add(isMac ? '⌥' : 'Alt');
-  }
-  if (shortcut.shift) {
-    parts.add(isMac ? '⇧' : 'Shift');
-  }
-
-  final String keyLabel = _describeLogicalKey(shortcut.trigger);
-  if (keyLabel.isNotEmpty) {
-    parts.add(isMac ? keyLabel : keyLabel.toUpperCase());
-  }
-
-  if (parts.isEmpty) {
-    return null;
-  }
-
-  return isMac ? parts.join() : parts.join('+');
-}
-
-String _describeLogicalKey(LogicalKeyboardKey key) {
-  final String label = key.keyLabel;
-  if (label.isNotEmpty) {
-    if (label.length == 1 &&
-        label.codeUnitAt(0) >= 97 &&
-        label.codeUnitAt(0) <= 122) {
-      return label.toUpperCase();
-    }
-    return label;
-  }
-  return key.debugName ?? '';
 }

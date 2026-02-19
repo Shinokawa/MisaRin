@@ -1,8 +1,9 @@
 import 'dart:ffi' as ffi;
-import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
+
+import 'rust_dylib.dart';
 
 const int _kPointStrideBytes = 32;
 const int _kViewFlagMirror = 1;
@@ -43,6 +44,9 @@ typedef _EnginePushPointsDart =
 
 typedef _EngineGetInputQueueLenNative = ffi.Uint64 Function(ffi.Uint64 handle);
 typedef _EngineGetInputQueueLenDart = int Function(int handle);
+
+typedef _EngineIsValidNative = ffi.Uint8 Function(ffi.Uint64 handle);
+typedef _EngineIsValidDart = int Function(int handle);
 
 typedef _EngineSetActiveLayerNative =
     ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 layerIndex);
@@ -85,7 +89,11 @@ typedef _EngineSetLayerBlendModeDart =
     void Function(int handle, int layerIndex, int blendModeIndex);
 
 typedef _EngineReorderLayerNative =
-    ffi.Void Function(ffi.Uint64 handle, ffi.Uint32 fromIndex, ffi.Uint32 toIndex);
+    ffi.Void Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 fromIndex,
+      ffi.Uint32 toIndex,
+    );
 typedef _EngineReorderLayerDart =
     void Function(int handle, int fromIndex, int toIndex);
 
@@ -314,6 +322,7 @@ typedef _EngineSetBrushNative =
       ffi.Uint32 antialiasLevel,
       ffi.Uint32 brushShape,
       ffi.Uint8 randomRotation,
+      ffi.Uint8 smoothRotation,
       ffi.Uint32 rotationSeed,
       ffi.Float spacing,
       ffi.Float hardness,
@@ -336,6 +345,7 @@ typedef _EngineSetBrushDart =
       int antialiasLevel,
       int brushShape,
       int randomRotation,
+      int smoothRotation,
       int rotationSeed,
       double spacing,
       double hardness,
@@ -408,11 +418,12 @@ typedef _EngineApplyAntialiasNative =
       ffi.Uint32 level,
     );
 typedef _EngineApplyAntialiasDart =
-    int Function(
-      int handle,
-      int layerIndex,
-      int level,
-    );
+    int Function(int handle, int layerIndex, int level);
+
+typedef _EngineLogPopNative = ffi.Pointer<ffi.Char> Function();
+typedef _EngineLogPopDart = ffi.Pointer<ffi.Char> Function();
+typedef _EngineLogFreeNative = ffi.Void Function(ffi.Pointer<ffi.Char> ptr);
+typedef _EngineLogFreeDart = void Function(ffi.Pointer<ffi.Char> ptr);
 
 class CanvasEngineFfi {
   CanvasEngineFfi._() {
@@ -427,6 +438,14 @@ class CanvasEngineFfi {
             _EngineGetInputQueueLenNative,
             _EngineGetInputQueueLenDart
           >('engine_get_input_queue_len');
+      try {
+        _isValid = _lib
+            .lookupFunction<_EngineIsValidNative, _EngineIsValidDart>(
+              'engine_is_valid',
+            );
+      } catch (_) {
+        _isValid = null;
+      }
 
       // Optional layer controls (not required for basic drawing).
       try {
@@ -476,10 +495,9 @@ class CanvasEngineFfi {
       }
       try {
         _reorderLayer = _lib
-            .lookupFunction<
-              _EngineReorderLayerNative,
-              _EngineReorderLayerDart
-            >('engine_reorder_layer');
+            .lookupFunction<_EngineReorderLayerNative, _EngineReorderLayerDart>(
+              'engine_reorder_layer',
+            );
       } catch (_) {
         _reorderLayer = null;
       }
@@ -629,24 +647,24 @@ class CanvasEngineFfi {
         _setBrush = null;
       }
       try {
-        _sprayBegin =
-            _lib.lookupFunction<_EngineSprayBeginNative, _EngineSprayBeginDart>(
+        _sprayBegin = _lib
+            .lookupFunction<_EngineSprayBeginNative, _EngineSprayBeginDart>(
               'engine_spray_begin',
             );
       } catch (_) {
         _sprayBegin = null;
       }
       try {
-        _sprayDraw =
-            _lib.lookupFunction<_EngineSprayDrawNative, _EngineSprayDrawDart>(
+        _sprayDraw = _lib
+            .lookupFunction<_EngineSprayDrawNative, _EngineSprayDrawDart>(
               'engine_spray_draw',
             );
       } catch (_) {
         _sprayDraw = null;
       }
       try {
-        _sprayEnd =
-            _lib.lookupFunction<_EngineSprayEndNative, _EngineSprayEndDart>(
+        _sprayEnd = _lib
+            .lookupFunction<_EngineSprayEndNative, _EngineSprayEndDart>(
               'engine_spray_end',
             );
       } catch (_) {
@@ -669,6 +687,18 @@ class CanvasEngineFfi {
       } catch (_) {
         _applyAntialias = null;
       }
+      try {
+        _logPop = _lib.lookupFunction<_EngineLogPopNative, _EngineLogPopDart>(
+          'engine_log_pop',
+        );
+        _logFree = _lib
+            .lookupFunction<_EngineLogFreeNative, _EngineLogFreeDart>(
+              'engine_log_free',
+            );
+      } catch (_) {
+        _logPop = null;
+        _logFree = null;
+      }
       isSupported = true;
     } catch (_) {
       isSupported = false;
@@ -678,15 +708,13 @@ class CanvasEngineFfi {
   static final CanvasEngineFfi instance = CanvasEngineFfi._();
 
   static ffi.DynamicLibrary _openLibrary() {
-    if (Platform.isWindows) {
-      return ffi.DynamicLibrary.open('rust_lib_misa_rin.dll');
-    }
-    return ffi.DynamicLibrary.process();
+    return RustDynamicLibrary.open();
   }
 
   late final ffi.DynamicLibrary _lib;
   late final _EnginePushPointsDart _pushPoints;
   late final _EngineGetInputQueueLenDart _getQueueLen;
+  late final _EngineIsValidDart? _isValid;
   late final _EngineSetActiveLayerDart? _setActiveLayer;
   late final _EngineSetLayerOpacityDart? _setLayerOpacity;
   late final _EngineSetLayerVisibleDart? _setLayerVisible;
@@ -715,6 +743,8 @@ class CanvasEngineFfi {
   late final _EngineSprayEndDart? _sprayEnd;
   late final _EngineApplyFilterDart? _applyFilter;
   late final _EngineApplyAntialiasDart? _applyAntialias;
+  late final _EngineLogPopDart? _logPop;
+  late final _EngineLogFreeDart? _logFree;
 
   ffi.Pointer<ffi.Uint8>? _staging;
   int _stagingCapacityBytes = 0;
@@ -744,6 +774,44 @@ class CanvasEngineFfi {
       return 0;
     }
     return _getQueueLen(handle);
+  }
+
+  String? popLogLine() {
+    final fn = _logPop;
+    final free = _logFree;
+    if (!isSupported || fn == null || free == null) {
+      return null;
+    }
+    final ffi.Pointer<ffi.Char> ptr = fn();
+    if (ptr == ffi.nullptr) {
+      return null;
+    }
+    final String line = ptr.cast<Utf8>().toDartString();
+    free(ptr);
+    return line;
+  }
+
+  List<String> drainLogs({int maxLines = 200}) {
+    final List<String> lines = <String>[];
+    for (int i = 0; i < maxLines; i++) {
+      final String? line = popLogLine();
+      if (line == null) {
+        break;
+      }
+      lines.add(line);
+    }
+    return lines;
+  }
+
+  bool isHandleValid(int handle) {
+    if (!isSupported || handle == 0) {
+      return false;
+    }
+    final fn = _isValid;
+    if (fn == null) {
+      return false;
+    }
+    return fn(handle) != 0;
   }
 
   void setActiveLayer({required int handle, required int layerIndex}) {
@@ -1034,7 +1102,14 @@ class CanvasEngineFfi {
     }
     final ffi.Pointer<ffi.Uint8> outPtr = malloc.allocate<ffi.Uint8>(byteCount);
     try {
-      final int result = fn(handle, layerIndex, width, height, outPtr, byteCount);
+      final int result = fn(
+        handle,
+        layerIndex,
+        width,
+        height,
+        outPtr,
+        byteCount,
+      );
       if (result == 0) {
         return null;
       }
@@ -1225,6 +1300,7 @@ class CanvasEngineFfi {
     int antialiasLevel = 1,
     int brushShape = 0,
     bool randomRotation = false,
+    bool smoothRotation = false,
     int rotationSeed = 0,
     double spacing = 0.15,
     double hardness = 0.8,
@@ -1294,6 +1370,7 @@ class CanvasEngineFfi {
       antialiasLevel.clamp(0, 9),
       shape,
       randomRotation ? 1 : 0,
+      smoothRotation ? 1 : 0,
       seed,
       spacingValue,
       hardnessValue,

@@ -1,10 +1,23 @@
 part of 'painting_board.dart';
 
 abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
+  late final _CanvasBackendFacade _backend = _CanvasBackendFacade(this);
   bool get canUndo =>
       _useCombinedHistory ? _historyUndoStack.isNotEmpty : _undoStack.isNotEmpty;
   bool get canRedo =>
       _useCombinedHistory ? _historyRedoStack.isNotEmpty : _redoStack.isNotEmpty;
+  bool get hasSelection =>
+      selectionMaskSnapshot != null ||
+      selectionPathSnapshot != null ||
+      selectionPreviewPath != null ||
+      magicWandPreviewPath != null;
+  bool get canSelectAll =>
+      isBoardReady && _controller.width > 0 && _controller.height > 0;
+  bool get canClearSelection => isBoardReady && hasSelection;
+  bool get canInvertSelection => canSelectAll;
+  bool get canCut => isBoardReady && _activeLayerId != null;
+  bool get canCopy => canCut;
+  bool get canPaste => isBoardReady && _activeLayerId != null;
   SelectionShape get selectionShape;
   ShapeToolVariant get shapeToolVariant;
   Path? get selectionPath;
@@ -21,9 +34,9 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
 
   void clearSelectionArtifacts();
   void resetSelectionUndoFlag();
-  Uint8List? _resolveSelectionMaskForRust(int targetWidth, int targetHeight);
+  Uint8List? _resolveSelectionMaskForBackend(int targetWidth, int targetHeight);
 
-  UnmodifiableListView<BitmapLayerState> get _layers => _controller.layers;
+  UnmodifiableListView<CanvasLayerInfo> get _layers => _controller.layers;
   String? get _activeLayerId => _controller.activeLayerId;
   Color get _backgroundPreviewColor;
 
@@ -40,7 +53,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   void _setPrimaryColor(Color color, {bool remember = true});
   Future<void> _applyPaintBucket(Offset position);
   bool _isActiveLayerLocked();
-  Offset _rustToEngineSpace(Offset boardLocal);
+  Offset _backendToEngineSpace(Offset boardLocal);
 
   void _setActiveTool(CanvasTool tool);
   void _convertMagicWandPreviewToSelection();
@@ -61,10 +74,12 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   void _clearSelectionHover();
   void _clearSelection();
   void _updateSelectionShape(SelectionShape shape);
+  void _updateSelectionAdditiveEnabled(bool value);
   void _updateShapeToolVariant(ShapeToolVariant variant);
   void initializeSelectionTicker(TickerProvider provider);
   void disposeSelectionTicker();
   void _updateSelectionAnimation();
+  void _syncMenuAvailability();
 
   void _handlePointerDown(PointerDownEvent event);
   void _handlePointerMove(PointerMoveEvent event);
@@ -107,12 +122,12 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   List<CanvasLayerData> snapshotLayers() => _controller.snapshotLayers();
 
   Future<List<CanvasLayerData>> snapshotLayersForExport() async {
-    await _controller.waitForPendingWorkerTasks();
-    if (_canUseRustCanvasEngine()) {
-      final bool ok = _syncAllLayerPixelsFromRust();
-      if (!ok) {
-        debugPrint('Rust 画布同步图层失败，导出将使用当前缓存数据。');
-      }
+    final bool ok = await _backend.syncAllLayerPixelsFromBackend(
+      waitForPending: true,
+      warnIfFailed: false,
+    );
+    if (!ok) {
+      debugPrint('画布后端同步图层失败，导出将使用当前缓存数据。');
     }
     return _controller.snapshotLayers();
   }
@@ -124,13 +139,12 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       return null;
     }
     _controller.commitActiveLayerTranslation();
-    if (_canUseRustCanvasEngine()) {
-      await _controller.waitForPendingWorkerTasks();
-      if (!_syncAllLayerPixelsFromRust()) {
-        debugPrint('rotateCanvas: rust sync failed');
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
-        return null;
-      }
+    if (!await _backend.syncAllLayerPixelsFromBackend(
+      waitForPending: true,
+      warnIfFailed: true,
+    )) {
+      debugPrint('rotateCanvas: backend sync failed');
+      return null;
     }
     final List<CanvasLayerData> original = snapshotLayers();
     if (original.isEmpty) {
@@ -152,10 +166,8 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       _controller.loadLayers(rotated, _controller.backgroundColor);
       _resetHistory();
       setState(() {});
-      _syncRustCanvasLayersToEngine();
-      if (_canUseRustCanvasEngine() && !_syncAllLayerPixelsToRust()) {
-        _showRustCanvasMessage('Rust 画布写入图层失败。');
-      }
+      _syncBackendCanvasLayersToEngine();
+      await _backend.syncAllLayerPixelsToBackend(warnIfFailed: true);
     }
     return CanvasRotationResult(
       layers: rotated,
@@ -171,13 +183,12 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       return null;
     }
     _controller.commitActiveLayerTranslation();
-    if (_canUseRustCanvasEngine()) {
-      await _controller.waitForPendingWorkerTasks();
-      if (!_syncAllLayerPixelsFromRust()) {
-        debugPrint('flipCanvas: rust sync failed');
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
-        return null;
-      }
+    if (!await _backend.syncAllLayerPixelsFromBackend(
+      waitForPending: true,
+      warnIfFailed: true,
+    )) {
+      debugPrint('flipCanvas: backend sync failed');
+      return null;
     }
     final List<CanvasLayerData> original = snapshotLayers();
     if (original.isEmpty) {
@@ -197,10 +208,8 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     _controller.loadLayers(flipped, _controller.backgroundColor);
     _resetHistory();
     setState(() {});
-    _syncRustCanvasLayersToEngine();
-    if (_canUseRustCanvasEngine() && !_syncAllLayerPixelsToRust()) {
-      _showRustCanvasMessage('Rust 画布写入图层失败。');
-    }
+    _syncBackendCanvasLayersToEngine();
+    await _backend.syncAllLayerPixelsToBackend(warnIfFailed: true);
     return CanvasRotationResult(layers: flipped, width: width, height: height);
   }
 
@@ -770,18 +779,19 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     _historyRedoStack.clear();
     _historyLocked = false;
     _historyLimit = AppPreferences.instance.historyLimit;
+    _syncHistoryMenuAvailability();
   }
 
   Future<void> _pushUndoSnapshot({
     _CanvasHistoryEntry? entry,
-    bool rustPixelsSynced = false,
+    bool backendPixelsSynced = false,
   }) async {
     _refreshHistoryLimit();
     if (_historyLocked) {
       return;
     }
     final _CanvasHistoryEntry snapshot =
-        entry ?? await _createHistoryEntry(rustPixelsSynced: rustPixelsSynced);
+        entry ?? await _createHistoryEntry(backendPixelsSynced: backendPixelsSynced);
     _undoStack.add(snapshot);
     _trimHistoryStacks();
     _redoStack.clear();
@@ -789,7 +799,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   }
 
   Future<_CanvasHistoryEntry> _createHistoryEntry({
-    bool rustPixelsSynced = false,
+    bool backendPixelsSynced = false,
   }) async {
     await _controller.waitForPendingWorkerTasks();
     return _CanvasHistoryEntry(
@@ -803,7 +813,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       selectionPath: selectionPathSnapshot != null
           ? (Path()..addPath(selectionPathSnapshot!, Offset.zero))
           : null,
-      rustPixelsSynced: rustPixelsSynced,
+      backendPixelsSynced: backendPixelsSynced,
     );
   }
 
@@ -834,13 +844,11 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     _markDirty();
     resetSelectionUndoFlag();
     _updateSelectionAnimation();
-    _syncRustCanvasLayersToEngine();
-    if (_canUseRustCanvasEngine()) {
-      if (entry.rustPixelsSynced) {
-        _syncAllLayerPixelsToRust();
-      } else {
-        _syncAllLayerPixelsFromRust();
-      }
+    _syncBackendCanvasLayersToEngine();
+    if (entry.backendPixelsSynced) {
+      await _backend.syncAllLayerPixelsToBackend();
+    } else {
+      await _backend.syncAllLayerPixelsFromBackend();
     }
   }
 
@@ -1001,7 +1009,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   PerspectiveGuideMode get perspectiveGuideMode => _perspectiveMode;
 
   bool get isBoardReady =>
-      _controller.frame != null || _canUseRustCanvasEngine();
+      _controller.frame != null || _backend.isReady;
 
   void _handlePixelGridPreferenceChanged() {
     if (!mounted) {
@@ -1028,7 +1036,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     setState(() {
       _viewBlackWhiteOverlay = !_viewBlackWhiteOverlay;
     });
-    _syncRustCanvasViewFlags();
+    _syncBackendCanvasViewFlags();
     _notifyViewInfoChanged();
   }
 
@@ -1036,7 +1044,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     setState(() {
       _viewMirrorOverlay = !_viewMirrorOverlay;
     });
-    _syncRustCanvasViewFlags();
+    _syncBackendCanvasViewFlags();
     _notifyViewInfoChanged();
   }
 

@@ -1,7 +1,8 @@
-import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' show Color;
+
+import 'package:misa_rin/utils/io_shim.dart';
 
 import '../../canvas/blend_mode_utils.dart';
 import '../../canvas/canvas_layer.dart';

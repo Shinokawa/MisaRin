@@ -1,9 +1,11 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
+import 'package:misa_rin/utils/io_shim.dart';
 
 Future<void> revealInFileManager(String projectPath) async {
   if (projectPath.isEmpty) {
+    return;
+  }
+  if (kIsWeb) {
     return;
   }
   final File file = File(projectPath);

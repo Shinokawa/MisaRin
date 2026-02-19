@@ -41,6 +41,66 @@ private func engine_resize_canvas(
   _ backgroundColorArgb: UInt32
 ) -> UInt8
 
+// Keep CPU drawing symbols alive when Rust is statically linked on macOS.
+@_silgen_name("cpu_brush_draw_stamp")
+private func cpu_brush_draw_stamp(
+  _ pixels: UnsafeMutablePointer<UInt32>?,
+  _ pixelsLen: UInt,
+  _ width: UInt32,
+  _ height: UInt32,
+  _ centerX: Float,
+  _ centerY: Float,
+  _ radius: Float,
+  _ colorArgb: UInt32,
+  _ brushShape: UInt32,
+  _ antialiasLevel: UInt32,
+  _ softness: Float,
+  _ erase: UInt8,
+  _ randomRotation: UInt8,
+  _ rotationSeed: UInt32,
+  _ rotationJitter: Float,
+  _ snapToPixel: UInt8,
+  _ selection: UnsafePointer<UInt8>?,
+  _ selectionLen: UInt
+) -> UInt8
+
+@_silgen_name("cpu_brush_draw_capsule_segment")
+private func cpu_brush_draw_capsule_segment(
+  _ pixels: UnsafeMutablePointer<UInt32>?,
+  _ pixelsLen: UInt,
+  _ width: UInt32,
+  _ height: UInt32,
+  _ ax: Float,
+  _ ay: Float,
+  _ bx: Float,
+  _ by: Float,
+  _ startRadius: Float,
+  _ endRadius: Float,
+  _ colorArgb: UInt32,
+  _ antialiasLevel: UInt32,
+  _ includeStartCap: UInt8,
+  _ erase: UInt8,
+  _ selection: UnsafePointer<UInt8>?,
+  _ selectionLen: UInt
+) -> UInt8
+
+@_silgen_name("cpu_brush_fill_polygon")
+private func cpu_brush_fill_polygon(
+  _ pixels: UnsafeMutablePointer<UInt32>?,
+  _ pixelsLen: UInt,
+  _ width: UInt32,
+  _ height: UInt32,
+  _ vertices: UnsafePointer<Float>?,
+  _ verticesLen: UInt,
+  _ radius: Float,
+  _ colorArgb: UInt32,
+  _ antialiasLevel: UInt32,
+  _ softness: Float,
+  _ erase: UInt8,
+  _ selection: UnsafePointer<UInt8>?,
+  _ selectionLen: UInt
+) -> UInt8
+
 private final class RustCanvasTexture: NSObject, FlutterTexture {
   fileprivate let pixelBuffer: CVPixelBuffer
 
@@ -150,6 +210,61 @@ public final class RustLibMisaRinPlugin: NSObject, FlutterPlugin {
       return
     }
     didRegister = true
+
+    // Touch CPU brush symbols so they are not stripped from the linked framework.
+    _ = cpu_brush_draw_stamp(
+      nil,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      nil,
+      0
+    )
+    _ = cpu_brush_draw_capsule_segment(
+      nil,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      nil,
+      0
+    )
+    _ = cpu_brush_fill_polygon(
+      nil,
+      0,
+      0,
+      0,
+      nil,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      nil,
+      0
+    )
 
     let channel = FlutterMethodChannel(name: channelName, binaryMessenger: registrar.messenger)
     let instance = RustLibMisaRinPlugin(textureRegistry: registrar.textures)

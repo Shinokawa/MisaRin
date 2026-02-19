@@ -4,6 +4,11 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/bucket_fill.dart';
+import 'api/cpu_blend.dart';
+import 'api/cpu_brush.dart';
+import 'api/cpu_filters.dart';
+import 'api/cpu_image.dart';
+import 'api/cpu_transform.dart';
 import 'api/gpu_brush.dart';
 import 'api/gpu_composite.dart';
 import 'api/image_ops.dart';
@@ -74,7 +79,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -787098840;
+  int get rustContentHash => -1237602523;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -88,6 +93,204 @@ abstract class RustLibApi extends BaseApi {
   BigInt crateApiMemoryAllocatePixelBuffer({required int size});
 
   Uint8List crateApiImageOpsConvertPixelsToRgba({required List<int> pixels});
+
+  CpuBlendResult crateApiCpuBlendCpuBlendOnCanvasRgba({
+    required List<int> src,
+    required List<int> dst,
+    required int width,
+    required int height,
+    required int startX,
+    required int endX,
+    required int startY,
+    required int endY,
+    required double opacity,
+    required int blendMode,
+    Uint32List? mask,
+    required double maskOpacity,
+  });
+
+  CpuBlendOverflowResult crateApiCpuBlendCpuBlendOverflowRgba({
+    required List<int> canvas,
+    required int width,
+    required int height,
+    required List<int> upperX,
+    required List<int> upperY,
+    required List<int> upperColor,
+    required List<int> lowerX,
+    required List<int> lowerY,
+    required List<int> lowerColor,
+    required double opacity,
+    required int blendMode,
+    Uint32List? mask,
+    required double maskOpacity,
+    required List<int> maskOverflowX,
+    required List<int> maskOverflowY,
+    required List<int> maskOverflowColor,
+    required BigInt outCapacity,
+  });
+
+  CpuBrushResult crateApiCpuBrushCpuBrushApplyCommandsRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required List<CpuBrushCommand> commands,
+    Uint8List? selection,
+  });
+
+  CpuStreamlineResult crateApiCpuBrushCpuBrushApplyStreamlineSamples({
+    required List<double> samples,
+    required double strength,
+  });
+
+  CpuBrushResult crateApiCpuBrushCpuBrushDrawCapsuleSegmentRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required double ax,
+    required double ay,
+    required double bx,
+    required double by,
+    required double startRadius,
+    required double endRadius,
+    required int colorArgb,
+    required int antialiasLevel,
+    required bool includeStartCap,
+    required bool erase,
+    Uint8List? selection,
+  });
+
+  CpuBrushResult crateApiCpuBrushCpuBrushDrawSprayRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required List<double> points,
+    required int colorArgb,
+    required int brushShape,
+    required int antialiasLevel,
+    required double softness,
+    required bool erase,
+    required bool accumulate,
+    Uint8List? selection,
+  });
+
+  CpuBrushResult crateApiCpuBrushCpuBrushDrawStampRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required double centerX,
+    required double centerY,
+    required double radius,
+    required int colorArgb,
+    required int brushShape,
+    required int antialiasLevel,
+    required double softness,
+    required bool erase,
+    required bool randomRotation,
+    required bool smoothRotation,
+    required int rotationSeed,
+    required double rotationJitter,
+    required bool snapToPixel,
+    Uint8List? selection,
+  });
+
+  CpuBrushResult crateApiCpuBrushCpuBrushDrawStampSegmentRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required double startX,
+    required double startY,
+    required double endX,
+    required double endY,
+    required double startRadius,
+    required double endRadius,
+    required int colorArgb,
+    required int brushShape,
+    required int antialiasLevel,
+    required bool includeStart,
+    required bool erase,
+    required bool randomRotation,
+    required bool smoothRotation,
+    required int rotationSeed,
+    required double rotationJitter,
+    required double spacing,
+    required double scatter,
+    required double softness,
+    required bool snapToPixel,
+    required bool accumulate,
+    Uint8List? selection,
+  });
+
+  CpuBrushResult crateApiCpuBrushCpuBrushFillPolygonRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required List<double> vertices,
+    required double radius,
+    required int colorArgb,
+    required int antialiasLevel,
+    required double softness,
+    required bool erase,
+    Uint8List? selection,
+  });
+
+  Future<Uint32List> crateApiGpuCompositeCpuCompositeLayers({
+    required List<GpuLayerData> layers,
+    required int width,
+    required int height,
+  });
+
+  CpuFiltersResult crateApiCpuFiltersCpuFiltersApplyAntialiasRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required int level,
+    required bool previewOnly,
+  });
+
+  CpuFiltersBytesResult crateApiCpuFiltersCpuFiltersApplyFilterRgbaBytes({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required int filterType,
+    required double param0,
+    required double param1,
+    required double param2,
+    required double param3,
+  });
+
+  CpuImageBoundsResult crateApiCpuImageCpuImageBoundsRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+  });
+
+  CpuTransformSnapshotResult
+  crateApiCpuTransformCpuTransformBuildOverflowSnapshot({
+    required List<int> canvas,
+    required int canvasWidth,
+    required int canvasHeight,
+    required int snapshotWidth,
+    required int snapshotHeight,
+    required int originX,
+    required int originY,
+    required List<int> overflowX,
+    required List<int> overflowY,
+    required List<int> overflowColor,
+  });
+
+  CpuTransformTranslateResult crateApiCpuTransformCpuTransformTranslateLayer({
+    required List<int> canvas,
+    required int canvasWidth,
+    required int canvasHeight,
+    required List<int> snapshot,
+    required int snapshotWidth,
+    required int snapshotHeight,
+    required int originX,
+    required int originY,
+    required int dx,
+    required int dy,
+    required BigInt overflowCapacity,
+  });
 
   Future<FloodFillRect> crateApiBucketFillFloodFillInPlace({
     required BigInt ptr,
@@ -279,6 +482,997 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  CpuBlendResult crateApiCpuBlendCpuBlendOnCanvasRgba({
+    required List<int> src,
+    required List<int> dst,
+    required int width,
+    required int height,
+    required int startX,
+    required int endX,
+    required int startY,
+    required int endY,
+    required double opacity,
+    required int blendMode,
+    Uint32List? mask,
+    required double maskOpacity,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_32_loose(src, serializer);
+          sse_encode_list_prim_u_32_loose(dst, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          sse_encode_i_32(startX, serializer);
+          sse_encode_i_32(endX, serializer);
+          sse_encode_i_32(startY, serializer);
+          sse_encode_i_32(endY, serializer);
+          sse_encode_f_32(opacity, serializer);
+          sse_encode_u_32(blendMode, serializer);
+          sse_encode_opt_list_prim_u_32_strict(mask, serializer);
+          sse_encode_f_32(maskOpacity, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_blend_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCpuBlendCpuBlendOnCanvasRgbaConstMeta,
+        argValues: [
+          src,
+          dst,
+          width,
+          height,
+          startX,
+          endX,
+          startY,
+          endY,
+          opacity,
+          blendMode,
+          mask,
+          maskOpacity,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCpuBlendCpuBlendOnCanvasRgbaConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_blend_on_canvas_rgba",
+        argNames: [
+          "src",
+          "dst",
+          "width",
+          "height",
+          "startX",
+          "endX",
+          "startY",
+          "endY",
+          "opacity",
+          "blendMode",
+          "mask",
+          "maskOpacity",
+        ],
+      );
+
+  @override
+  CpuBlendOverflowResult crateApiCpuBlendCpuBlendOverflowRgba({
+    required List<int> canvas,
+    required int width,
+    required int height,
+    required List<int> upperX,
+    required List<int> upperY,
+    required List<int> upperColor,
+    required List<int> lowerX,
+    required List<int> lowerY,
+    required List<int> lowerColor,
+    required double opacity,
+    required int blendMode,
+    Uint32List? mask,
+    required double maskOpacity,
+    required List<int> maskOverflowX,
+    required List<int> maskOverflowY,
+    required List<int> maskOverflowColor,
+    required BigInt outCapacity,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_32_loose(canvas, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          sse_encode_list_prim_i_32_loose(upperX, serializer);
+          sse_encode_list_prim_i_32_loose(upperY, serializer);
+          sse_encode_list_prim_u_32_loose(upperColor, serializer);
+          sse_encode_list_prim_i_32_loose(lowerX, serializer);
+          sse_encode_list_prim_i_32_loose(lowerY, serializer);
+          sse_encode_list_prim_u_32_loose(lowerColor, serializer);
+          sse_encode_f_32(opacity, serializer);
+          sse_encode_u_32(blendMode, serializer);
+          sse_encode_opt_list_prim_u_32_strict(mask, serializer);
+          sse_encode_f_32(maskOpacity, serializer);
+          sse_encode_list_prim_i_32_loose(maskOverflowX, serializer);
+          sse_encode_list_prim_i_32_loose(maskOverflowY, serializer);
+          sse_encode_list_prim_u_32_loose(maskOverflowColor, serializer);
+          sse_encode_u_64(outCapacity, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_blend_overflow_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCpuBlendCpuBlendOverflowRgbaConstMeta,
+        argValues: [
+          canvas,
+          width,
+          height,
+          upperX,
+          upperY,
+          upperColor,
+          lowerX,
+          lowerY,
+          lowerColor,
+          opacity,
+          blendMode,
+          mask,
+          maskOpacity,
+          maskOverflowX,
+          maskOverflowY,
+          maskOverflowColor,
+          outCapacity,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCpuBlendCpuBlendOverflowRgbaConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_blend_overflow_rgba",
+        argNames: [
+          "canvas",
+          "width",
+          "height",
+          "upperX",
+          "upperY",
+          "upperColor",
+          "lowerX",
+          "lowerY",
+          "lowerColor",
+          "opacity",
+          "blendMode",
+          "mask",
+          "maskOpacity",
+          "maskOverflowX",
+          "maskOverflowY",
+          "maskOverflowColor",
+          "outCapacity",
+        ],
+      );
+
+  @override
+  CpuBrushResult crateApiCpuBrushCpuBrushApplyCommandsRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required List<CpuBrushCommand> commands,
+    Uint8List? selection,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_32_loose(pixels, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          sse_encode_list_cpu_brush_command(commands, serializer);
+          sse_encode_opt_list_prim_u_8_strict(selection, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_brush_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCpuBrushCpuBrushApplyCommandsRgbaConstMeta,
+        argValues: [pixels, width, height, commands, selection],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCpuBrushCpuBrushApplyCommandsRgbaConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_brush_apply_commands_rgba",
+        argNames: ["pixels", "width", "height", "commands", "selection"],
+      );
+
+  @override
+  CpuStreamlineResult crateApiCpuBrushCpuBrushApplyStreamlineSamples({
+    required List<double> samples,
+    required double strength,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_f_32_loose(samples, serializer);
+          sse_encode_f_32(strength, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_streamline_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCpuBrushCpuBrushApplyStreamlineSamplesConstMeta,
+        argValues: [samples, strength],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCpuBrushCpuBrushApplyStreamlineSamplesConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_brush_apply_streamline_samples",
+        argNames: ["samples", "strength"],
+      );
+
+  @override
+  CpuBrushResult crateApiCpuBrushCpuBrushDrawCapsuleSegmentRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required double ax,
+    required double ay,
+    required double bx,
+    required double by,
+    required double startRadius,
+    required double endRadius,
+    required int colorArgb,
+    required int antialiasLevel,
+    required bool includeStartCap,
+    required bool erase,
+    Uint8List? selection,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_32_loose(pixels, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          sse_encode_f_32(ax, serializer);
+          sse_encode_f_32(ay, serializer);
+          sse_encode_f_32(bx, serializer);
+          sse_encode_f_32(by, serializer);
+          sse_encode_f_32(startRadius, serializer);
+          sse_encode_f_32(endRadius, serializer);
+          sse_encode_u_32(colorArgb, serializer);
+          sse_encode_u_32(antialiasLevel, serializer);
+          sse_encode_bool(includeStartCap, serializer);
+          sse_encode_bool(erase, serializer);
+          sse_encode_opt_list_prim_u_8_strict(selection, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_brush_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCpuBrushCpuBrushDrawCapsuleSegmentRgbaConstMeta,
+        argValues: [
+          pixels,
+          width,
+          height,
+          ax,
+          ay,
+          bx,
+          by,
+          startRadius,
+          endRadius,
+          colorArgb,
+          antialiasLevel,
+          includeStartCap,
+          erase,
+          selection,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCpuBrushCpuBrushDrawCapsuleSegmentRgbaConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_brush_draw_capsule_segment_rgba",
+        argNames: [
+          "pixels",
+          "width",
+          "height",
+          "ax",
+          "ay",
+          "bx",
+          "by",
+          "startRadius",
+          "endRadius",
+          "colorArgb",
+          "antialiasLevel",
+          "includeStartCap",
+          "erase",
+          "selection",
+        ],
+      );
+
+  @override
+  CpuBrushResult crateApiCpuBrushCpuBrushDrawSprayRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required List<double> points,
+    required int colorArgb,
+    required int brushShape,
+    required int antialiasLevel,
+    required double softness,
+    required bool erase,
+    required bool accumulate,
+    Uint8List? selection,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_32_loose(pixels, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          sse_encode_list_prim_f_32_loose(points, serializer);
+          sse_encode_u_32(colorArgb, serializer);
+          sse_encode_u_32(brushShape, serializer);
+          sse_encode_u_32(antialiasLevel, serializer);
+          sse_encode_f_32(softness, serializer);
+          sse_encode_bool(erase, serializer);
+          sse_encode_bool(accumulate, serializer);
+          sse_encode_opt_list_prim_u_8_strict(selection, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_brush_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCpuBrushCpuBrushDrawSprayRgbaConstMeta,
+        argValues: [
+          pixels,
+          width,
+          height,
+          points,
+          colorArgb,
+          brushShape,
+          antialiasLevel,
+          softness,
+          erase,
+          accumulate,
+          selection,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCpuBrushCpuBrushDrawSprayRgbaConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_brush_draw_spray_rgba",
+        argNames: [
+          "pixels",
+          "width",
+          "height",
+          "points",
+          "colorArgb",
+          "brushShape",
+          "antialiasLevel",
+          "softness",
+          "erase",
+          "accumulate",
+          "selection",
+        ],
+      );
+
+  @override
+  CpuBrushResult crateApiCpuBrushCpuBrushDrawStampRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required double centerX,
+    required double centerY,
+    required double radius,
+    required int colorArgb,
+    required int brushShape,
+    required int antialiasLevel,
+    required double softness,
+    required bool erase,
+    required bool randomRotation,
+    required bool smoothRotation,
+    required int rotationSeed,
+    required double rotationJitter,
+    required bool snapToPixel,
+    Uint8List? selection,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_32_loose(pixels, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          sse_encode_f_32(centerX, serializer);
+          sse_encode_f_32(centerY, serializer);
+          sse_encode_f_32(radius, serializer);
+          sse_encode_u_32(colorArgb, serializer);
+          sse_encode_u_32(brushShape, serializer);
+          sse_encode_u_32(antialiasLevel, serializer);
+          sse_encode_f_32(softness, serializer);
+          sse_encode_bool(erase, serializer);
+          sse_encode_bool(randomRotation, serializer);
+          sse_encode_bool(smoothRotation, serializer);
+          sse_encode_u_32(rotationSeed, serializer);
+          sse_encode_f_32(rotationJitter, serializer);
+          sse_encode_bool(snapToPixel, serializer);
+          sse_encode_opt_list_prim_u_8_strict(selection, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_brush_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCpuBrushCpuBrushDrawStampRgbaConstMeta,
+        argValues: [
+          pixels,
+          width,
+          height,
+          centerX,
+          centerY,
+          radius,
+          colorArgb,
+          brushShape,
+          antialiasLevel,
+          softness,
+          erase,
+          randomRotation,
+          smoothRotation,
+          rotationSeed,
+          rotationJitter,
+          snapToPixel,
+          selection,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCpuBrushCpuBrushDrawStampRgbaConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_brush_draw_stamp_rgba",
+        argNames: [
+          "pixels",
+          "width",
+          "height",
+          "centerX",
+          "centerY",
+          "radius",
+          "colorArgb",
+          "brushShape",
+          "antialiasLevel",
+          "softness",
+          "erase",
+          "randomRotation",
+          "smoothRotation",
+          "rotationSeed",
+          "rotationJitter",
+          "snapToPixel",
+          "selection",
+        ],
+      );
+
+  @override
+  CpuBrushResult crateApiCpuBrushCpuBrushDrawStampSegmentRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required double startX,
+    required double startY,
+    required double endX,
+    required double endY,
+    required double startRadius,
+    required double endRadius,
+    required int colorArgb,
+    required int brushShape,
+    required int antialiasLevel,
+    required bool includeStart,
+    required bool erase,
+    required bool randomRotation,
+    required bool smoothRotation,
+    required int rotationSeed,
+    required double rotationJitter,
+    required double spacing,
+    required double scatter,
+    required double softness,
+    required bool snapToPixel,
+    required bool accumulate,
+    Uint8List? selection,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_32_loose(pixels, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          sse_encode_f_32(startX, serializer);
+          sse_encode_f_32(startY, serializer);
+          sse_encode_f_32(endX, serializer);
+          sse_encode_f_32(endY, serializer);
+          sse_encode_f_32(startRadius, serializer);
+          sse_encode_f_32(endRadius, serializer);
+          sse_encode_u_32(colorArgb, serializer);
+          sse_encode_u_32(brushShape, serializer);
+          sse_encode_u_32(antialiasLevel, serializer);
+          sse_encode_bool(includeStart, serializer);
+          sse_encode_bool(erase, serializer);
+          sse_encode_bool(randomRotation, serializer);
+          sse_encode_bool(smoothRotation, serializer);
+          sse_encode_u_32(rotationSeed, serializer);
+          sse_encode_f_32(rotationJitter, serializer);
+          sse_encode_f_32(spacing, serializer);
+          sse_encode_f_32(scatter, serializer);
+          sse_encode_f_32(softness, serializer);
+          sse_encode_bool(snapToPixel, serializer);
+          sse_encode_bool(accumulate, serializer);
+          sse_encode_opt_list_prim_u_8_strict(selection, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_brush_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCpuBrushCpuBrushDrawStampSegmentRgbaConstMeta,
+        argValues: [
+          pixels,
+          width,
+          height,
+          startX,
+          startY,
+          endX,
+          endY,
+          startRadius,
+          endRadius,
+          colorArgb,
+          brushShape,
+          antialiasLevel,
+          includeStart,
+          erase,
+          randomRotation,
+          smoothRotation,
+          rotationSeed,
+          rotationJitter,
+          spacing,
+          scatter,
+          softness,
+          snapToPixel,
+          accumulate,
+          selection,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCpuBrushCpuBrushDrawStampSegmentRgbaConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_brush_draw_stamp_segment_rgba",
+        argNames: [
+          "pixels",
+          "width",
+          "height",
+          "startX",
+          "startY",
+          "endX",
+          "endY",
+          "startRadius",
+          "endRadius",
+          "colorArgb",
+          "brushShape",
+          "antialiasLevel",
+          "includeStart",
+          "erase",
+          "randomRotation",
+          "smoothRotation",
+          "rotationSeed",
+          "rotationJitter",
+          "spacing",
+          "scatter",
+          "softness",
+          "snapToPixel",
+          "accumulate",
+          "selection",
+        ],
+      );
+
+  @override
+  CpuBrushResult crateApiCpuBrushCpuBrushFillPolygonRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required List<double> vertices,
+    required double radius,
+    required int colorArgb,
+    required int antialiasLevel,
+    required double softness,
+    required bool erase,
+    Uint8List? selection,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_32_loose(pixels, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          sse_encode_list_prim_f_32_loose(vertices, serializer);
+          sse_encode_f_32(radius, serializer);
+          sse_encode_u_32(colorArgb, serializer);
+          sse_encode_u_32(antialiasLevel, serializer);
+          sse_encode_f_32(softness, serializer);
+          sse_encode_bool(erase, serializer);
+          sse_encode_opt_list_prim_u_8_strict(selection, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_brush_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCpuBrushCpuBrushFillPolygonRgbaConstMeta,
+        argValues: [
+          pixels,
+          width,
+          height,
+          vertices,
+          radius,
+          colorArgb,
+          antialiasLevel,
+          softness,
+          erase,
+          selection,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCpuBrushCpuBrushFillPolygonRgbaConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_brush_fill_polygon_rgba",
+        argNames: [
+          "pixels",
+          "width",
+          "height",
+          "vertices",
+          "radius",
+          "colorArgb",
+          "antialiasLevel",
+          "softness",
+          "erase",
+          "selection",
+        ],
+      );
+
+  @override
+  Future<Uint32List> crateApiGpuCompositeCpuCompositeLayers({
+    required List<GpuLayerData> layers,
+    required int width,
+    required int height,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_gpu_layer_data(layers, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 12,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_32_strict,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiGpuCompositeCpuCompositeLayersConstMeta,
+        argValues: [layers, width, height],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGpuCompositeCpuCompositeLayersConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_composite_layers",
+        argNames: ["layers", "width", "height"],
+      );
+
+  @override
+  CpuFiltersResult crateApiCpuFiltersCpuFiltersApplyAntialiasRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required int level,
+    required bool previewOnly,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_32_loose(pixels, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          sse_encode_u_32(level, serializer);
+          sse_encode_bool(previewOnly, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_filters_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCpuFiltersCpuFiltersApplyAntialiasRgbaConstMeta,
+        argValues: [pixels, width, height, level, previewOnly],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCpuFiltersCpuFiltersApplyAntialiasRgbaConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_filters_apply_antialias_rgba",
+        argNames: ["pixels", "width", "height", "level", "previewOnly"],
+      );
+
+  @override
+  CpuFiltersBytesResult crateApiCpuFiltersCpuFiltersApplyFilterRgbaBytes({
+    required List<int> pixels,
+    required int width,
+    required int height,
+    required int filterType,
+    required double param0,
+    required double param1,
+    required double param2,
+    required double param3,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_8_loose(pixels, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          sse_encode_u_32(filterType, serializer);
+          sse_encode_f_32(param0, serializer);
+          sse_encode_f_32(param1, serializer);
+          sse_encode_f_32(param2, serializer);
+          sse_encode_f_32(param3, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_filters_bytes_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCpuFiltersCpuFiltersApplyFilterRgbaBytesConstMeta,
+        argValues: [
+          pixels,
+          width,
+          height,
+          filterType,
+          param0,
+          param1,
+          param2,
+          param3,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiCpuFiltersCpuFiltersApplyFilterRgbaBytesConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_filters_apply_filter_rgba_bytes",
+        argNames: [
+          "pixels",
+          "width",
+          "height",
+          "filterType",
+          "param0",
+          "param1",
+          "param2",
+          "param3",
+        ],
+      );
+
+  @override
+  CpuImageBoundsResult crateApiCpuImageCpuImageBoundsRgba({
+    required List<int> pixels,
+    required int width,
+    required int height,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_32_loose(pixels, serializer);
+          sse_encode_u_32(width, serializer);
+          sse_encode_u_32(height, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_image_bounds_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCpuImageCpuImageBoundsRgbaConstMeta,
+        argValues: [pixels, width, height],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCpuImageCpuImageBoundsRgbaConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_image_bounds_rgba",
+        argNames: ["pixels", "width", "height"],
+      );
+
+  @override
+  CpuTransformSnapshotResult
+  crateApiCpuTransformCpuTransformBuildOverflowSnapshot({
+    required List<int> canvas,
+    required int canvasWidth,
+    required int canvasHeight,
+    required int snapshotWidth,
+    required int snapshotHeight,
+    required int originX,
+    required int originY,
+    required List<int> overflowX,
+    required List<int> overflowY,
+    required List<int> overflowColor,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_32_loose(canvas, serializer);
+          sse_encode_u_32(canvasWidth, serializer);
+          sse_encode_u_32(canvasHeight, serializer);
+          sse_encode_u_32(snapshotWidth, serializer);
+          sse_encode_u_32(snapshotHeight, serializer);
+          sse_encode_i_32(originX, serializer);
+          sse_encode_i_32(originY, serializer);
+          sse_encode_list_prim_i_32_loose(overflowX, serializer);
+          sse_encode_list_prim_i_32_loose(overflowY, serializer);
+          sse_encode_list_prim_u_32_loose(overflowColor, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_transform_snapshot_result,
+          decodeErrorData: null,
+        ),
+        constMeta:
+            kCrateApiCpuTransformCpuTransformBuildOverflowSnapshotConstMeta,
+        argValues: [
+          canvas,
+          canvasWidth,
+          canvasHeight,
+          snapshotWidth,
+          snapshotHeight,
+          originX,
+          originY,
+          overflowX,
+          overflowY,
+          overflowColor,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiCpuTransformCpuTransformBuildOverflowSnapshotConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_transform_build_overflow_snapshot",
+        argNames: [
+          "canvas",
+          "canvasWidth",
+          "canvasHeight",
+          "snapshotWidth",
+          "snapshotHeight",
+          "originX",
+          "originY",
+          "overflowX",
+          "overflowY",
+          "overflowColor",
+        ],
+      );
+
+  @override
+  CpuTransformTranslateResult crateApiCpuTransformCpuTransformTranslateLayer({
+    required List<int> canvas,
+    required int canvasWidth,
+    required int canvasHeight,
+    required List<int> snapshot,
+    required int snapshotWidth,
+    required int snapshotHeight,
+    required int originX,
+    required int originY,
+    required int dx,
+    required int dy,
+    required BigInt overflowCapacity,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_32_loose(canvas, serializer);
+          sse_encode_u_32(canvasWidth, serializer);
+          sse_encode_u_32(canvasHeight, serializer);
+          sse_encode_list_prim_u_32_loose(snapshot, serializer);
+          sse_encode_u_32(snapshotWidth, serializer);
+          sse_encode_u_32(snapshotHeight, serializer);
+          sse_encode_i_32(originX, serializer);
+          sse_encode_i_32(originY, serializer);
+          sse_encode_i_32(dx, serializer);
+          sse_encode_i_32(dy, serializer);
+          sse_encode_u_64(overflowCapacity, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_cpu_transform_translate_result,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiCpuTransformCpuTransformTranslateLayerConstMeta,
+        argValues: [
+          canvas,
+          canvasWidth,
+          canvasHeight,
+          snapshot,
+          snapshotWidth,
+          snapshotHeight,
+          originX,
+          originY,
+          dx,
+          dy,
+          overflowCapacity,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCpuTransformCpuTransformTranslateLayerConstMeta =>
+      const TaskConstMeta(
+        debugName: "cpu_transform_translate_layer",
+        argNames: [
+          "canvas",
+          "canvasWidth",
+          "canvasHeight",
+          "snapshot",
+          "snapshotWidth",
+          "snapshotHeight",
+          "originX",
+          "originY",
+          "dx",
+          "dy",
+          "overflowCapacity",
+        ],
+      );
+
+  @override
   Future<FloodFillRect> crateApiBucketFillFloodFillInPlace({
     required BigInt ptr,
     required int width,
@@ -316,7 +1510,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 18,
             port: port_,
           );
         },
@@ -405,7 +1599,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 19,
             port: port_,
           );
         },
@@ -464,7 +1658,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_usize(ptr, serializer);
           sse_encode_i_32(size, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -489,7 +1683,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -511,7 +1705,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -543,7 +1737,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 23,
             port: port_,
           );
         },
@@ -570,7 +1764,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -592,7 +1786,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -620,7 +1814,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 26,
             port: port_,
           );
         },
@@ -665,7 +1859,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 27,
             port: port_,
           );
         },
@@ -709,7 +1903,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(layerId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -743,7 +1937,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 29,
             port: port_,
           );
         },
@@ -771,7 +1965,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -797,7 +1991,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 31,
             port: port_,
           );
         },
@@ -824,7 +2018,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 32,
             port: port_,
           );
         },
@@ -866,7 +2060,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 33,
             port: port_,
           );
         },
@@ -911,7 +2105,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_usize(ptr, serializer);
           sse_encode_i_32(index, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_u_32,
@@ -940,7 +2134,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(mask, serializer);
           sse_encode_i_32(width, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_prim_u_32_strict,
@@ -969,7 +2163,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 36,
             port: port_,
           );
         },
@@ -998,7 +2192,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(id, serializer);
           sse_encode_bool(isDirty, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -1024,7 +2218,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(id, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_workspace_entry,
@@ -1051,7 +2245,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_box_autoadd_workspace_entry(entry, serializer);
           sse_encode_bool(activate, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -1081,7 +2275,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(id, serializer);
           sse_encode_opt_String(activateAfter, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -1111,7 +2305,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_32(oldIndex, serializer);
           sse_encode_i_32(newIndex, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -1136,7 +2330,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -1159,7 +2353,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(id, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -1181,7 +2375,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_workspace_state,
@@ -1206,7 +2400,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 45,
             port: port_,
           );
         },
@@ -1246,6 +2440,158 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   WorkspaceEntry dco_decode_box_autoadd_workspace_entry(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_workspace_entry(raw);
+  }
+
+  @protected
+  CpuBlendOverflowResult dco_decode_cpu_blend_overflow_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return CpuBlendOverflowResult(
+      ok: dco_decode_bool(arr[0]),
+      canvas: dco_decode_list_prim_u_32_strict(arr[1]),
+      outX: dco_decode_list_prim_i_32_strict(arr[2]),
+      outY: dco_decode_list_prim_i_32_strict(arr[3]),
+      outColor: dco_decode_list_prim_u_32_strict(arr[4]),
+    );
+  }
+
+  @protected
+  CpuBlendResult dco_decode_cpu_blend_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return CpuBlendResult(
+      ok: dco_decode_bool(arr[0]),
+      canvas: dco_decode_list_prim_u_32_strict(arr[1]),
+    );
+  }
+
+  @protected
+  CpuBrushCommand dco_decode_cpu_brush_command(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 24)
+      throw Exception('unexpected arr length: expect 24 but see ${arr.length}');
+    return CpuBrushCommand(
+      kind: dco_decode_u_32(arr[0]),
+      ax: dco_decode_f_32(arr[1]),
+      ay: dco_decode_f_32(arr[2]),
+      bx: dco_decode_f_32(arr[3]),
+      by: dco_decode_f_32(arr[4]),
+      startRadius: dco_decode_f_32(arr[5]),
+      endRadius: dco_decode_f_32(arr[6]),
+      centerX: dco_decode_f_32(arr[7]),
+      centerY: dco_decode_f_32(arr[8]),
+      radius: dco_decode_f_32(arr[9]),
+      colorArgb: dco_decode_u_32(arr[10]),
+      brushShape: dco_decode_u_32(arr[11]),
+      antialiasLevel: dco_decode_u_32(arr[12]),
+      softness: dco_decode_f_32(arr[13]),
+      erase: dco_decode_bool(arr[14]),
+      includeStartCap: dco_decode_bool(arr[15]),
+      includeStart: dco_decode_bool(arr[16]),
+      randomRotation: dco_decode_bool(arr[17]),
+      smoothRotation: dco_decode_bool(arr[18]),
+      rotationSeed: dco_decode_u_32(arr[19]),
+      rotationJitter: dco_decode_f_32(arr[20]),
+      spacing: dco_decode_f_32(arr[21]),
+      scatter: dco_decode_f_32(arr[22]),
+      snapToPixel: dco_decode_bool(arr[23]),
+    );
+  }
+
+  @protected
+  CpuBrushResult dco_decode_cpu_brush_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return CpuBrushResult(
+      ok: dco_decode_bool(arr[0]),
+      pixels: dco_decode_list_prim_u_32_strict(arr[1]),
+    );
+  }
+
+  @protected
+  CpuFiltersBytesResult dco_decode_cpu_filters_bytes_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return CpuFiltersBytesResult(
+      ok: dco_decode_bool(arr[0]),
+      pixels: dco_decode_list_prim_u_8_strict(arr[1]),
+    );
+  }
+
+  @protected
+  CpuFiltersResult dco_decode_cpu_filters_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return CpuFiltersResult(
+      ok: dco_decode_bool(arr[0]),
+      pixels: dco_decode_list_prim_u_32_strict(arr[1]),
+    );
+  }
+
+  @protected
+  CpuImageBoundsResult dco_decode_cpu_image_bounds_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return CpuImageBoundsResult(
+      ok: dco_decode_bool(arr[0]),
+      bounds: dco_decode_list_prim_i_32_strict(arr[1]),
+    );
+  }
+
+  @protected
+  CpuStreamlineResult dco_decode_cpu_streamline_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return CpuStreamlineResult(
+      ok: dco_decode_bool(arr[0]),
+      samples: dco_decode_list_prim_f_32_strict(arr[1]),
+    );
+  }
+
+  @protected
+  CpuTransformSnapshotResult dco_decode_cpu_transform_snapshot_result(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return CpuTransformSnapshotResult(
+      ok: dco_decode_bool(arr[0]),
+      snapshot: dco_decode_list_prim_u_32_strict(arr[1]),
+    );
+  }
+
+  @protected
+  CpuTransformTranslateResult dco_decode_cpu_transform_translate_result(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return CpuTransformTranslateResult(
+      ok: dco_decode_bool(arr[0]),
+      canvas: dco_decode_list_prim_u_32_strict(arr[1]),
+      overflowX: dco_decode_list_prim_i_32_strict(arr[2]),
+      overflowY: dco_decode_list_prim_i_32_strict(arr[3]),
+      overflowColor: dco_decode_list_prim_u_32_strict(arr[4]),
+    );
   }
 
   @protected
@@ -1335,6 +2681,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<CpuBrushCommand> dco_decode_list_cpu_brush_command(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_cpu_brush_command).toList();
+  }
+
+  @protected
   List<GpuLayerData> dco_decode_list_gpu_layer_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_gpu_layer_data).toList();
@@ -1356,6 +2708,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Float32List dco_decode_list_prim_f_32_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Float32List;
+  }
+
+  @protected
+  List<int> dco_decode_list_prim_i_32_loose(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as List<int>;
+  }
+
+  @protected
+  Int32List dco_decode_list_prim_i_32_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as Int32List;
   }
 
   @protected
@@ -1464,6 +2828,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt dco_decode_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeU64(raw);
+  }
+
+  @protected
   int dco_decode_u_8(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -1531,6 +2901,163 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_workspace_entry(deserializer));
+  }
+
+  @protected
+  CpuBlendOverflowResult sse_decode_cpu_blend_overflow_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ok = sse_decode_bool(deserializer);
+    var var_canvas = sse_decode_list_prim_u_32_strict(deserializer);
+    var var_outX = sse_decode_list_prim_i_32_strict(deserializer);
+    var var_outY = sse_decode_list_prim_i_32_strict(deserializer);
+    var var_outColor = sse_decode_list_prim_u_32_strict(deserializer);
+    return CpuBlendOverflowResult(
+      ok: var_ok,
+      canvas: var_canvas,
+      outX: var_outX,
+      outY: var_outY,
+      outColor: var_outColor,
+    );
+  }
+
+  @protected
+  CpuBlendResult sse_decode_cpu_blend_result(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ok = sse_decode_bool(deserializer);
+    var var_canvas = sse_decode_list_prim_u_32_strict(deserializer);
+    return CpuBlendResult(ok: var_ok, canvas: var_canvas);
+  }
+
+  @protected
+  CpuBrushCommand sse_decode_cpu_brush_command(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_kind = sse_decode_u_32(deserializer);
+    var var_ax = sse_decode_f_32(deserializer);
+    var var_ay = sse_decode_f_32(deserializer);
+    var var_bx = sse_decode_f_32(deserializer);
+    var var_by = sse_decode_f_32(deserializer);
+    var var_startRadius = sse_decode_f_32(deserializer);
+    var var_endRadius = sse_decode_f_32(deserializer);
+    var var_centerX = sse_decode_f_32(deserializer);
+    var var_centerY = sse_decode_f_32(deserializer);
+    var var_radius = sse_decode_f_32(deserializer);
+    var var_colorArgb = sse_decode_u_32(deserializer);
+    var var_brushShape = sse_decode_u_32(deserializer);
+    var var_antialiasLevel = sse_decode_u_32(deserializer);
+    var var_softness = sse_decode_f_32(deserializer);
+    var var_erase = sse_decode_bool(deserializer);
+    var var_includeStartCap = sse_decode_bool(deserializer);
+    var var_includeStart = sse_decode_bool(deserializer);
+    var var_randomRotation = sse_decode_bool(deserializer);
+    var var_smoothRotation = sse_decode_bool(deserializer);
+    var var_rotationSeed = sse_decode_u_32(deserializer);
+    var var_rotationJitter = sse_decode_f_32(deserializer);
+    var var_spacing = sse_decode_f_32(deserializer);
+    var var_scatter = sse_decode_f_32(deserializer);
+    var var_snapToPixel = sse_decode_bool(deserializer);
+    return CpuBrushCommand(
+      kind: var_kind,
+      ax: var_ax,
+      ay: var_ay,
+      bx: var_bx,
+      by: var_by,
+      startRadius: var_startRadius,
+      endRadius: var_endRadius,
+      centerX: var_centerX,
+      centerY: var_centerY,
+      radius: var_radius,
+      colorArgb: var_colorArgb,
+      brushShape: var_brushShape,
+      antialiasLevel: var_antialiasLevel,
+      softness: var_softness,
+      erase: var_erase,
+      includeStartCap: var_includeStartCap,
+      includeStart: var_includeStart,
+      randomRotation: var_randomRotation,
+      smoothRotation: var_smoothRotation,
+      rotationSeed: var_rotationSeed,
+      rotationJitter: var_rotationJitter,
+      spacing: var_spacing,
+      scatter: var_scatter,
+      snapToPixel: var_snapToPixel,
+    );
+  }
+
+  @protected
+  CpuBrushResult sse_decode_cpu_brush_result(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ok = sse_decode_bool(deserializer);
+    var var_pixels = sse_decode_list_prim_u_32_strict(deserializer);
+    return CpuBrushResult(ok: var_ok, pixels: var_pixels);
+  }
+
+  @protected
+  CpuFiltersBytesResult sse_decode_cpu_filters_bytes_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ok = sse_decode_bool(deserializer);
+    var var_pixels = sse_decode_list_prim_u_8_strict(deserializer);
+    return CpuFiltersBytesResult(ok: var_ok, pixels: var_pixels);
+  }
+
+  @protected
+  CpuFiltersResult sse_decode_cpu_filters_result(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ok = sse_decode_bool(deserializer);
+    var var_pixels = sse_decode_list_prim_u_32_strict(deserializer);
+    return CpuFiltersResult(ok: var_ok, pixels: var_pixels);
+  }
+
+  @protected
+  CpuImageBoundsResult sse_decode_cpu_image_bounds_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ok = sse_decode_bool(deserializer);
+    var var_bounds = sse_decode_list_prim_i_32_strict(deserializer);
+    return CpuImageBoundsResult(ok: var_ok, bounds: var_bounds);
+  }
+
+  @protected
+  CpuStreamlineResult sse_decode_cpu_streamline_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ok = sse_decode_bool(deserializer);
+    var var_samples = sse_decode_list_prim_f_32_strict(deserializer);
+    return CpuStreamlineResult(ok: var_ok, samples: var_samples);
+  }
+
+  @protected
+  CpuTransformSnapshotResult sse_decode_cpu_transform_snapshot_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ok = sse_decode_bool(deserializer);
+    var var_snapshot = sse_decode_list_prim_u_32_strict(deserializer);
+    return CpuTransformSnapshotResult(ok: var_ok, snapshot: var_snapshot);
+  }
+
+  @protected
+  CpuTransformTranslateResult sse_decode_cpu_transform_translate_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ok = sse_decode_bool(deserializer);
+    var var_canvas = sse_decode_list_prim_u_32_strict(deserializer);
+    var var_overflowX = sse_decode_list_prim_i_32_strict(deserializer);
+    var var_overflowY = sse_decode_list_prim_i_32_strict(deserializer);
+    var var_overflowColor = sse_decode_list_prim_u_32_strict(deserializer);
+    return CpuTransformTranslateResult(
+      ok: var_ok,
+      canvas: var_canvas,
+      overflowX: var_overflowX,
+      overflowY: var_overflowY,
+      overflowColor: var_overflowColor,
+    );
   }
 
   @protected
@@ -1626,6 +3153,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<CpuBrushCommand> sse_decode_list_cpu_brush_command(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <CpuBrushCommand>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_cpu_brush_command(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<GpuLayerData> sse_decode_list_gpu_layer_data(
     SseDeserializer deserializer,
   ) {
@@ -1663,6 +3204,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getFloat32List(len_);
+  }
+
+  @protected
+  List<int> sse_decode_list_prim_i_32_loose(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getInt32List(len_);
+  }
+
+  @protected
+  Int32List sse_decode_list_prim_i_32_strict(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getInt32List(len_);
   }
 
   @protected
@@ -1825,6 +3380,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getBigUint64();
+  }
+
+  @protected
   int sse_decode_u_8(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8();
@@ -1883,6 +3444,134 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_workspace_entry(self, serializer);
+  }
+
+  @protected
+  void sse_encode_cpu_blend_overflow_result(
+    CpuBlendOverflowResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.ok, serializer);
+    sse_encode_list_prim_u_32_strict(self.canvas, serializer);
+    sse_encode_list_prim_i_32_strict(self.outX, serializer);
+    sse_encode_list_prim_i_32_strict(self.outY, serializer);
+    sse_encode_list_prim_u_32_strict(self.outColor, serializer);
+  }
+
+  @protected
+  void sse_encode_cpu_blend_result(
+    CpuBlendResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.ok, serializer);
+    sse_encode_list_prim_u_32_strict(self.canvas, serializer);
+  }
+
+  @protected
+  void sse_encode_cpu_brush_command(
+    CpuBrushCommand self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.kind, serializer);
+    sse_encode_f_32(self.ax, serializer);
+    sse_encode_f_32(self.ay, serializer);
+    sse_encode_f_32(self.bx, serializer);
+    sse_encode_f_32(self.by, serializer);
+    sse_encode_f_32(self.startRadius, serializer);
+    sse_encode_f_32(self.endRadius, serializer);
+    sse_encode_f_32(self.centerX, serializer);
+    sse_encode_f_32(self.centerY, serializer);
+    sse_encode_f_32(self.radius, serializer);
+    sse_encode_u_32(self.colorArgb, serializer);
+    sse_encode_u_32(self.brushShape, serializer);
+    sse_encode_u_32(self.antialiasLevel, serializer);
+    sse_encode_f_32(self.softness, serializer);
+    sse_encode_bool(self.erase, serializer);
+    sse_encode_bool(self.includeStartCap, serializer);
+    sse_encode_bool(self.includeStart, serializer);
+    sse_encode_bool(self.randomRotation, serializer);
+    sse_encode_bool(self.smoothRotation, serializer);
+    sse_encode_u_32(self.rotationSeed, serializer);
+    sse_encode_f_32(self.rotationJitter, serializer);
+    sse_encode_f_32(self.spacing, serializer);
+    sse_encode_f_32(self.scatter, serializer);
+    sse_encode_bool(self.snapToPixel, serializer);
+  }
+
+  @protected
+  void sse_encode_cpu_brush_result(
+    CpuBrushResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.ok, serializer);
+    sse_encode_list_prim_u_32_strict(self.pixels, serializer);
+  }
+
+  @protected
+  void sse_encode_cpu_filters_bytes_result(
+    CpuFiltersBytesResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.ok, serializer);
+    sse_encode_list_prim_u_8_strict(self.pixels, serializer);
+  }
+
+  @protected
+  void sse_encode_cpu_filters_result(
+    CpuFiltersResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.ok, serializer);
+    sse_encode_list_prim_u_32_strict(self.pixels, serializer);
+  }
+
+  @protected
+  void sse_encode_cpu_image_bounds_result(
+    CpuImageBoundsResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.ok, serializer);
+    sse_encode_list_prim_i_32_strict(self.bounds, serializer);
+  }
+
+  @protected
+  void sse_encode_cpu_streamline_result(
+    CpuStreamlineResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.ok, serializer);
+    sse_encode_list_prim_f_32_strict(self.samples, serializer);
+  }
+
+  @protected
+  void sse_encode_cpu_transform_snapshot_result(
+    CpuTransformSnapshotResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.ok, serializer);
+    sse_encode_list_prim_u_32_strict(self.snapshot, serializer);
+  }
+
+  @protected
+  void sse_encode_cpu_transform_translate_result(
+    CpuTransformTranslateResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.ok, serializer);
+    sse_encode_list_prim_u_32_strict(self.canvas, serializer);
+    sse_encode_list_prim_i_32_strict(self.overflowX, serializer);
+    sse_encode_list_prim_i_32_strict(self.overflowY, serializer);
+    sse_encode_list_prim_u_32_strict(self.overflowColor, serializer);
   }
 
   @protected
@@ -1959,6 +3648,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_cpu_brush_command(
+    List<CpuBrushCommand> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_cpu_brush_command(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_gpu_layer_data(
     List<GpuLayerData> self,
     SseSerializer serializer,
@@ -2002,6 +3703,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putFloat32List(self);
+  }
+
+  @protected
+  void sse_encode_list_prim_i_32_loose(
+    List<int> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putInt32List(
+      self is Int32List ? self : Int32List.fromList(self),
+    );
+  }
+
+  @protected
+  void sse_encode_list_prim_i_32_strict(
+    Int32List self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putInt32List(self);
   }
 
   @protected
@@ -2158,6 +3881,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_u_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint32(self);
+  }
+
+  @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putBigUint64(self);
   }
 
   @protected

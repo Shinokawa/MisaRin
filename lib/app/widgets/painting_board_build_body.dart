@@ -212,8 +212,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           brushPresets: _brushLibrary?.presets ?? const <BrushPreset>[],
           activeBrushPresetId:
               _activeBrushPreset?.id ?? _brushLibrary?.selectedId ?? 'pencil',
-          onBrushPresetChanged: _selectBrushPreset,
-          onEditBrushPreset: _openBrushPresetEditor,
+          onOpenBrushPresetPicker: _openBrushPresetPicker,
           strokeStabilizerStrength: _strokeStabilizerStrength,
           onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
           streamlineStrength: _streamlineStrength,
@@ -242,6 +241,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           onLayerAdjustCropOutsideChanged: _updateLayerAdjustCropOutside,
           selectionShape: selectionShape,
           onSelectionShapeChanged: _updateSelectionShape,
+          selectionAdditiveEnabled: _selectionAdditiveEnabled,
+          onSelectionAdditiveChanged: _updateSelectionAdditiveEnabled,
           shapeToolVariant: shapeToolVariant,
           onShapeToolVariantChanged: _updateShapeToolVariant,
           shapeFillEnabled: _shapeFillEnabled,
@@ -419,7 +420,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                       .activeLayerTransformBlendMode,
                                                 );
                                             final bool suppressLayerAdjustOverlay =
-                                                _layerAdjustUsingRustPreview;
+                                                _layerAdjustUsingBackendPreview;
                                             final bool hasSelectionOverlay =
                                                 selectionPath != null ||
                                                 selectionPreviewPath != null ||
@@ -439,17 +440,18 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
 
                                             // 客户端预测：显示当前笔画的实时预览，以及正在提交中的笔画，解决 worker 延迟导致的滞后感和闪烁
                                             final bool canPreviewStroke =
-                                                _effectiveActiveTool ==
-                                                    CanvasTool.pen ||
-                                                _effectiveActiveTool ==
-                                                    CanvasTool.eraser;
+                                                (_backend.isReady || kIsWeb) &&
+                                                (_effectiveActiveTool ==
+                                                        CanvasTool.pen ||
+                                                    _effectiveActiveTool ==
+                                                        CanvasTool.eraser);
                                             final bool activeLayerLocked = () {
                                               final String? activeId =
                                                   _controller.activeLayerId;
                                               if (activeId == null) {
                                                 return false;
                                               }
-                                              for (final BitmapLayerState layer
+                                              for (final CanvasLayerInfo layer
                                                   in _controller.layers) {
                                                 if (layer.id == activeId) {
                                                   return layer.locked;
@@ -457,12 +459,18 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               }
                                               return false;
                                             }();
+                                            final bool allowActiveStrokeOverlay =
+                                                !(kIsWeb &&
+                                                    _controller
+                                                        .activeStrokeSnapToPixel);
                                             final bool hasActiveStroke =
                                                 canPreviewStroke &&
+                                                allowActiveStrokeOverlay &&
                                                 _controller
                                                     .activeStrokePoints
                                                     .isNotEmpty;
                                             final bool showActiveStroke =
+                                                allowActiveStrokeOverlay &&
                                                 !_isLayerFreeTransformActive &&
                                                 !_controller
                                                     .isActiveLayerTransforming &&
@@ -494,9 +502,10 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
 
                                             final Widget canvasSurface = IgnorePointer(
                                               ignoring: true,
-                                              child: RustCanvasSurface(
+                                              child: AdaptiveCanvasSurface(
                                                 surfaceKey: widget.surfaceKey,
                                                 canvasSize: _canvasSize,
+                                                frame: _controller.frame,
                                                 enableDrawing:
                                                     canPreviewStroke &&
                                                     !activeLayerLocked &&
@@ -504,17 +513,23 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     !_isLayerFreeTransformActive &&
                                                     !_controller
                                                         .isActiveLayerTransforming,
-                                                layerCount:
-                                                    _controller.layers.length,
+                                                allowBackendCanvas:
+                                                    _brushShapeSupportsBackend,
+                                                layerCount: _controller
+                                                    .layers
+                                                    .length,
                                                 brushColorArgb:
                                                     _isBrushEraserEnabled
                                                         ? 0xFFFFFFFF
                                                         : _primaryColor.value,
-                                                brushRadius: _penStrokeWidth / 2,
+                                                brushRadius:
+                                                    _penStrokeWidth / 2,
                                                 erase: _isBrushEraserEnabled,
                                                 brushShape: _brushShape,
                                                 brushRandomRotationEnabled:
                                                     _brushRandomRotationEnabled,
+                                                brushSmoothRotationEnabled:
+                                                    _brushSmoothRotationEnabled,
                                                 brushRotationSeed:
                                                     _brushRandomRotationPreviewSeed,
                                                 brushSpacing: _brushSpacing,
@@ -531,9 +546,12 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     _hollowStrokeRatio,
                                                 hollowStrokeEraseOccludedParts:
                                                     _hollowStrokeEraseOccludedParts,
-                                                antialiasLevel: _penAntialiasLevel,
-                                                backgroundColorArgb:
-                                                    widget.settings.backgroundColor.toARGB32(),
+                                                antialiasLevel:
+                                                    _penAntialiasLevel,
+                                                backgroundColorArgb: widget
+                                                    .settings
+                                                    .backgroundColor
+                                                    .toARGB32(),
                                                 usePressure:
                                                     _stylusPressureEnabled ||
                                                     _simulatePenPressure ||
@@ -543,38 +561,38 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     _streamlineStrength,
                                                 onStrokeBegin: _markDirty,
                                                 onEngineInfoChanged:
-                                                    _handleRustCanvasEngineInfoChanged,
+                                                    _handleBackendCanvasEngineInfoChanged,
                                               ),
                                             );
 
                                             final _FilterSession? filterSession =
                                                 _filterSession;
-                                            final bool showRustFilterPreview =
+                                            final bool showBackendFilterPreview =
                                                 filterSession != null &&
-                                                _shouldShowRustFilterPreviewOverlay(
+                                                _shouldShowBackendFilterPreviewOverlay(
                                                   filterSession,
                                                 );
-                                            final bool showRustCurvePreview =
-                                                _canUseRustCanvasEngine() &&
+                                            final bool showBackendCurvePreview =
+                                                _backend.isReady &&
                                                 _curvePreviewRasterImage != null;
-                                            final bool showRustShapePreview =
-                                                _canUseRustCanvasEngine() &&
+                                            final bool showBackendShapePreview =
+                                                _backend.isReady &&
                                                 _shapePreviewRasterImage != null;
-                                            final BitmapLayerState activeLayer =
+                                            final CanvasLayerInfo activeLayer =
                                                 _controller.activeLayer;
                                             final ui.BlendMode?
-                                                rustPreviewBlendMode =
+                                                backendPreviewBlendMode =
                                                 _flutterBlendMode(
                                                   activeLayer.blendMode,
                                                 );
-                                            final double rustPreviewOpacity =
+                                            final double backendPreviewOpacity =
                                                 activeLayer.opacity
                                                     .clamp(0.0, 1.0)
                                                     .toDouble();
                                             final List<Widget> overlayChildren =
                                                 <Widget>[
-                                              if (showRustFilterPreview)
-                                                _buildRustFilterPreviewOverlay(),
+                                              if (showBackendFilterPreview)
+                                                _buildBackendFilterPreviewOverlay(),
                                               if (_pixelGridVisible)
                                                 Positioned.fill(
                                                   child: IgnorePointer(
@@ -620,6 +638,12 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                                 .activeStrokeHollowRatio,
                                                         committingStrokes: _controller
                                                             .committingStrokes,
+                                                        commitOverlayOpacityFor:
+                                                            _controller
+                                                                .commitOverlayOpacityFor,
+                                                        commitOverlayFadeVersion:
+                                                            _controller
+                                                                .commitOverlayFadeVersion,
                                                         activeStrokeIsEraser:
                                                             activeStrokeIsEraser,
                                                         eraserPreviewColor:
@@ -628,7 +652,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     ),
                                                   ),
                                                 ),
-                                              if (showRustCurvePreview)
+                                              if (showBackendCurvePreview)
                                                 Positioned.fill(
                                                   child: IgnorePointer(
                                                     ignoring: true,
@@ -637,13 +661,13 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                           image:
                                                               _curvePreviewRasterImage!,
                                                           opacity:
-                                                              rustPreviewOpacity,
+                                                              backendPreviewOpacity,
                                                           blendMode:
-                                                              rustPreviewBlendMode,
+                                                              backendPreviewBlendMode,
                                                         ),
                                                   ),
                                                 ),
-                                              if (showRustShapePreview)
+                                              if (showBackendShapePreview)
                                                 Positioned.fill(
                                                   child: IgnorePointer(
                                                     ignoring: true,
@@ -652,9 +676,9 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                           image:
                                                               _shapePreviewRasterImage!,
                                                           opacity:
-                                                              rustPreviewOpacity,
+                                                              backendPreviewOpacity,
                                                           blendMode:
-                                                              rustPreviewBlendMode,
+                                                              backendPreviewBlendMode,
                                                         ),
                                                   ),
                                                 ),
@@ -736,7 +760,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                             );
 
                                             final bool applyViewToCanvas =
-                                                !_canUseRustCanvasEngine();
+                                                !_backend.isReady;
                                             final Widget canvasWithView =
                                                 applyViewToCanvas
                                                 ? applyViewOverlay(canvasLayer)

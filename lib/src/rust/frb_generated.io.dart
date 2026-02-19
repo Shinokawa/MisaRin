@@ -4,6 +4,11 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/bucket_fill.dart';
+import 'api/cpu_blend.dart';
+import 'api/cpu_brush.dart';
+import 'api/cpu_filters.dart';
+import 'api/cpu_image.dart';
+import 'api/cpu_transform.dart';
 import 'api/gpu_brush.dart';
 import 'api/gpu_composite.dart';
 import 'api/image_ops.dart';
@@ -39,6 +44,40 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   WorkspaceEntry dco_decode_box_autoadd_workspace_entry(dynamic raw);
 
   @protected
+  CpuBlendOverflowResult dco_decode_cpu_blend_overflow_result(dynamic raw);
+
+  @protected
+  CpuBlendResult dco_decode_cpu_blend_result(dynamic raw);
+
+  @protected
+  CpuBrushCommand dco_decode_cpu_brush_command(dynamic raw);
+
+  @protected
+  CpuBrushResult dco_decode_cpu_brush_result(dynamic raw);
+
+  @protected
+  CpuFiltersBytesResult dco_decode_cpu_filters_bytes_result(dynamic raw);
+
+  @protected
+  CpuFiltersResult dco_decode_cpu_filters_result(dynamic raw);
+
+  @protected
+  CpuImageBoundsResult dco_decode_cpu_image_bounds_result(dynamic raw);
+
+  @protected
+  CpuStreamlineResult dco_decode_cpu_streamline_result(dynamic raw);
+
+  @protected
+  CpuTransformSnapshotResult dco_decode_cpu_transform_snapshot_result(
+    dynamic raw,
+  );
+
+  @protected
+  CpuTransformTranslateResult dco_decode_cpu_transform_translate_result(
+    dynamic raw,
+  );
+
+  @protected
   double dco_decode_f_32(dynamic raw);
 
   @protected
@@ -63,6 +102,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_i_32(dynamic raw);
 
   @protected
+  List<CpuBrushCommand> dco_decode_list_cpu_brush_command(dynamic raw);
+
+  @protected
   List<GpuLayerData> dco_decode_list_gpu_layer_data(dynamic raw);
 
   @protected
@@ -73,6 +115,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
+
+  @protected
+  List<int> dco_decode_list_prim_i_32_loose(dynamic raw);
+
+  @protected
+  Int32List dco_decode_list_prim_i_32_strict(dynamic raw);
 
   @protected
   List<int> dco_decode_list_prim_u_32_loose(dynamic raw);
@@ -117,6 +165,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_u_32(dynamic raw);
 
   @protected
+  BigInt dco_decode_u_64(dynamic raw);
+
+  @protected
   int dco_decode_u_8(dynamic raw);
 
   @protected
@@ -146,6 +197,48 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  CpuBlendOverflowResult sse_decode_cpu_blend_overflow_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CpuBlendResult sse_decode_cpu_blend_result(SseDeserializer deserializer);
+
+  @protected
+  CpuBrushCommand sse_decode_cpu_brush_command(SseDeserializer deserializer);
+
+  @protected
+  CpuBrushResult sse_decode_cpu_brush_result(SseDeserializer deserializer);
+
+  @protected
+  CpuFiltersBytesResult sse_decode_cpu_filters_bytes_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CpuFiltersResult sse_decode_cpu_filters_result(SseDeserializer deserializer);
+
+  @protected
+  CpuImageBoundsResult sse_decode_cpu_image_bounds_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CpuStreamlineResult sse_decode_cpu_streamline_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CpuTransformSnapshotResult sse_decode_cpu_transform_snapshot_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CpuTransformTranslateResult sse_decode_cpu_transform_translate_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   double sse_decode_f_32(SseDeserializer deserializer);
 
   @protected
@@ -170,6 +263,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
+  List<CpuBrushCommand> sse_decode_list_cpu_brush_command(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<GpuLayerData> sse_decode_list_gpu_layer_data(
     SseDeserializer deserializer,
   );
@@ -182,6 +280,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
+
+  @protected
+  List<int> sse_decode_list_prim_i_32_loose(SseDeserializer deserializer);
+
+  @protected
+  Int32List sse_decode_list_prim_i_32_strict(SseDeserializer deserializer);
 
   @protected
   List<int> sse_decode_list_prim_u_32_loose(SseDeserializer deserializer);
@@ -232,6 +336,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_u_32(SseDeserializer deserializer);
 
   @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_u_8(SseDeserializer deserializer);
 
   @protected
@@ -258,6 +365,66 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_workspace_entry(
     WorkspaceEntry self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cpu_blend_overflow_result(
+    CpuBlendOverflowResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cpu_blend_result(
+    CpuBlendResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cpu_brush_command(
+    CpuBrushCommand self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cpu_brush_result(
+    CpuBrushResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cpu_filters_bytes_result(
+    CpuFiltersBytesResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cpu_filters_result(
+    CpuFiltersResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cpu_image_bounds_result(
+    CpuImageBoundsResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cpu_streamline_result(
+    CpuStreamlineResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cpu_transform_snapshot_result(
+    CpuTransformSnapshotResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_cpu_transform_translate_result(
+    CpuTransformTranslateResult self,
     SseSerializer serializer,
   );
 
@@ -292,6 +459,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_cpu_brush_command(
+    List<CpuBrushCommand> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_gpu_layer_data(
     List<GpuLayerData> self,
     SseSerializer serializer,
@@ -312,6 +485,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_prim_f_32_strict(
     Float32List self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_i_32_loose(
+    List<int> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_i_32_strict(
+    Int32List self,
     SseSerializer serializer,
   );
 
@@ -377,6 +562,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);

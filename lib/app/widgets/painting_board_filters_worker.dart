@@ -11,6 +11,35 @@ const int _kFilterTypeBinarize = 7;
 const int _kFilterTypeScanPaperDrawing = 8;
 const int _kFilterTypeInvert = 9;
 
+Uint8List? _tryApplyRustCpuFilter({
+  required int filterType,
+  required Uint8List bitmap,
+  required int width,
+  required int height,
+  double param0 = 0,
+  double param1 = 0,
+  double param2 = 0,
+  double param3 = 0,
+}) {
+  if (kIsWeb) {
+    return null;
+  }
+  final RustCpuFiltersFfi rust = RustCpuFiltersFfi.instance;
+  if (!rust.supportsRgbaFilters) {
+    return null;
+  }
+  return rust.applyFilterRgbaBytes(
+    pixels: bitmap,
+    width: width,
+    height: height,
+    filterType: filterType,
+    param0: param0,
+    param1: param1,
+    param2: param2,
+    param3: param3,
+  );
+}
+
 class _FilterPreviewWorker {
   _FilterPreviewWorker({
     required _FilterPanelType type,
@@ -68,7 +97,7 @@ class _FilterPreviewWorker {
         filterType = _kFilterTypeBlackWhite;
         break;
       case _FilterPanelType.scanPaperDrawing:
-        filterType = _kFilterTypeBlackWhite;
+        filterType = _kFilterTypeScanPaperDrawing;
         break;
       case _FilterPanelType.binarize:
         filterType = _kFilterTypeBinarize;
@@ -238,7 +267,59 @@ class _FilterPreviewWorker {
         0,
         _kLeakRemovalMaxRadius.toInt(),
       );
-      if (_type == _FilterPanelType.hueSaturation) {
+      final int filterType = switch (_type) {
+        _FilterPanelType.hueSaturation => _kFilterTypeHueSaturation,
+        _FilterPanelType.brightnessContrast => _kFilterTypeBrightnessContrast,
+        _FilterPanelType.blackWhite => _kFilterTypeBlackWhite,
+        _FilterPanelType.binarize => _kFilterTypeBinarize,
+        _FilterPanelType.gaussianBlur => _kFilterTypeGaussianBlur,
+        _FilterPanelType.leakRemoval => _kFilterTypeLeakRemoval,
+        _FilterPanelType.lineNarrow => _kFilterTypeLineNarrow,
+        _FilterPanelType.fillExpand => _kFilterTypeFillExpand,
+        _FilterPanelType.scanPaperDrawing => _kFilterTypeScanPaperDrawing,
+      };
+      final Uint8List? rustProcessed = _tryApplyRustCpuFilter(
+        filterType: filterType,
+        bitmap: bitmap,
+        width: _baseBitmapWidth,
+        height: _baseBitmapHeight,
+        param0: switch (_type) {
+          _FilterPanelType.hueSaturation => hueSaturation.hue,
+          _FilterPanelType.brightnessContrast => brightnessContrast.brightness,
+          _FilterPanelType.blackWhite => blackWhite.blackPoint,
+          _FilterPanelType.binarize => binarizeThreshold,
+          _FilterPanelType.gaussianBlur => blurRadius,
+          _FilterPanelType.leakRemoval => leakSteps.toDouble(),
+          _FilterPanelType.lineNarrow => morphRadius,
+          _FilterPanelType.fillExpand => morphRadius,
+          _FilterPanelType.scanPaperDrawing => blackWhite.blackPoint,
+        },
+        param1: switch (_type) {
+          _FilterPanelType.hueSaturation => hueSaturation.saturation,
+          _FilterPanelType.brightnessContrast => brightnessContrast.contrast,
+          _FilterPanelType.blackWhite => blackWhite.whitePoint,
+          _FilterPanelType.binarize => 0.0,
+          _FilterPanelType.gaussianBlur => 0.0,
+          _FilterPanelType.leakRemoval => 0.0,
+          _FilterPanelType.lineNarrow => 0.0,
+          _FilterPanelType.fillExpand => 0.0,
+          _FilterPanelType.scanPaperDrawing => blackWhite.whitePoint,
+        },
+        param2: switch (_type) {
+          _FilterPanelType.hueSaturation => hueSaturation.lightness,
+          _FilterPanelType.brightnessContrast => 0.0,
+          _FilterPanelType.blackWhite => blackWhite.midTone,
+          _FilterPanelType.binarize => 0.0,
+          _FilterPanelType.gaussianBlur => 0.0,
+          _FilterPanelType.leakRemoval => 0.0,
+          _FilterPanelType.lineNarrow => 0.0,
+          _FilterPanelType.fillExpand => 0.0,
+          _FilterPanelType.scanPaperDrawing => blackWhite.midTone,
+        },
+      );
+      if (rustProcessed != null) {
+        bitmap = rustProcessed;
+      } else if (_type == _FilterPanelType.hueSaturation) {
         _filterApplyHueSaturationToBitmap(
           bitmap,
           hueSaturation.hue,
@@ -484,7 +565,54 @@ void _filterPreviewWorkerMain(List<Object?> initialMessage) {
         0,
         _kLeakRemovalMaxRadius.toInt(),
       );
-      if (type == _kFilterTypeHueSaturation) {
+      final Uint8List? rustProcessed = _tryApplyRustCpuFilter(
+        filterType: type,
+        bitmap: bitmap,
+        width: bitmapWidth,
+        height: bitmapHeight,
+        param0: switch (type) {
+          _kFilterTypeHueSaturation => hueDelta,
+          _kFilterTypeBrightnessContrast => brightnessPercent,
+          _kFilterTypeBlackWhite => blackPoint,
+          _kFilterTypeBinarize => binarizeThreshold,
+          _kFilterTypeGaussianBlur => blurRadius,
+          _kFilterTypeLeakRemoval => leakSteps.toDouble(),
+          _kFilterTypeLineNarrow => morphRadius,
+          _kFilterTypeFillExpand => morphRadius,
+          _kFilterTypeScanPaperDrawing => blackPoint,
+          _kFilterTypeInvert => 0.0,
+          _ => 0.0,
+        },
+        param1: switch (type) {
+          _kFilterTypeHueSaturation => saturationPercent,
+          _kFilterTypeBrightnessContrast => contrastPercent,
+          _kFilterTypeBlackWhite => whitePoint,
+          _kFilterTypeBinarize => 0.0,
+          _kFilterTypeGaussianBlur => 0.0,
+          _kFilterTypeLeakRemoval => 0.0,
+          _kFilterTypeLineNarrow => 0.0,
+          _kFilterTypeFillExpand => 0.0,
+          _kFilterTypeScanPaperDrawing => whitePoint,
+          _kFilterTypeInvert => 0.0,
+          _ => 0.0,
+        },
+        param2: switch (type) {
+          _kFilterTypeHueSaturation => lightnessPercent,
+          _kFilterTypeBrightnessContrast => 0.0,
+          _kFilterTypeBlackWhite => midTone,
+          _kFilterTypeBinarize => 0.0,
+          _kFilterTypeGaussianBlur => 0.0,
+          _kFilterTypeLeakRemoval => 0.0,
+          _kFilterTypeLineNarrow => 0.0,
+          _kFilterTypeFillExpand => 0.0,
+          _kFilterTypeScanPaperDrawing => midTone,
+          _kFilterTypeInvert => 0.0,
+          _ => 0.0,
+        },
+      );
+      if (rustProcessed != null) {
+        bitmap = rustProcessed;
+      } else if (type == _kFilterTypeHueSaturation) {
         _filterApplyHueSaturationToBitmap(
           bitmap,
           hueDelta,

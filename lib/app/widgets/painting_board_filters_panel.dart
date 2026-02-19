@@ -6,7 +6,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     final l10n = context.l10n;
     if (type == _FilterPanelType.scanPaperDrawing &&
         _controller.frame == null &&
-        !_canUseRustCanvasEngine()) {
+        !_backend.isReady) {
       _showFilterMessage(l10n.canvasNotReady);
       return;
     }
@@ -15,7 +15,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
       return;
     }
     _layerOpacityPreviewReset(this);
-    final BitmapLayerState? layer = _layerById(activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(activeLayerId);
     if (layer == null) {
       _showFilterMessage(l10n.cannotLocateLayer);
       return;
@@ -49,7 +49,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
           (data.bitmapHeight ?? 0) > 0;
       final bool hasFill =
           data.fillColor != null && data.fillColor!.alpha != 0;
-      if (!hasBitmap && !hasFill && !_canUseRustCanvasEngine()) {
+      if (!hasBitmap && !hasFill && !_backend.isReady) {
         _showFilterMessage(l10n.layerEmptyScanPaperDrawing);
         return;
       }
@@ -94,7 +94,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
       _initializeFilterWorker();
     }
 
-    // Generate GPU preview images
+    // Generate backend preview images
     setState(() => _filterLoading = true);
     try {
       await _generatePreviewImages();
@@ -109,37 +109,21 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     _insertFilterOverlay();
   }
 
-  Future<_LayerPreviewImages> _captureRustLayerPreviewImages(
+  Future<_LayerPreviewImages> _captureBackendLayerPreviewImages(
     _FilterSession session,
   ) async {
-    if (!_canUseRustCanvasEngine()) {
-      return const _LayerPreviewImages();
-    }
-    final int? handle = _rustCanvasEngineHandle;
-    if (handle == null) {
-      return const _LayerPreviewImages();
-    }
-    final int? layerIndex = _rustCanvasLayerIndexForId(session.activeLayerId);
-    if (layerIndex == null) {
-      return const _LayerPreviewImages();
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int width = engineSize.width.round();
-    final int height = engineSize.height.round();
-    if (width <= 0 || height <= 0) {
-      return const _LayerPreviewImages();
-    }
-    final Uint32List? sourcePixels = CanvasEngineFfi.instance.readLayer(
-      handle: handle,
-      layerIndex: layerIndex,
-      width: width,
-      height: height,
+    final _LayerPixels? layer = _backend.readLayerPixelsFromBackend(
+      session.activeLayerId,
     );
-    if (sourcePixels == null || sourcePixels.length != width * height) {
+    if (layer == null) {
       return const _LayerPreviewImages();
     }
-    final Uint8List rgba = this._argbPixelsToRgba(sourcePixels);
-    final ui.Image active = await _decodeImage(rgba, width, height);
+    final Uint8List rgba = this._argbPixelsToRgba(layer.pixels);
+    final ui.Image active = await _decodeImage(
+      rgba,
+      layer.width,
+      layer.height,
+    );
     return _LayerPreviewImages(active: active);
   }
 
@@ -148,13 +132,14 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     if (session == null) {
       return;
     }
-    final bool useRustPreview = _shouldUseRustFilterPreview(session);
-    final _LayerPreviewImages previews = useRustPreview
-        ? await _captureRustLayerPreviewImages(session)
+    final bool useBackendPreview = _shouldUseBackendFilterPreview(session);
+    final _LayerPreviewImages previews = useBackendPreview
+        ? await _captureBackendLayerPreviewImages(session)
         : await _captureLayerPreviewImages(
             controller: _controller,
-            layers: _layers.toList(),
+            layers: _controller.compositeLayers.toList(),
             activeLayerId: session.activeLayerId,
+            useBackendCanvas: _backend.isSupported,
           );
     _previewBackground?.dispose();
     _previewActiveLayerImage?.dispose();
@@ -186,10 +171,10 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     } else if (session.type == _FilterPanelType.binarize) {
       _scheduleBinarizePreviewImageUpdate();
     }
-    if (useRustPreview) {
-      _enableRustFilterPreviewIfNeeded(session);
+    if (useBackendPreview) {
+      _enableBackendFilterPreviewIfNeeded(session);
     } else {
-      _restoreRustLayerAfterFilterPreview();
+      _restoreBackendLayerAfterFilterPreview();
     }
   }
 
@@ -708,6 +693,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     _scheduleHueSaturationPreviewImageUpdate();
     _scheduleBlackWhitePreviewImageUpdate();
     _scheduleBinarizePreviewImageUpdate();
+    _requestFilterPreview(immediate: true);
   }
 
   void _updateHueSaturation({
@@ -726,6 +712,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
     _scheduleHueSaturationPreviewImageUpdate();
+    _requestFilterPreview();
   }
 
   void _updateBrightnessContrast({double? brightness, double? contrast}) {
@@ -738,6 +725,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
       ..contrast = contrast ?? session.brightnessContrast.contrast;
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _requestFilterPreview();
   }
 
   void _updateBlackWhite({
@@ -765,6 +753,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
     _scheduleBlackWhitePreviewImageUpdate();
+    _requestFilterPreview();
   }
 
   void _updateBinarizeThreshold(double threshold) {
@@ -776,6 +765,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
     _scheduleBinarizePreviewImageUpdate();
+    _requestFilterPreview();
   }
 
   void _updateGaussianBlur(double radius) {
@@ -786,6 +776,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     session.gaussianBlur.radius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _requestFilterPreview();
   }
 
   void _updateLeakRemovalRadius(double radius) {
@@ -796,6 +787,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     session.leakRemoval.radius = radius.clamp(0.0, _kLeakRemovalMaxRadius);
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _requestFilterPreview();
   }
 
   void _updateLineNarrow(double radius) {
@@ -806,6 +798,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     session.lineNarrow.radius = radius.clamp(0.0, _kMorphologyMaxRadius);
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _requestFilterPreview();
   }
 
   void _updateFillExpand(double radius) {
@@ -816,6 +809,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     session.fillExpand.radius = radius.clamp(0.0, _kMorphologyMaxRadius);
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _requestFilterPreview();
   }
 
 }

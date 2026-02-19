@@ -25,6 +25,13 @@ class PaintingBoardState extends _PaintingBoardBase
   final List<double> _perfStressLatencySamplesMs = <double>[];
   final List<double> _perfStressUiBuildSamplesMs = <double>[];
   int? _perfStressLastFrameGeneration;
+  bool? _menuSelectAllEnabled;
+  bool? _menuClearSelectionEnabled;
+  bool? _menuInvertSelectionEnabled;
+  bool? _menuCutEnabled;
+  bool? _menuCopyEnabled;
+  bool? _menuPasteEnabled;
+  bool? _menuMergeDownEnabled;
 
   @override
   void initState() {
@@ -64,8 +71,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _stylusPressureEnabled = prefs.stylusPressureEnabled;
     _stylusCurve = prefs.stylusPressureCurve;
     _autoSharpPeakEnabled = prefs.autoSharpPeakEnabled;
-    _rustPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
+    _backendPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
     _brushShape = prefs.brushShape;
+    _brushShapeId = _shapeIdForBrush(_brushShape);
     _brushRandomRotationEnabled = prefs.brushRandomRotationEnabled;
     _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
     _hollowStrokeEnabled = prefs.hollowStrokeEnabled;
@@ -84,14 +92,27 @@ class PaintingBoardState extends _PaintingBoardBase
     _rememberColor(_primaryColor);
     initializePerspectiveGuide(widget.initialPerspectiveGuide);
     final List<CanvasLayerData> layers = _buildInitialLayers();
-    const bool enableRasterOutput = false;
-    _controller = BitmapCanvasController(
+    final bool useBackendCanvas = _backend.isSupported;
+    final bool enableRasterOutput = true;
+    final CanvasBackend rasterBackend =
+        CanvasBackendState.resolveRasterBackend(useBackendCanvas: useBackendCanvas);
+    if (kDebugMode) {
+      debugPrint(
+        '[canvas-backend] pref=${AppPreferences.instance.canvasBackend} '
+        'state=${CanvasBackendState.backend} '
+        'backendSupported=${_backend.isSupported} '
+        'useBackendCanvas=$useBackendCanvas rasterBackend=$rasterBackend '
+        'rasterOutput=$enableRasterOutput',
+      );
+    }
+    _controller = createCanvasFacade(
       width: widget.settings.width.round(),
       height: widget.settings.height.round(),
       backgroundColor: widget.settings.backgroundColor,
       initialLayers: layers,
       creationLogic: widget.settings.creationLogic,
       enableRasterOutput: enableRasterOutput,
+      backend: rasterBackend,
     );
     _controller.setLayerOverflowCropping(_layerAdjustCropOutside);
     if (_brushLibrary != null) {
@@ -105,8 +126,9 @@ class PaintingBoardState extends _PaintingBoardBase
     }
     _resetHistory();
     _syncRasterizeMenuAvailability();
+    _syncMenuAvailability();
     _notifyViewInfoChanged();
-    RustCanvasTimeline.mark(
+    BackendCanvasTimeline.mark(
       'paintingBoard: initState '
       'size=${widget.settings.width.round()}x${widget.settings.height.round()}',
     );
@@ -156,9 +178,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _curvePreviewRasterImage = null;
     _shapePreviewRasterImage?.dispose();
     _shapePreviewRasterImage = null;
-    _restoreRustLayerAfterVectorPreview();
-    _rustLayerSnapshots.clear();
-    _rustLayerSnapshotHandle = null;
+    _restoreBackendLayerAfterVectorPreview();
+    _backendLayerSnapshots.clear();
+    _backendLayerSnapshotHandle = null;
     super.dispose();
   }
 
@@ -175,7 +197,7 @@ class PaintingBoardState extends _PaintingBoardBase
     }
   }
 
-  void _perfStressMaybeRecordFrame(BitmapCanvasFrame? frame) {
+  void _perfStressMaybeRecordFrame(CanvasFrame? frame) {
     if (!_perfStressRunning) {
       return;
     }
@@ -401,13 +423,12 @@ class PaintingBoardState extends _PaintingBoardBase
       return false;
     }
     try {
-      final bool rustSynced = _canUseRustCanvasEngine();
-      if (rustSynced) {
-        await _controller.waitForPendingWorkerTasks();
-        if (!_syncAllLayerPixelsFromRust()) {
-          _showRustCanvasMessage('Rust 画布同步图层失败。');
-          return false;
-        }
+      final bool backendSynced = _backend.isReady;
+      if (!await _backend.syncAllLayerPixelsFromBackend(
+        waitForPending: true,
+        warnIfFailed: true,
+      )) {
+        return false;
       }
       final _ImportedImageData decoded = await _decodeExternalImage(bytes);
       final int canvasWidth = widget.settings.width.round();
@@ -425,14 +446,12 @@ class PaintingBoardState extends _PaintingBoardBase
         bitmapTop: offsetY,
         cloneBitmap: false,
       );
-      await _pushUndoSnapshot(rustPixelsSynced: rustSynced);
+      await _pushUndoSnapshot(backendPixelsSynced: backendSynced);
       _controller.insertLayerFromData(layerData, aboveLayerId: _activeLayerId);
       _controller.setActiveLayer(layerData.id);
-      if (_canUseRustCanvasEngine()) {
-        _syncRustCanvasLayersToEngine();
-        if (!_syncAllLayerPixelsToRust()) {
-          _showRustCanvasMessage('Rust 画布写入图层失败。');
-        }
+      if (backendSynced) {
+        _syncBackendCanvasLayersToEngine();
+        await _backend.syncAllLayerPixelsToBackend(warnIfFailed: true);
       }
       setState(() {});
       _markDirty();
@@ -484,7 +503,7 @@ class PaintingBoardState extends _PaintingBoardBase
     if (activeLayerId == null) {
       return;
     }
-    final BitmapLayerState? layer = _layerById(activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(activeLayerId);
     if (layer == null) {
       return;
     }
@@ -501,7 +520,7 @@ class PaintingBoardState extends _PaintingBoardBase
       _showBinarizeMessage('请先选择一个可编辑的图层。');
       return;
     }
-    final BitmapLayerState? layer = _layerById(activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(activeLayerId);
     if (layer == null) {
       _showBinarizeMessage('无法定位当前图层。');
       return;
@@ -635,6 +654,10 @@ class PaintingBoardState extends _PaintingBoardBase
     _finishSelectionUndo();
   }
 
+  void clearSelection() {
+    _clearSelection();
+  }
+
   void invertSelection() async {
     final int width = _controller.width;
     final int height = _controller.height;
@@ -687,13 +710,12 @@ class PaintingBoardState extends _PaintingBoardBase
       return null;
     }
     _controller.commitActiveLayerTranslation();
-    if (_canUseRustCanvasEngine()) {
-      await _controller.waitForPendingWorkerTasks();
-      if (!_syncAllLayerPixelsFromRust()) {
-        debugPrint('resizeImage: rust sync failed');
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
-        return null;
-      }
+    if (!await _backend.syncAllLayerPixelsFromBackend(
+      waitForPending: true,
+      warnIfFailed: true,
+    )) {
+      debugPrint('resizeImage: backend sync failed');
+      return null;
     }
     final int sourceWidth = _controller.width;
     final int sourceHeight = _controller.height;
@@ -704,7 +726,7 @@ class PaintingBoardState extends _PaintingBoardBase
     debugPrint(
       'resizeImage: source=${sourceWidth}x$sourceHeight '
       'target=${width}x$height sampling=$sampling '
-      'rust=${_canUseRustCanvasEngine()}',
+      'backend=${_backend.isReady}',
     );
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
@@ -735,13 +757,12 @@ class PaintingBoardState extends _PaintingBoardBase
       return null;
     }
     _controller.commitActiveLayerTranslation();
-    if (_canUseRustCanvasEngine()) {
-      await _controller.waitForPendingWorkerTasks();
-      if (!_syncAllLayerPixelsFromRust()) {
-        debugPrint('resizeCanvas: rust sync failed');
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
-        return null;
-      }
+    if (!await _backend.syncAllLayerPixelsFromBackend(
+      waitForPending: true,
+      warnIfFailed: true,
+    )) {
+      debugPrint('resizeCanvas: backend sync failed');
+      return null;
     }
     final int sourceWidth = _controller.width;
     final int sourceHeight = _controller.height;
@@ -752,7 +773,7 @@ class PaintingBoardState extends _PaintingBoardBase
     debugPrint(
       'resizeCanvas: source=${sourceWidth}x$sourceHeight '
       'target=${width}x$height anchor=$anchor '
-      'rust=${_canUseRustCanvasEngine()}',
+      'backend=${_backend.isReady}',
     );
     final List<CanvasLayerData> layers = _controller.snapshotLayers();
     final List<CanvasLayerData> resizedLayers = <CanvasLayerData>[
@@ -777,9 +798,9 @@ class PaintingBoardState extends _PaintingBoardBase
   void didUpdateWidget(covariant PaintingBoard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isActive && !widget.isActive) {
-      unawaited(_captureRustLayerSnapshotIfNeeded());
+      unawaited(_captureBackendLayerSnapshotIfNeeded());
     } else if (!oldWidget.isActive && widget.isActive) {
-      _restoreRustLayerSnapshotIfNeeded();
+      _restoreBackendLayerSnapshotIfNeeded();
     }
     final bool sizeChanged = widget.settings.size != oldWidget.settings.size;
     final bool backgroundChanged =
@@ -798,14 +819,18 @@ class PaintingBoardState extends _PaintingBoardBase
       }
       _controller.removeListener(_handleControllerChanged);
       unawaited(_controller.disposeController());
-      const bool enableRasterOutput = false;
-      _controller = BitmapCanvasController(
+      final bool useBackendCanvas = _backend.isSupported;
+      final bool enableRasterOutput = !useBackendCanvas;
+      final CanvasBackend rasterBackend =
+          CanvasBackendState.resolveRasterBackend(useBackendCanvas: useBackendCanvas);
+      _controller = createCanvasFacade(
         width: widget.settings.width.round(),
         height: widget.settings.height.round(),
         backgroundColor: widget.settings.backgroundColor,
         initialLayers: _buildInitialLayers(),
         creationLogic: widget.settings.creationLogic,
         enableRasterOutput: enableRasterOutput,
+        backend: rasterBackend,
       );
       _applyStylusSettingsToController();
       _controller.addListener(_handleControllerChanged);
@@ -814,13 +839,13 @@ class PaintingBoardState extends _PaintingBoardBase
         widget.onReadyChanged?.call(true);
       }
       _resetHistory();
-      _rustLayerSnapshots.clear();
-      _rustLayerSnapshotDirty = false;
-      _rustLayerSnapshotPendingRestore = false;
-      _rustLayerSnapshotInFlight = false;
-      _rustLayerSnapshotWidth = 0;
-      _rustLayerSnapshotHeight = 0;
-      _rustLayerSnapshotHandle = null;
+      _backendLayerSnapshots.clear();
+      _backendLayerSnapshotDirty = false;
+      _backendLayerSnapshotPendingRestore = false;
+      _backendLayerSnapshotInFlight = false;
+      _backendLayerSnapshotWidth = 0;
+      _backendLayerSnapshotHeight = 0;
+      _backendLayerSnapshotHandle = null;
       setState(() {
         if (sizeChanged) {
           _viewport.reset();
@@ -830,12 +855,12 @@ class PaintingBoardState extends _PaintingBoardBase
         }
       });
       _notifyViewInfoChanged();
-      _syncRustCanvasLayersToEngine();
+      _syncBackendCanvasLayersToEngine();
     }
   }
 
   void _handleControllerChanged() {
-    final BitmapCanvasFrame? frame = _controller.frame;
+    final CanvasFrame? frame = _controller.frame;
     _perfStressMaybeRecordFrame(frame);
     final int? awaitedGeneration = _layerOpacityPreviewAwaitedGeneration;
     if (awaitedGeneration != null &&
@@ -850,13 +875,57 @@ class PaintingBoardState extends _PaintingBoardBase
     _handleFilterApplyFrameProgress(frame);
     if (_maybeInitializeLayerTransformStateFromController()) {
       _scheduleReferenceModelTextureRefresh();
-      _syncRustCanvasLayersToEngine();
+      _syncBackendCanvasLayersToEngine();
       return;
     }
     _syncRasterizeMenuAvailability();
+    _syncMenuAvailability();
     _notifyBoardReadyIfNeeded();
     _scheduleReferenceModelTextureRefresh();
-    _syncRustCanvasLayersToEngine();
+    _syncBackendCanvasLayersToEngine();
+  }
+
+  @override
+  void _syncMenuAvailability() {
+    final bool canSelectAll = this.canSelectAll;
+    final bool canClearSelection = this.canClearSelection;
+    final bool canInvertSelection = this.canInvertSelection;
+    final bool canCut = this.canCut;
+    final bool canCopy = this.canCopy;
+    final bool canPaste = this.canPaste;
+    final bool canMergeDown = canMergeActiveLayerDown;
+    bool changed = false;
+    if (_menuSelectAllEnabled != canSelectAll) {
+      _menuSelectAllEnabled = canSelectAll;
+      changed = true;
+    }
+    if (_menuClearSelectionEnabled != canClearSelection) {
+      _menuClearSelectionEnabled = canClearSelection;
+      changed = true;
+    }
+    if (_menuInvertSelectionEnabled != canInvertSelection) {
+      _menuInvertSelectionEnabled = canInvertSelection;
+      changed = true;
+    }
+    if (_menuCutEnabled != canCut) {
+      _menuCutEnabled = canCut;
+      changed = true;
+    }
+    if (_menuCopyEnabled != canCopy) {
+      _menuCopyEnabled = canCopy;
+      changed = true;
+    }
+    if (_menuPasteEnabled != canPaste) {
+      _menuPasteEnabled = canPaste;
+      changed = true;
+    }
+    if (_menuMergeDownEnabled != canMergeDown) {
+      _menuMergeDownEnabled = canMergeDown;
+      changed = true;
+    }
+    if (changed) {
+      MenuActionDispatcher.instance.refresh();
+    }
   }
 
   @override
@@ -864,21 +933,22 @@ class PaintingBoardState extends _PaintingBoardBase
     if (_boardReadyNotified) {
       return;
     }
-    final BitmapCanvasFrame? frame = _controller.frame;
+    final CanvasFrame? frame = _controller.frame;
     if (frame == null) {
-      if (_rustCanvasEngineHandle == null) {
+      if (_backendCanvasEngineHandle == null) {
         return;
       }
-      RustCanvasTimeline.mark(
-        'paintingBoard: board ready rustEngine=${_rustCanvasEngineHandle}',
+      BackendCanvasTimeline.mark(
+        'paintingBoard: board ready backendEngine=${_backendCanvasEngineHandle}',
       );
     } else {
-      RustCanvasTimeline.mark(
+      BackendCanvasTimeline.mark(
         'paintingBoard: board ready generation=${frame.generation}',
       );
     }
     _boardReadyNotified = true;
     widget.onReadyChanged?.call(true);
+    _syncMenuAvailability();
   }
 
   WorkspaceOverlaySnapshot buildWorkspaceOverlaySnapshot() {
@@ -926,6 +996,7 @@ class PaintingBoardState extends _PaintingBoardBase
       layerAdjustCropOutside: _layerAdjustCropOutside,
       shapeFillEnabled: _shapeFillEnabled,
       selectionShape: _selectionShape,
+      selectionAdditiveEnabled: _selectionAdditiveEnabled,
       shapeToolVariant: _shapeToolVariant,
       textFontSize: _textFontSize,
       textLineHeight: _textLineHeight,
@@ -944,6 +1015,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateShapeToolVariant(snapshot.shapeToolVariant);
     _updateShapeFillEnabled(snapshot.shapeFillEnabled);
     _updateSelectionShape(snapshot.selectionShape);
+    _updateSelectionAdditiveEnabled(snapshot.selectionAdditiveEnabled);
     _updateTextFontSize(snapshot.textFontSize);
     _updateTextLineHeight(snapshot.textLineHeight);
     _updateTextLetterSpacing(snapshot.textLetterSpacing);
@@ -1007,20 +1079,22 @@ class PaintingBoardState extends _PaintingBoardBase
     library.selectPreset(id);
   }
 
-  Future<void> _openBrushPresetEditor() async {
-    final BrushPreset? preset =
-        _activeBrushPreset ?? _brushLibrary?.selectedPreset;
-    if (preset == null) {
+  Future<void> _openBrushPresetPicker() async {
+    final BrushLibrary? library = _brushLibrary;
+    if (library == null) {
       return;
     }
-    final BrushPreset? updated = await showBrushPresetEditorDialog(
+    final String selectedId =
+        _activeBrushPreset?.id ?? library.selectedId;
+    final String? nextId = await showBrushPresetPickerDialog(
       context,
-      preset: preset,
+      library: library,
+      selectedId: selectedId,
     );
-    if (!mounted || updated == null) {
+    if (!mounted || nextId == null) {
       return;
     }
-    _brushLibrary?.updatePreset(updated);
+    _selectBrushPreset(nextId);
   }
 
   void _applyBrushPreset(BrushPreset preset, {bool notify = true}) {
@@ -1032,7 +1106,9 @@ class PaintingBoardState extends _PaintingBoardBase
     final void Function() update = () {
       _activeBrushPreset = sanitized;
       _brushShape = sanitized.shape;
+      _brushShapeId = sanitized.resolvedShapeId;
       _brushRandomRotationEnabled = sanitized.randomRotation;
+      _brushSmoothRotationEnabled = sanitized.smoothRotation;
       if (sanitized.randomRotation &&
           (randomRotationChanged || presetChanged)) {
         _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
@@ -1054,11 +1130,63 @@ class PaintingBoardState extends _PaintingBoardBase
     } else {
       update();
     }
+    _syncCustomBrushShape(sanitized);
     if (autoSharpChanged) {
-      _rustPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
+      _backendPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
       _applyStylusSettingsToController();
     }
   }
+
+  void _syncCustomBrushShape(BrushPreset preset) {
+    final BrushLibrary library = _brushLibrary ?? BrushLibrary.instance;
+    final BrushShapeLibrary shapes = library.shapeLibrary;
+    final String shapeId = preset.resolvedShapeId;
+    final bool builtIn = shapes.isBuiltInId(shapeId);
+    if (builtIn) {
+      _brushShapeRaster = null;
+      if (_controller is BitmapCanvasController) {
+        (_controller as BitmapCanvasController).setCustomBrushShape(
+          shapeId: shapeId,
+          raster: null,
+        );
+      }
+      return;
+    }
+    shapes.loadRaster(shapeId).then((BrushShapeRaster? raster) {
+      if (!mounted) {
+        return;
+      }
+      if (_brushShapeId != shapeId) {
+        return;
+      }
+      setState(() {
+        _brushShapeRaster = raster;
+      });
+      if (_controller is BitmapCanvasController) {
+        (_controller as BitmapCanvasController).setCustomBrushShape(
+          shapeId: shapeId,
+          raster: raster,
+        );
+      }
+    });
+  }
+
+  Future<bool> undo() {
+    return _PaintingBoardInteractionPointerImpl(this).undo();
+  }
+
+  Future<bool> redo() {
+    return _PaintingBoardInteractionPointerImpl(this).redo();
+  }
+
+  bool zoomIn() {
+    return _PaintingBoardInteractionPointerImpl(this).zoomIn();
+  }
+
+  bool zoomOut() {
+    return _PaintingBoardInteractionPointerImpl(this).zoomOut();
+  }
+
 }
 
 class _CanvasHistoryEntry {
@@ -1069,7 +1197,7 @@ class _CanvasHistoryEntry {
     required this.selectionShape,
     this.selectionMask,
     this.selectionPath,
-    this.rustPixelsSynced = false,
+    this.backendPixelsSynced = false,
   });
 
   final List<CanvasLayerData> layers;
@@ -1078,7 +1206,7 @@ class _CanvasHistoryEntry {
   final SelectionShape selectionShape;
   final Uint8List? selectionMask;
   final Path? selectionPath;
-  final bool rustPixelsSynced;
+  final bool backendPixelsSynced;
 }
 
 StrokePressureProfile _penPressureProfile = StrokePressureProfile.auto;
@@ -1130,10 +1258,10 @@ void _layerOpacityPreviewDisposeImages(_PaintingBoardBase board) {
   board._layerOpacityPreviewForeground = null;
 }
 
-int _layerOpacityPreviewSignature(Iterable<BitmapLayerState> layers) {
+int _layerOpacityPreviewSignature(Iterable<CanvasLayerInfo> layers) {
   int hash = layers.length;
   int index = 1;
-  for (final BitmapLayerState layer in layers) {
+  for (final CanvasLayerInfo layer in layers) {
     hash = 37 * hash + layer.revision;
     hash = 37 * hash + layer.id.hashCode;
     hash = 37 * hash + index;

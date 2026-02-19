@@ -61,7 +61,7 @@ extension _PaintingBoardLayerTransformPanelBuilder
                           state!.reset();
                           _layerTransformRevision++;
                         });
-                        _updateRustLayerTransformPreview();
+                        _updateBackendLayerTransformPreview();
                       }
                     : null,
                 child: Text(l10n.reset),

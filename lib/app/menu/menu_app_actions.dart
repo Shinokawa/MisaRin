@@ -6,9 +6,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart' show StatefulElement, State, StatefulWidget;
 import 'package:path/path.dart' as p;
+import 'package:misa_rin/canvas/canvas_engine_bridge.dart';
 
 import '../../canvas/canvas_settings.dart';
-import '../dialogs/about_dialog.dart';
 import '../dialogs/canvas_settings_dialog.dart';
 import '../dialogs/settings_dialog.dart';
 import '../l10n/l10n.dart';
@@ -18,7 +18,7 @@ import '../project/project_repository.dart';
 import '../utils/clipboard_image_reader.dart';
 import '../view/canvas_page.dart';
 import '../widgets/app_notification.dart';
-import '../widgets/rust_canvas_surface.dart';
+import '../widgets/backend_canvas_surface.dart';
 
 class AppMenuActions {
   const AppMenuActions._();
@@ -41,9 +41,9 @@ class AppMenuActions {
       _applyWorkspacePreset(config.workspacePreset);
       ProjectDocument document = await ProjectRepository.instance
           .createDocumentFromSettings(config.settings, name: config.name);
-      if (!kIsWeb) {
+      if (!kIsWeb && CanvasBackendFacade.instance.isSupported) {
         unawaited(
-          RustCanvasSurface.prewarm(
+          BackendCanvasSurface.prewarm(
             surfaceKey: document.id,
             canvasSize: config.settings.size,
             layerCount: document.layers.length,
@@ -265,7 +265,7 @@ class AppMenuActions {
   }
 
   static Future<void> showAbout(BuildContext context) async {
-    await showAboutMisarinDialog(context);
+    await showSettingsDialog(context, openAboutTab: true);
   }
 
   static Future<void> importImage(BuildContext context) async {
@@ -388,14 +388,16 @@ class AppMenuActions {
       }
       return null;
     }();
-    try {
-      await RustCanvasSurface.prewarm(
-        surfaceKey: document.id,
-        canvasSize: document.settings.size,
-        layerCount: document.layers.length,
-        backgroundColorArgb: document.settings.backgroundColor.value,
-      );
-    } catch (_) {}
+    if (!kIsWeb && CanvasBackendFacade.instance.isSupported) {
+      try {
+        await BackendCanvasSurface.prewarm(
+          surfaceKey: document.id,
+          canvasSize: document.settings.size,
+          layerCount: document.layers.length,
+          backgroundColorArgb: document.settings.backgroundColor.value,
+        );
+      } catch (_) {}
+    }
     try {
       if (canvasState != null) {
         await canvasState.openDocument(document);

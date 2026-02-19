@@ -30,6 +30,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   double _selectionDashPhase = 0.0;
   double _selectionDashValue = 0.0;
   bool _selectionUndoArmed = false;
+  bool _selectionAdditiveEnabled = false;
   bool _isAdditiveSelection = false;
   Path? _currentDragPath;
 
@@ -206,61 +207,10 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   }
 
   Future<Uint8List?> _computeMagicWandMask(Offset position) async {
-    if (!_canUseRustCanvasEngine()) {
-      return null;
-    }
-    final int handle = _rustCanvasEngineHandle!;
-    final String? activeLayerId = _controller.activeLayerId;
-    final int? layerIndex =
-        activeLayerId != null ? _rustCanvasLayerIndexForId(activeLayerId) : null;
-    if (layerIndex == null) {
-      return null;
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int engineWidth = engineSize.width.round();
-    final int engineHeight = engineSize.height.round();
-    if (engineWidth <= 0 || engineHeight <= 0) {
-      return null;
-    }
-    final Offset enginePos = _rustToEngineSpace(position);
-    final int startX = enginePos.dx.floor();
-    final int startY = enginePos.dy.floor();
-    if (startX < 0 ||
-        startY < 0 ||
-        startX >= engineWidth ||
-        startY >= engineHeight) {
-      return null;
-    }
-    final int maskLength = engineWidth * engineHeight;
-    final Uint8List? selectionMaskForRust =
-        _resolveSelectionMaskForRust(engineWidth, engineHeight);
-    final Uint8List? mask = CanvasEngineFfi.instance.magicWandMask(
-      handle: handle,
-      layerIndex: layerIndex,
-      startX: startX,
-      startY: startY,
-      maskLength: maskLength,
+    return _backend.magicWandMask(
+      position,
       sampleAllLayers: true,
       tolerance: _magicWandTolerance,
-      selectionMask: selectionMaskForRust,
-    );
-    if (mask == null) {
-      return null;
-    }
-    final int canvasWidth = _controller.width;
-    final int canvasHeight = _controller.height;
-    if (canvasWidth <= 0 || canvasHeight <= 0) {
-      return null;
-    }
-    if (engineWidth == canvasWidth && engineHeight == canvasHeight) {
-      return mask;
-    }
-    return _scaleSelectionMask(
-      mask,
-      engineWidth,
-      engineHeight,
-      canvasWidth,
-      canvasHeight,
     );
   }
 
@@ -275,11 +225,19 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     }
     await _prepareSelectionUndo();
     final bool additive =
-        _isShiftPressed &&
+        (_isShiftPressed || _selectionAdditiveEnabled) &&
         _selectionMask != null &&
         _selectionShape != SelectionShape.polygon;
     _beginDragSelection(position, additive: additive);
     _updateSelectionAnimation();
+  }
+
+  @override
+  void _updateSelectionAdditiveEnabled(bool value) {
+    if (_selectionAdditiveEnabled == value) {
+      return;
+    }
+    setState(() => _selectionAdditiveEnabled = value);
   }
 
   @override
@@ -548,9 +506,15 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
   void _handlePolygonPointerDown(Offset position, Duration timestamp) async {
     final bool isDoubleTap = _isPolygonDoubleTap(position, timestamp);
     if (_polygonPoints.isEmpty) {
+      final bool additive =
+          (_isShiftPressed || _selectionAdditiveEnabled) &&
+          _selectionMask != null;
       await _prepareSelectionUndo();
       setState(() {
-        setSelectionState(path: null, mask: null);
+        if (!additive) {
+          setSelectionState(path: null, mask: null);
+        }
+        _isAdditiveSelection = additive;
         _polygonPoints.add(position);
         _selectionPreviewPath = _buildPolygonPath(
           points: _polygonPoints,
@@ -575,7 +539,8 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
         _selectionPreviewPath = null;
         _polygonPoints.clear();
         _polygonHoverPoint = null;
-        _applySelectionPathInternal(finalizedPath);
+        _applySelectionPathInternal(finalizedPath, additive: _isAdditiveSelection);
+        _isAdditiveSelection = false;
       });
       _lastPolygonTapTime = null;
       _lastPolygonTapPosition = null;
@@ -625,6 +590,7 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     _polygonHoverPoint = null;
     _lastPolygonTapTime = null;
     _lastPolygonTapPosition = null;
+    _isAdditiveSelection = false;
   }
 
   @override
@@ -786,43 +752,26 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     _selectionPath = path;
     _selectionMask = mask;
     _controller.setSelectionMask(mask);
-    _syncRustSelectionMask();
+    _syncBackendSelectionMask();
+    _syncMenuAvailability();
   }
 
   @override
-  void _handleRustCanvasEngineInfoChanged(
+  void _handleBackendCanvasEngineInfoChanged(
     int? handle,
     Size? engineSize,
     bool isNewEngine,
   ) {
-    super._handleRustCanvasEngineInfoChanged(handle, engineSize, isNewEngine);
-    _syncRustSelectionMask();
+    super._handleBackendCanvasEngineInfoChanged(handle, engineSize, isNewEngine);
+    _syncBackendSelectionMask();
   }
 
-  void _syncRustSelectionMask() {
-    if (!_canUseRustCanvasEngine()) {
-      return;
-    }
-    final int? handle = _rustCanvasEngineHandle;
-    if (handle == null) {
-      return;
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int width = engineSize.width.round();
-    final int height = engineSize.height.round();
-    if (width <= 0 || height <= 0) {
-      CanvasEngineFfi.instance.setSelectionMask(handle: handle);
-      return;
-    }
-    final Uint8List? selectionMask = _resolveSelectionMaskForRust(width, height);
-    CanvasEngineFfi.instance.setSelectionMask(
-      handle: handle,
-      selectionMask: selectionMask,
-    );
+  void _syncBackendSelectionMask() {
+    _backend.syncSelectionMask();
   }
 
   @override
-  Uint8List? _resolveSelectionMaskForRust(int targetWidth, int targetHeight) {
+  Uint8List? _resolveSelectionMaskForBackend(int targetWidth, int targetHeight) {
     final Uint8List? mask = _selectionMask;
     if (mask == null) {
       return null;

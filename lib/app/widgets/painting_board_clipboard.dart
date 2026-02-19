@@ -35,13 +35,13 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
       return false;
     }
     bool undoCaptured = false;
-    if (_canUseRustCanvasEngine()) {
+    if (_backend.isReady) {
       final bool needsUndo = clearAfter;
       if (needsUndo) {
         await _pushUndoSnapshot();
         undoCaptured = true;
       }
-      final bool handled = _copyActiveLayerFromRust(
+      final bool handled = _copyActiveLayerFromBackend(
         activeLayerId: activeLayerId,
         clearAfter: clearAfter,
       );
@@ -98,8 +98,8 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
       return false;
     }
     await _pushUndoSnapshot();
-    if (_canUseRustCanvasEngine()) {
-      _deleteSelectionFromRust(activeLayerId: activeLayerId);
+    if (_backend.isReady) {
+      _deleteSelectionFromBackend(activeLayerId: activeLayerId);
     }
     _controller.clearLayerRegion(activeLayerId, mask: selection);
     setState(() {
@@ -129,9 +129,9 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     await _pushUndoSnapshot();
     _controller.insertLayerFromData(layerData, aboveLayerId: _activeLayerId);
     _controller.setActiveLayer(newId);
-    if (_canUseRustCanvasEngine()) {
-      _syncRustCanvasLayersToEngine();
-      _pasteLayerToRust(layerId: newId, layerData: layerData);
+    if (_backend.isReady) {
+      _syncBackendCanvasLayersToEngine();
+      _pasteLayerToBackend(layerId: newId, layerData: layerData);
     }
     setState(() {
       setSelectionState(path: null, mask: null);
@@ -142,8 +142,8 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     return true;
   }
 
-  BitmapLayerState? _resolveActiveLayerState(String id) {
-    for (final BitmapLayerState layer in _controller.layers) {
+  CanvasLayerInfo? _resolveActiveLayerState(String id) {
+    for (final CanvasLayerInfo layer in _controller.layers) {
       if (layer.id == id) {
         return layer;
       }
@@ -194,7 +194,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     return output;
   }
 
-  Uint32List? _resolveRustPastePixels(
+  Uint32List? _resolveBackendPastePixels(
     CanvasLayerData layer,
     int width,
     int height,
@@ -207,7 +207,7 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
       if (rgba == null || srcWidth == null || srcHeight == null) {
         return null;
       }
-      srcPixels = BitmapCanvasController.rgbaToPixels(rgba, srcWidth, srcHeight);
+      srcPixels = rgbaToPixels(rgba, srcWidth, srcHeight);
     }
     if (srcWidth == null ||
         srcHeight == null ||
@@ -238,39 +238,25 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     return dest;
   }
 
-  bool _copyActiveLayerFromRust({
+  bool _copyActiveLayerFromBackend({
     required String activeLayerId,
     required bool clearAfter,
   }) {
-    final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
-      return false;
-    }
-    final BitmapLayerState? layer = _resolveActiveLayerState(activeLayerId);
+    final CanvasLayerInfo? layer = _resolveActiveLayerState(activeLayerId);
     if (layer == null) {
       return false;
     }
-    final int? layerIndex = _rustCanvasLayerIndexForId(activeLayerId);
-    if (layerIndex == null) {
-      return false;
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int width = engineSize.width.round();
-    final int height = engineSize.height.round();
-    if (width <= 0 || height <= 0) {
-      return false;
-    }
-    final Uint32List? sourcePixels = CanvasEngineFfi.instance.readLayer(
-      handle: handle,
-      layerIndex: layerIndex,
-      width: width,
-      height: height,
+    final _LayerPixels? sourceLayer = _backend.readLayerPixelsFromBackend(
+      activeLayerId,
     );
-    if (sourcePixels == null) {
+    if (sourceLayer == null) {
       return false;
     }
+    final int width = sourceLayer.width;
+    final int height = sourceLayer.height;
+    final Uint32List sourcePixels = sourceLayer.pixels;
     final Uint8List? selectionMask =
-        _resolveSelectionMaskForRust(width, height);
+        _resolveSelectionMaskForBackend(width, height);
     if (selectionMask != null && !_maskHasCoverage(selectionMask)) {
       return false;
     }
@@ -297,104 +283,53 @@ mixin _PaintingBoardClipboardMixin on _PaintingBoardBase {
     }
     final Uint32List clearedPixels =
         _clearSelectionInPixels(sourcePixels, selectionMask);
-    final bool applied = CanvasEngineFfi.instance.writeLayer(
-      handle: handle,
-      layerIndex: layerIndex,
+    return _backend.writeLayerPixelsToBackend(
+      layerId: activeLayerId,
       pixels: clearedPixels,
       recordUndo: true,
     );
-    if (applied) {
-      _recordRustHistoryAction(layerId: activeLayerId);
-      if (mounted) {
-        setState(() {});
-      }
-      _markDirty();
-    }
-    return applied;
   }
 
-  bool _deleteSelectionFromRust({required String activeLayerId}) {
-    final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
-      return false;
-    }
-    final int? layerIndex = _rustCanvasLayerIndexForId(activeLayerId);
-    if (layerIndex == null) {
-      return false;
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int width = engineSize.width.round();
-    final int height = engineSize.height.round();
-    if (width <= 0 || height <= 0) {
+  bool _deleteSelectionFromBackend({required String activeLayerId}) {
+    final _LayerPixels? sourceLayer = _backend.readLayerPixelsFromBackend(
+      activeLayerId,
+    );
+    if (sourceLayer == null) {
       return false;
     }
     final Uint8List? selectionMask =
-        _resolveSelectionMaskForRust(width, height);
+        _resolveSelectionMaskForBackend(sourceLayer.width, sourceLayer.height);
     if (selectionMask == null || !_maskHasCoverage(selectionMask)) {
       return false;
     }
-    final Uint32List? sourcePixels = CanvasEngineFfi.instance.readLayer(
-      handle: handle,
-      layerIndex: layerIndex,
-      width: width,
-      height: height,
-    );
-    if (sourcePixels == null) {
-      return false;
-    }
+    final Uint32List sourcePixels = sourceLayer.pixels;
     final Uint32List clearedPixels =
         _clearSelectionInPixels(sourcePixels, selectionMask);
-    final bool applied = CanvasEngineFfi.instance.writeLayer(
-      handle: handle,
-      layerIndex: layerIndex,
+    return _backend.writeLayerPixelsToBackend(
+      layerId: activeLayerId,
       pixels: clearedPixels,
       recordUndo: true,
     );
-    if (applied) {
-      _recordRustHistoryAction(layerId: activeLayerId);
-      if (mounted) {
-        setState(() {});
-      }
-      _markDirty();
-    }
-    return applied;
   }
 
-  bool _pasteLayerToRust({
+  bool _pasteLayerToBackend({
     required String layerId,
     required CanvasLayerData layerData,
   }) {
-    final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
-      return false;
-    }
-    final int? layerIndex = _rustCanvasLayerIndexForId(layerId);
-    if (layerIndex == null) {
-      return false;
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    final Size engineSize = _backendCanvasEngineSize ?? _canvasSize;
     final int width = engineSize.width.round();
     final int height = engineSize.height.round();
     if (width <= 0 || height <= 0) {
       return false;
     }
     final Uint32List pixels =
-        _resolveRustPastePixels(layerData, width, height) ??
+        _resolveBackendPastePixels(layerData, width, height) ??
         Uint32List(width * height);
-    final bool applied = CanvasEngineFfi.instance.writeLayer(
-      handle: handle,
-      layerIndex: layerIndex,
+    return _backend.writeLayerPixelsToBackend(
+      layerId: layerId,
       pixels: pixels,
       recordUndo: true,
     );
-    if (applied) {
-      _recordRustHistoryAction(layerId: layerId);
-      if (mounted) {
-        setState(() {});
-      }
-      _markDirty();
-    }
-    return applied;
   }
 
   Future<bool> _pasteImageFromSystemClipboard() async {

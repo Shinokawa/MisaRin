@@ -67,10 +67,6 @@ class _MisarinHomePageState extends State<MisarinHomePage> {
     await AppMenuActions.openSettings(context);
   }
 
-  Future<void> _handleOpenAbout(BuildContext context) async {
-    await AppMenuActions.showAbout(context);
-  }
-
   Future<void> _handleManageProjects(BuildContext context) async {
     await showProjectManagerDialog(context);
   }
@@ -96,7 +92,6 @@ class _MisarinHomePageState extends State<MisarinHomePage> {
       importImageFromClipboard: () =>
           AppMenuActions.importImageFromClipboard(context),
       preferences: () => AppMenuActions.openSettings(context),
-      about: () => AppMenuActions.showAbout(context),
     );
     return MenuActionBinding(
       handler: handler,
@@ -210,13 +205,6 @@ class _MisarinHomePageState extends State<MisarinHomePage> {
                   label: l10n.homeSettings,
                   description: l10n.homeSettingsDesc,
                   onPressed: () => _handleOpenSettings(context),
-                ),
-                _buildSidebarAction(
-                  context,
-                  icon: FluentIcons.info,
-                  label: l10n.homeAbout,
-                  description: l10n.homeAboutDesc,
-                  onPressed: () => _handleOpenAbout(context),
                 ),
               ],
             ),

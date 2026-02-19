@@ -2,11 +2,11 @@ use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use metal::foreign_types::ForeignType;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use metal::MTLTextureType;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use wgpu_hal::{api::Metal, CopyExtent};
 #[cfg(target_os = "windows")]
 use wgpu_hal::api::Dx12;
@@ -181,11 +181,13 @@ pub(crate) fn create_present_params_buffer(
 
 impl PresentRenderer {
     pub(crate) fn new(device: &wgpu::Device) -> Self {
+        let shader_source = include_str!("../canvas_present_rgba8.wgsl");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("misa-rin present renderer shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("../canvas_present.wgsl"))),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_source)),
         });
 
+        let layer_sample_type = wgpu::TextureSampleType::Float { filterable: false };
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("misa-rin present renderer bgl"),
             entries: &[
@@ -193,7 +195,7 @@ impl PresentRenderer {
                     binding: 0,
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Uint,
+                        sample_type: layer_sample_type,
                         view_dimension: wgpu::TextureViewDimension::D2Array,
                         multisampled: false,
                     },
@@ -371,7 +373,7 @@ pub(crate) fn attach_present_texture(
     height: u32,
     bytes_per_row: u32,
 ) -> Option<PresentTarget> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
     {
         let raw_ptr = mtl_texture_ptr as *mut metal::MTLTexture;
         if raw_ptr.is_null() {
@@ -430,7 +432,7 @@ pub(crate) fn attach_present_texture(
         let _ = (device, mtl_texture_ptr, width, height, bytes_per_row);
         None
     }
-    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    #[cfg(all(not(any(target_os = "macos", target_os = "ios")), not(target_os = "windows")))]
     {
         let _ = (mtl_texture_ptr, bytes_per_row);
         if width == 0 || height == 0 {

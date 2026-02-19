@@ -136,6 +136,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
         antialiasLevel: _penAntialiasLevel,
         brushShape: _brushShape,
         randomRotation: _brushRandomRotationEnabled,
+        smoothRotation: _brushSmoothRotationEnabled,
         rotationSeed: _brushRandomRotationPreviewSeed,
         spacing: _brushSpacing,
         hardness: _brushHardness,
@@ -143,6 +144,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
         scatter: _brushScatter,
         rotationJitter: _brushRotationJitter,
         snapToPixel: _brushSnapToPixel,
+        streamlineStrength: _streamlineStrength,
         erase: erase,
         hollow: hollow,
         hollowRatio: _hollowStrokeRatio,
@@ -242,21 +244,30 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     if (anchor == null || snapped == null) {
       return;
     }
-    if (!_canUseRustCanvasEngine()) {
+    final bool useBackendCanvas =
+        _backend.isSupported && _brushShapeSupportsBackend;
+    if (!useBackendCanvas) {
+      await _startStroke(anchor, timestamp, rawEvent);
+      _appendPoint(snapped, timestamp, rawEvent);
+      _finishStroke(timestamp);
+      _clearPerspectivePenPreview();
       return;
     }
-    if (!_syncActiveLayerPixelsFromRust()) {
-      _showRustCanvasMessage('Rust 画布同步图层失败。');
+    if (!await _backend.syncActiveLayerFromBackend(
+      warnIfFailed: true,
+      skipIfUnavailable: false,
+    )) {
       _clearPerspectivePenPreview();
       return;
     }
     await _startStroke(anchor, timestamp, rawEvent, skipUndo: true);
     _appendPoint(snapped, timestamp, rawEvent);
     _finishStroke(timestamp);
-    await _controller.waitForPendingWorkerTasks();
-    if (!_commitActiveLayerToRust()) {
-      _showRustCanvasMessage('Rust 画布写入图层失败。');
-    }
+    await _backend.commitActiveLayerToBackend(
+      waitForPending: true,
+      warnIfFailed: true,
+      skipIfUnavailable: false,
+    );
     _clearPerspectivePenPreview();
   }
 
@@ -355,14 +366,14 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       return;
     }
     _focusNode.requestFocus();
-    final int? handle = _rustCanvasEngineHandle;
-    final bool useRust = _canUseRustCanvasEngine() && handle != null;
-    if (!useRust) {
+    final bool useBackendSpray = _backend.supportsSpray;
+    if (!useBackendSpray) {
       await _pushUndoSnapshot();
+    } else if (_backend.beginSpray()) {
+      _backendSprayActive = true;
+      _backendSprayHasDrawn = false;
     } else {
-      CanvasEngineFfi.instance.beginSpray(handle: handle);
-      _rustSprayActive = true;
-      _rustSprayHasDrawn = false;
+      await _pushUndoSnapshot();
     }
     _sprayBoardPosition = boardLocal;
     _sprayCurrentPressure = _resolveSprayPressure(event);
@@ -406,13 +417,10 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       return;
     }
     _sprayTicker?.stop();
-    if (_rustSprayActive) {
-      final int? handle = _rustCanvasEngineHandle;
-      if (handle != null) {
-        CanvasEngineFfi.instance.endSpray(handle: handle);
-      }
-      if (_rustSprayHasDrawn) {
-        _recordRustHistoryAction(
+    if (_backendSprayActive) {
+      _backend.endSpray();
+      if (_backendSprayHasDrawn) {
+        _recordBackendHistoryAction(
           layerId: _activeLayerId,
           deferPreview: true,
         );
@@ -420,8 +428,8 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
           setState(() {});
         }
       }
-      _rustSprayActive = false;
-      _rustSprayHasDrawn = false;
+      _backendSprayActive = false;
+      _backendSprayHasDrawn = false;
     }
     setState(() {
       _isSpraying = false;

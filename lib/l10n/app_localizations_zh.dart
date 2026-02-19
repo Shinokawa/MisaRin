@@ -243,6 +243,18 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get canvasBackendLabel => '画布后端';
+
+  @override
+  String get canvasBackendGpu => 'Rust WGPU';
+
+  @override
+  String get canvasBackendCpu => 'Rust CPU';
+
+  @override
+  String get canvasBackendRestartHint => '切换画布后端需要重启后生效。';
+
+  @override
   String get developerOptionsLabel => '开发者选项';
 
   @override
@@ -398,6 +410,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get menuSelectAll => '全选';
+
+  @override
+  String get menuDeselect => '取消选择';
 
   @override
   String get menuInvertSelection => '反选';
@@ -1049,10 +1064,46 @@ class AppLocalizationsZh extends AppLocalizations {
   String get brushShape => '笔刷形状';
 
   @override
+  String get brushAuthorLabel => '作者';
+
+  @override
+  String get brushVersionLabel => '版本';
+
+  @override
+  String get importBrush => '导入笔刷';
+
+  @override
+  String get exportBrush => '导出笔刷';
+
+  @override
+  String get exportBrushTitle => '导出笔刷';
+
+  @override
+  String get unsavedBrushChangesPrompt => '笔刷参数已修改，是否保存？';
+
+  @override
+  String get discardChanges => '放弃修改';
+
+  @override
+  String get brushShapeFolderLabel => '笔刷形状文件夹';
+
+  @override
+  String get openBrushShapesFolder => '打开笔刷形状文件夹';
+
+  @override
   String get randomRotation => '随机旋转';
 
   @override
+  String get smoothRotation => '平滑旋转';
+
+  @override
   String get selectionShape => '选区形状';
+
+  @override
+  String get selectionAdditive => '允许交集';
+
+  @override
+  String get selectionAdditiveDesc => '开启后无需按 Shift 也可多次框选并合并选区。';
 
   @override
   String get fontSize => '字号';
@@ -2292,6 +2343,18 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   }
 
   @override
+  String get canvasBackendLabel => '画布后端';
+
+  @override
+  String get canvasBackendGpu => 'Rust WGPU';
+
+  @override
+  String get canvasBackendCpu => 'Rust CPU';
+
+  @override
+  String get canvasBackendRestartHint => '切换画布后端需要重启后生效。';
+
+  @override
   String get developerOptionsLabel => '开发者选项';
 
   @override
@@ -2447,6 +2510,9 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get menuSelectAll => '全选';
+
+  @override
+  String get menuDeselect => '取消选择';
 
   @override
   String get menuInvertSelection => '反选';
@@ -2681,6 +2747,42 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get brushSnapToPixel => '像素对齐';
+
+  @override
+  String get brushAuthorLabel => '作者';
+
+  @override
+  String get brushVersionLabel => '版本';
+
+  @override
+  String get importBrush => '导入笔刷';
+
+  @override
+  String get exportBrush => '导出笔刷';
+
+  @override
+  String get exportBrushTitle => '导出笔刷';
+
+  @override
+  String get unsavedBrushChangesPrompt => '笔刷参数已修改，是否保存？';
+
+  @override
+  String get discardChanges => '放弃修改';
+
+  @override
+  String get brushShapeFolderLabel => '笔刷形状文件夹';
+
+  @override
+  String get openBrushShapesFolder => '打开笔刷形状文件夹';
+
+  @override
+  String get smoothRotation => '平滑旋转';
+
+  @override
+  String get selectionAdditive => '允许交集';
+
+  @override
+  String get selectionAdditiveDesc => '开启后无需按 Shift 也可多次框选并合并选区。';
 
   @override
   String get hollowStrokeDesc => '将笔画中心挖空，形成空心描边效果。';
@@ -3191,6 +3293,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   }
 
   @override
+  String get canvasBackendLabel => '畫布後端';
+
+  @override
+  String get canvasBackendGpu => 'Rust WGPU';
+
+  @override
+  String get canvasBackendCpu => 'Rust CPU';
+
+  @override
+  String get canvasBackendRestartHint => '切換畫布後端需要重新啟動後生效。';
+
+  @override
   String get developerOptionsLabel => '開發者選項';
 
   @override
@@ -3346,6 +3460,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuSelectAll => '全選';
+
+  @override
+  String get menuDeselect => '取消選取';
 
   @override
   String get menuInvertSelection => '反選';
@@ -3558,7 +3675,43 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get brushSnapToPixel => '像素對齊';
 
   @override
+  String get brushAuthorLabel => '作者';
+
+  @override
+  String get brushVersionLabel => '版本';
+
+  @override
+  String get importBrush => '匯入筆刷';
+
+  @override
+  String get exportBrush => '匯出筆刷';
+
+  @override
+  String get exportBrushTitle => '匯出筆刷';
+
+  @override
+  String get unsavedBrushChangesPrompt => '筆刷參數已修改，是否儲存？';
+
+  @override
+  String get discardChanges => '放棄修改';
+
+  @override
+  String get brushShapeFolderLabel => '筆刷形狀資料夾';
+
+  @override
+  String get openBrushShapesFolder => '打開筆刷形狀資料夾';
+
+  @override
   String get randomRotation => '隨機旋轉';
+
+  @override
+  String get smoothRotation => '平滑旋轉';
+
+  @override
+  String get selectionAdditive => '允許交集';
+
+  @override
+  String get selectionAdditiveDesc => '開啟後無需按 Shift 也可多次框選並合併選區。';
 
   @override
   String get streamline => '流線';

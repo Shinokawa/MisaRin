@@ -1,3 +1,5 @@
+use crate::gpu::layer_format::LAYER_TEXTURE_FORMAT;
+
 pub(crate) struct LayerTextures {
     texture: wgpu::Texture,
     array_view: wgpu::TextureView,
@@ -22,7 +24,7 @@ impl LayerTextures {
             ));
         }
         let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("misa-rin layer array (R32Uint)"),
+            label: Some("misa-rin layer array (Rgba8Unorm)"),
             size: wgpu::Extent3d {
                 width,
                 height,
@@ -31,7 +33,7 @@ impl LayerTextures {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R32Uint,
+            format: LAYER_TEXTURE_FORMAT,
             usage: wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::COPY_SRC
@@ -104,7 +106,7 @@ impl LayerTextures {
 
         let old_capacity = self.capacity;
         let new_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("misa-rin layer array (R32Uint)"),
+            label: Some("misa-rin layer array (Rgba8Unorm)"),
             size: wgpu::Extent3d {
                 width: self.width,
                 height: self.height,
@@ -113,7 +115,7 @@ impl LayerTextures {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R32Uint,
+            format: LAYER_TEXTURE_FORMAT,
             usage: wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::COPY_SRC

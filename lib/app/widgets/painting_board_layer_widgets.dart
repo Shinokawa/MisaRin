@@ -114,7 +114,7 @@ class _LayerNameView extends StatelessWidget {
     this.onRequestRename,
   });
 
-  final BitmapLayerState layer;
+  final CanvasLayerInfo layer;
   final FluentThemeData theme;
   final bool isActive;
   final bool isRenaming;

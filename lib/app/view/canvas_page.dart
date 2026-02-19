@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -14,8 +13,10 @@ import 'package:flutter/widgets.dart'
         TextEditingController,
         ValueListenableBuilder,
         WidgetsBinding;
+import 'package:misa_rin/utils/io_shim.dart';
 import 'package:path/path.dart' as p;
 
+import '../../canvas/canvas_backend.dart';
 import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_settings.dart';
 import '../../canvas/perspective_guide.dart';
@@ -30,7 +31,7 @@ import '../menu/menu_app_actions.dart';
 import '../models/canvas_resize_anchor.dart';
 import '../models/canvas_view_info.dart';
 import '../models/workspace_layout.dart';
-import '../debug/rust_canvas_timeline.dart';
+import '../debug/backend_canvas_timeline.dart';
 import '../palette/palette_importer.dart';
 import '../preferences/app_preferences.dart';
 import '../project/project_binary_codec.dart';
@@ -328,7 +329,7 @@ class CanvasPageState extends State<CanvasPage> {
       _updateMenuOverlay();
     }
     if (!_initialBoardReadyDispatched && id == widget.document.id) {
-      RustCanvasTimeline.mark(
+      BackendCanvasTimeline.mark(
         'canvasPage: board ready for active document id=$id',
       );
       _initialBoardReadyDispatched = true;
@@ -487,7 +488,7 @@ class CanvasPageState extends State<CanvasPage> {
   void initState() {
     super.initState();
     _document = widget.document;
-    RustCanvasTimeline.mark(
+    BackendCanvasTimeline.mark(
       'canvasPage: initState '
       'size=${_document.settings.width.round()}x${_document.settings.height.round()}',
     );
@@ -1828,7 +1829,6 @@ class CanvasPageState extends State<CanvasPage> {
       importImageFromClipboard: () =>
           AppMenuActions.importImageFromClipboard(context),
       preferences: () => AppMenuActions.openSettings(context),
-      about: () => AppMenuActions.showAbout(context),
       save: () async {
         if (_document.path == null) {
           await _saveProjectAs();
@@ -1841,6 +1841,14 @@ class CanvasPageState extends State<CanvasPage> {
       },
       undo: _handleUndo,
       redo: _handleRedo,
+      undoEnabled: () {
+        final PaintingBoardState? board = _activeBoard;
+        return (board?.canUndo ?? false) || _canUndoDocumentFor(_document.id);
+      },
+      redoEnabled: () {
+        final PaintingBoardState? board = _activeBoard;
+        return (board?.canRedo ?? false) || _canRedoDocumentFor(_document.id);
+      },
       cut: () async {
         final board = _activeBoard;
         if (board != null) {
@@ -1859,6 +1867,9 @@ class CanvasPageState extends State<CanvasPage> {
           await board.paste();
         }
       },
+      cutEnabled: () => _activeBoard?.canCut ?? false,
+      copyEnabled: () => _activeBoard?.canCopy ?? false,
+      pasteEnabled: () => _activeBoard?.canPaste ?? false,
       newLayer: () {
         final board = _activeBoard;
         board?.addLayerAboveActiveLayer();
@@ -2004,6 +2015,8 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.mergeActiveLayerDown();
       },
+      mergeLayerDownEnabled: () =>
+          _activeBoard?.canMergeActiveLayerDown ?? false,
       rasterizeLayer: () async {
         final board = _activeBoard;
         if (board == null) {
@@ -2046,10 +2059,17 @@ class CanvasPageState extends State<CanvasPage> {
         final board = _activeBoard;
         board?.selectEntireCanvas();
       },
+      clearSelection: () {
+        final board = _activeBoard;
+        board?.clearSelection();
+      },
       invertSelection: () {
         final board = _activeBoard;
         board?.invertSelection();
       },
+      selectAllEnabled: () => _activeBoard?.canSelectAll ?? false,
+      clearSelectionEnabled: () => _activeBoard?.canClearSelection ?? false,
+      invertSelectionEnabled: () => _activeBoard?.canInvertSelection ?? false,
       adjustHueSaturation: () {
         final board = _activeBoard;
         if (board == null) {
@@ -2220,6 +2240,11 @@ class _CanvasStatusOverlay extends StatelessWidget {
             .clamp(-100000.0, 100000.0)
             .toDouble();
         final String zoom = '${zoomPercent.toStringAsFixed(1)}%';
+        final CanvasBackend backend = board!.canvasBackend;
+        final String backendName = backend == CanvasBackend.rustWgpu
+            ? l10n.canvasBackendGpu
+            : l10n.canvasBackendCpu;
+        final String backendLabel = '${l10n.canvasBackendLabel}: $backendName';
         final String position = info.cursorPosition != null
             ? '${info.cursorPosition!.dx.round()}, ${info.cursorPosition!.dy.round()}'
             : '--';
@@ -2246,6 +2271,7 @@ class _CanvasStatusOverlay extends StatelessWidget {
         })();
         final List<String> parts = <String>[
           l10n.resolutionLabel(resolution),
+          backendLabel,
           l10n.zoomLabel(zoom),
           l10n.positionLabel(position),
           l10n.gridLabel(grid),

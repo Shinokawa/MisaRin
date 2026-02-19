@@ -15,16 +15,20 @@ class _LayerPreviewImages {
 }
 
 Future<_LayerPreviewImages> _captureLayerPreviewImages({
-  required BitmapCanvasController controller,
-  required List<BitmapLayerState> layers,
+  required CanvasFacade controller,
+  required List<CanvasCompositeLayer> layers,
   required String activeLayerId,
+  required bool useBackendCanvas,
   bool captureActiveLayerAtFullOpacity = false,
 }) async {
   final int width = controller.width;
   final int height = controller.height;
+  final CanvasBackend rasterBackend =
+      CanvasBackendState.resolveRasterBackend(useBackendCanvas: useBackendCanvas);
   final CanvasRasterBackend tempBackend = CanvasRasterBackend(
     width: width,
     height: height,
+    backend: rasterBackend,
   );
   ui.Image? background;
   ui.Image? active;
@@ -36,22 +40,16 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
     if (activeIndex < 0) {
       return const _LayerPreviewImages();
     }
-    final List<BitmapLayerState> below = layers.sublist(0, activeIndex);
-    final List<BitmapLayerState> above = layers.sublist(activeIndex + 1);
-    final BitmapLayerState rawActiveLayer = layers[activeIndex];
+    final List<CanvasCompositeLayer> below = layers.sublist(0, activeIndex);
+    final List<CanvasCompositeLayer> above = layers.sublist(activeIndex + 1);
+    final CanvasCompositeLayer rawActiveLayer = layers[activeIndex];
     final bool forceFullOpacity =
         captureActiveLayerAtFullOpacity && rawActiveLayer.opacity < 0.999;
-    final BitmapLayerState activeLayer = forceFullOpacity
-        ? (BitmapLayerState(
-            id: rawActiveLayer.id,
-            name: rawActiveLayer.name,
-            surface: rawActiveLayer.surface,
-            visible: rawActiveLayer.visible,
+    final CanvasCompositeLayer activeLayer = forceFullOpacity
+        ? _CompositeLayerOpacityOverride(
+            rawActiveLayer,
             opacity: 1.0,
-            locked: rawActiveLayer.locked,
-            clippingMask: rawActiveLayer.clippingMask,
-            blendMode: rawActiveLayer.blendMode,
-          )..revision = rawActiveLayer.revision)
+          )
         : rawActiveLayer;
     if (below.isNotEmpty) {
       await tempBackend.composite(layers: below, requiresFullSurface: true);
@@ -62,7 +60,7 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
     final Uint32List pixels = tempBackend.ensureCompositePixels();
     pixels.fillRange(0, pixels.length, 0);
     await tempBackend.composite(
-      layers: <BitmapLayerState>[activeLayer],
+      layers: <CanvasCompositeLayer>[activeLayer],
       requiresFullSurface: true,
     );
     final Uint8List activeRgba = tempBackend.copySurfaceRgba();
@@ -81,6 +79,33 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
     active: active,
     foreground: foreground,
   );
+}
+
+class _CompositeLayerOpacityOverride implements CanvasCompositeLayer {
+  const _CompositeLayerOpacityOverride(this._base, {required this.opacity});
+
+  final CanvasCompositeLayer _base;
+
+  @override
+  final double opacity;
+
+  @override
+  String get id => _base.id;
+
+  @override
+  Uint32List get pixels => _base.pixels;
+
+  @override
+  CanvasLayerBlendMode get blendMode => _base.blendMode;
+
+  @override
+  bool get visible => _base.visible;
+
+  @override
+  bool get clippingMask => _base.clippingMask;
+
+  @override
+  int get revision => _base.revision;
 }
 
 Future<ui.Image> _decodeImage(Uint8List pixels, int width, int height) {

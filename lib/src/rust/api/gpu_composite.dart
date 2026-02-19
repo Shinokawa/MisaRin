@@ -6,7 +6,8 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `clamp_unit_f64_to_f32`, `compositor_cell`
+// These functions are ignored because they are not marked as `pub`: `blend_argb`, `blend_channel`, `blend_color_burn`, `blend_color_dodge`, `blend_divide`, `blend_hard_light`, `blend_hard_mix`, `blend_overlay`, `blend_pin_light`, `blend_soft_light`, `blend_vivid_light`, `clamp01`, `clamp_unit_f64_to_f32`, `color_with_opacity`, `compositor_cell`, `cpu_composite_layers_impl`, `hsl_to_rgb`, `hue_to_rgb`, `mix_hash`, `overflow_key`, `pack_argb`, `pseudo_random`, `rgb_to_hsl`, `soft_light_lum`, `to_u8`, `unpack_a`, `unpack_b`, `unpack_g`, `unpack_r`
+// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `cpu_blend_on_canvas`, `cpu_blend_overflow`
 
 void gpuCompositorInit() =>
     RustLib.instance.api.crateApiGpuCompositeGpuCompositorInit();
@@ -23,6 +24,16 @@ Future<Uint32List> gpuCompositeLayers({
 
 void gpuCompositorDispose() =>
     RustLib.instance.api.crateApiGpuCompositeGpuCompositorDispose();
+
+Future<Uint32List> cpuCompositeLayers({
+  required List<GpuLayerData> layers,
+  required int width,
+  required int height,
+}) => RustLib.instance.api.crateApiGpuCompositeCpuCompositeLayers(
+  layers: layers,
+  width: width,
+  height: height,
+);
 
 class GpuLayerData {
   final Uint32List pixels;

@@ -130,6 +130,10 @@
       "max": {}
     }
   },
+  "canvasBackendLabel": "\u756b\u5e03\u5f8c\u7aef",
+  "canvasBackendGpu": "Rust WGPU",
+  "canvasBackendCpu": "Rust CPU",
+  "canvasBackendRestartHint": "\u5207\u63db\u756b\u5e03\u5f8c\u7aef\u9700\u8981\u91cd\u65b0\u555f\u52d5\u5f8c\u751f\u6548\u3002",
   "developerOptionsLabel": "\u958b\u767c\u8005\u9078\u9805",
   "performanceOverlayLabel": "\u6548\u80fd\u76e3\u63a7\u9762\u677f",
   "performanceOverlayDesc": "\u958b\u555f\u5f8c\u6703\u5728\u87a2\u5e55\u89d2\u843d\u986f\u793a Flutter Performance Pulse \u5100\u8868\u677f\uff0c\u5373\u6642\u5c55\u793a FPS\u3001CPU\u3001\u8a18\u61b6\u9ad4\u8207\u78c1\u789f\u7b49\u8cc7\u6599\u3002",
@@ -203,6 +207,7 @@
   "menuTransform": "\u8b8a\u63db",
 
   "menuSelectAll": "\u5168\u9078",
+  "menuDeselect": "\u53d6\u6d88\u9078\u53d6",
   "menuInvertSelection": "\u53cd\u9078",
 
   "menuPalette": "\u8abf\u8272\u76e4",
@@ -451,6 +456,7 @@
   "swallowAllColorLineDesc": "色塊填充時吞併紅/綠/藍色線。",
 
   "randomRotation": "隨機旋轉",
+  "smoothRotation": "平滑旋轉",
   "randomRotationDesc": "開啟後，正方形/三角形/五角星筆刷會在筆觸的每個印章上隨機旋轉。",
   "star": "五角星",
   "starTipDesc": "使用五角星筆尖繪製裝飾性筆觸。",
@@ -478,7 +484,18 @@
   "brushRotationJitter": "旋轉抖動",
   "brushSnapToPixel": "像素對齊",
   "brushAntialiasing": "筆刷抗鋸齒",
+  "brushAuthorLabel": "作者",
+  "brushVersionLabel": "版本",
+  "importBrush": "匯入筆刷",
+  "exportBrush": "匯出筆刷",
+  "exportBrushTitle": "匯出筆刷",
+  "unsavedBrushChangesPrompt": "筆刷參數已修改，是否儲存？",
+  "discardChanges": "放棄修改",
+  "brushShapeFolderLabel": "筆刷形狀資料夾",
+  "openBrushShapesFolder": "打開筆刷形狀資料夾",
   "bucketAntialiasing": "填充抗鋸齒",
   "colorTransparent": "透明",
-  "swapDimensions": "交換寬高"
+  "swapDimensions": "交換寬高",
+  "selectionAdditive": "允許交集",
+  "selectionAdditiveDesc": "開啟後無需按 Shift 也可多次框選並合併選區。"
 }

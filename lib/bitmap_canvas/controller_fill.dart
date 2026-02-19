@@ -28,42 +28,6 @@ BitmapLayerState? _fillFindSingleVisibleLayerForComposite(
   return candidate;
 }
 
-Uint32List _fillBuildSingleLayerCompositePixels(BitmapLayerState layer) {
-  final Uint32List source = layer.surface.pixels;
-  final Uint32List composite = Uint32List(source.length);
-  if (composite.isEmpty) {
-    return composite;
-  }
-
-  if (layer.clippingMask) {
-    return composite;
-  }
-
-  final double opacity = BitmapCanvasController._clampUnit(layer.opacity);
-  if (opacity <= 0) {
-    return composite;
-  }
-  if (opacity >= 1.0) {
-    composite.setAll(0, source);
-    return composite;
-  }
-
-  for (int i = 0; i < source.length; i++) {
-    final int src = source[i];
-    final int srcA = (src >> 24) & 0xff;
-    if (srcA == 0) {
-      continue;
-    }
-    int effectiveA = (srcA * opacity).round();
-    if (effectiveA <= 0) {
-      continue;
-    }
-    effectiveA = effectiveA.clamp(0, 255);
-    composite[i] = (effectiveA << 24) | (src & 0x00FFFFFF);
-  }
-  return composite;
-}
-
 bool _fillAllPixelsMatchColor(Uint32List pixels, int color) {
   final int length = pixels.length;
   for (int i = 0; i < length; i++) {
@@ -122,35 +86,31 @@ void _fillFloodFill(
           samplePixels = singleVisibleLayer.surface.pixels;
         }
       } else {
-        final Uint32List resolvedSamplePixels =
-            _fillBuildSingleLayerCompositePixels(singleVisibleLayer);
-        if (resolvedSamplePixels.isEmpty) {
+        controller._updateComposite(requiresFullSurface: true, region: null);
+        final Uint32List? compositePixels = controller._compositePixels;
+        if (compositePixels == null ||
+            compositePixels.isEmpty ||
+            controller._rasterBackend.isCompositeDirty) {
           return;
         }
-        samplePixels = resolvedSamplePixels;
+        samplePixels = compositePixels;
       }
     } else {
       controller._updateComposite(requiresFullSurface: true, region: null);
       final Uint32List? compositePixels = controller._compositePixels;
-      final bool compositeReady =
-          compositePixels != null &&
-          compositePixels.isNotEmpty &&
-          !controller._rasterBackend.isCompositeDirty;
-      final Uint32List resolvedSamplePixels = compositeReady
-          ? compositePixels
-          : _fillBuildCompositePixelsFallback(controller);
-      if (resolvedSamplePixels.isEmpty) {
+      if (compositePixels == null ||
+          compositePixels.isEmpty ||
+          controller._rasterBackend.isCompositeDirty) {
         return;
       }
-      samplePixels = resolvedSamplePixels;
+      samplePixels = compositePixels;
     }
   }
 
   final BitmapSurface surface = controller._activeSurface;
   final String layerId = controller._activeLayer.id;
   final int ptrAddress = surface.pointerAddress;
-  final Pointer<Void> ptr = Pointer<Void>.fromAddress(ptrAddress);
-  if (ptr == nullptr) {
+  if (ptrAddress == 0) {
     return;
   }
   final int generation = controller._paintingWorkerGeneration;
@@ -160,7 +120,7 @@ void _fillFloodFill(
   controller._enqueueWorkerPatchFuture(
     rust_bucket_fill
         .floodFillInPlace(
-          ptr: BigInt.from(ptr.address),
+          ptr: BigInt.from(ptrAddress),
           width: width,
           height: height,
           samplePixels: samplePixels,
@@ -328,10 +288,9 @@ Uint8List? _fillFloodFillAcrossLayers(
   }
   controller._updateComposite(requiresFullSurface: true, region: null);
   Uint32List? compositePixels = controller._compositePixels;
-  if (compositePixels == null || compositePixels.isEmpty) {
-    compositePixels = _fillBuildCompositePixelsFallback(controller);
-  }
-  if (compositePixels == null || compositePixels.isEmpty) {
+  if (compositePixels == null ||
+      compositePixels.isEmpty ||
+      controller._rasterBackend.isCompositeDirty) {
     return null;
   }
   final int index = startY * controller._width + startX;
@@ -502,94 +461,6 @@ Uint8List? _fillFloodFillAcrossLayers(
     );
   }
   return collectMask ? finalMask : null;
-}
-
-Uint32List _fillBuildCompositePixelsFallback(
-  BitmapCanvasController controller,
-) {
-  final int width = controller._width;
-  final int height = controller._height;
-  final Uint32List composite = Uint32List(width * height);
-  final Uint8List clipMask = Uint8List(width * height);
-  clipMask.fillRange(0, clipMask.length, 0);
-  final String? translatingLayerId = controller._translatingLayerIdForComposite;
-
-  for (int y = 0; y < height; y++) {
-    final int rowOffset = y * width;
-    for (int x = 0; x < width; x++) {
-      final int index = rowOffset + x;
-      int color = 0;
-      bool initialized = false;
-
-      for (final BitmapLayerState layer in controller._layers) {
-        if (!layer.visible) {
-          continue;
-        }
-        if (translatingLayerId != null && layer.id == translatingLayerId) {
-          continue;
-        }
-        final double layerOpacity = BitmapCanvasController._clampUnit(
-          layer.opacity,
-        );
-        if (layerOpacity <= 0) {
-          if (!layer.clippingMask) {
-            clipMask[index] = 0;
-          }
-          continue;
-        }
-        final int src = layer.surface.pixels[index];
-        final int srcA = (src >> 24) & 0xff;
-        if (srcA == 0) {
-          if (!layer.clippingMask) {
-            clipMask[index] = 0;
-          }
-          continue;
-        }
-
-        double totalOpacity = layerOpacity;
-        if (layer.clippingMask) {
-          final int maskAlpha = clipMask[index];
-          if (maskAlpha == 0) {
-            continue;
-          }
-          totalOpacity *= maskAlpha / 255.0;
-          if (totalOpacity <= 0) {
-            continue;
-          }
-        }
-
-        int effectiveA = (srcA * totalOpacity).round();
-        if (effectiveA <= 0) {
-          if (!layer.clippingMask) {
-            clipMask[index] = 0;
-          }
-          continue;
-        }
-        effectiveA = effectiveA.clamp(0, 255);
-
-        if (!layer.clippingMask) {
-          clipMask[index] = effectiveA;
-        }
-
-        final int effectiveColor = (effectiveA << 24) | (src & 0x00FFFFFF);
-        if (!initialized) {
-          color = effectiveColor;
-          initialized = true;
-        } else {
-          color = blend_utils.blendWithMode(
-            color,
-            effectiveColor,
-            layer.blendMode,
-            index,
-          );
-        }
-      }
-
-      composite[index] = initialized ? color : 0;
-    }
-  }
-
-  return composite;
 }
 
 Uint8List? _fillFloodFillSingleLayerWithMask(
@@ -1646,7 +1517,7 @@ Color _fillColorAtComposite(
 }) {
   return controller._rasterBackend.colorAtComposite(
     position,
-    controller._layers,
+    controller._layers.cast<CanvasCompositeLayer>(),
     translatingLayerId: controller._translatingLayerIdForComposite,
     preferRealtime: preferRealtime,
   );

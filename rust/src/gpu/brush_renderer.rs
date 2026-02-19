@@ -6,6 +6,7 @@ use std::time::Instant;
 use wgpu::{ComputePipeline, Device, Queue};
 
 use crate::gpu::debug::{self, LogLevel};
+use crate::gpu::layer_format::LAYER_TEXTURE_FORMAT;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Point2D {
@@ -117,6 +118,10 @@ pub struct BrushRenderer {
     selection_mask_width: u32,
     selection_mask_height: u32,
     selection_mask_enabled: bool,
+    layer_read: Option<wgpu::Texture>,
+    layer_read_view: Option<wgpu::TextureView>,
+    layer_read_width: u32,
+    layer_read_height: u32,
 
     canvas_width: u32,
     canvas_height: u32,
@@ -127,13 +132,14 @@ impl BrushRenderer {
     pub fn new(device: Arc<Device>, queue: Arc<Queue>) -> Result<Self, String> {
         device_push_scopes(device.as_ref());
 
+        let shader_source = include_str!("brush_shaders_rgba8.wgsl");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("BrushRenderer shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("brush_shaders.wgsl"))),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_source)),
         });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("BrushRenderer bind group layout"),
+            label: Some("BrushRenderer bind group layout (rgba8)"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -149,8 +155,8 @@ impl BrushRenderer {
                     binding: 1,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: wgpu::TextureFormat::R32Uint,
+                        access: wgpu::StorageTextureAccess::WriteOnly,
+                        format: LAYER_TEXTURE_FORMAT,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -168,30 +174,20 @@ impl BrushRenderer {
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: wgpu::TextureFormat::R32Uint,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
                         view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
                     },
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 4,
                     visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadOnly,
-                        format: wgpu::TextureFormat::R32Uint,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
                         view_dimension: wgpu::TextureViewDimension::D2,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadOnly,
-                        format: wgpu::TextureFormat::R32Uint,
-                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
                     },
                     count: None,
                 },
@@ -252,6 +248,10 @@ impl BrushRenderer {
             selection_mask_width: 1,
             selection_mask_height: 1,
             selection_mask_enabled: false,
+            layer_read: None,
+            layer_read_view: None,
+            layer_read_width: 0,
+            layer_read_height: 0,
             canvas_width: 0,
             canvas_height: 0,
             softness: 0.0,
@@ -263,6 +263,10 @@ impl BrushRenderer {
             self.stroke_base_valid = false;
             self.selection_mask_enabled = false;
             self.stroke_base_tiles.clear();
+            self.layer_read = None;
+            self.layer_read_view = None;
+            self.layer_read_width = 0;
+            self.layer_read_height = 0;
         }
         self.canvas_width = width;
         self.canvas_height = height;
@@ -414,6 +418,80 @@ impl BrushRenderer {
         }
         if captured_any {
             self.stroke_base_valid = true;
+        }
+        Ok(())
+    }
+
+    pub fn prepare_layer_read(
+        &mut self,
+        layer_texture: &wgpu::Texture,
+        layer_index: u32,
+        dirty: (i32, i32, i32, i32),
+    ) -> Result<(), String> {
+        if self.canvas_width == 0 || self.canvas_height == 0 {
+            return Ok(());
+        }
+        let (left_i, top_i, width_i, height_i) = dirty;
+        if width_i <= 0 || height_i <= 0 {
+            return Ok(());
+        }
+        self.ensure_layer_read()?;
+        let left = (left_i.max(0) as u32).min(self.canvas_width);
+        let top = (top_i.max(0) as u32).min(self.canvas_height);
+        let right = (left_i.saturating_add(width_i).max(0) as u32).min(self.canvas_width);
+        let bottom = (top_i.saturating_add(height_i).max(0) as u32).min(self.canvas_height);
+        if right <= left || bottom <= top {
+            return Ok(());
+        }
+
+        let layer_read = self
+            .layer_read
+            .as_ref()
+            .ok_or_else(|| "layer read texture missing".to_string())?;
+
+        device_push_scopes(self.device.as_ref());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("BrushRenderer prepare layer read"),
+            });
+        encoder.copy_texture_to_texture(
+            wgpu::ImageCopyTexture {
+                texture: layer_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: left,
+                    y: top,
+                    z: layer_index,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyTexture {
+                texture: layer_read,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: left,
+                    y: top,
+                    z: 0,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width: right - left,
+                height: bottom - top,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.queue.submit(Some(encoder.finish()));
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!(
+                "wgpu validation error during layer read copy: {err}"
+            ));
+        }
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!(
+                "wgpu out-of-memory error during layer read copy: {err}"
+            ));
         }
         Ok(())
     }
@@ -743,36 +821,48 @@ impl BrushRenderer {
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&config));
 
+        let mut entries: Vec<wgpu::BindGroupEntry> = vec![
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: points_buffer.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::TextureView(layer_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: self.uniform_buffer.as_entire_binding(),
+            },
+        ];
+        let layer_read_view = self
+            .layer_read_view
+            .as_ref()
+            .ok_or_else(|| "brush layer read view not initialized".to_string())?;
+        entries.push(wgpu::BindGroupEntry {
+            binding: 3,
+            resource: wgpu::BindingResource::TextureView(layer_read_view),
+        });
+        entries.push(wgpu::BindGroupEntry {
+            binding: 4,
+            resource: wgpu::BindingResource::TextureView(&self.selection_mask_view),
+        });
+        device_push_scopes(self.device.as_ref());
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("BrushRenderer bind group"),
             layout: &self.bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: points_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(layer_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: self.uniform_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::TextureView(&self.stroke_mask_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::TextureView(&self.stroke_base_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: wgpu::BindingResource::TextureView(&self.selection_mask_view),
-                },
-            ],
+            entries: &entries,
         });
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!(
+                "wgpu validation error during brush bind group: {err}"
+            ));
+        }
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!(
+                "wgpu out-of-memory error during brush bind group: {err}"
+            ));
+        }
 
         device_push_scopes(self.device.as_ref());
 
@@ -907,6 +997,52 @@ impl BrushRenderer {
         Ok(())
     }
 
+    fn ensure_layer_read(&mut self) -> Result<(), String> {
+        if self.canvas_width == 0 || self.canvas_height == 0 {
+            return Ok(());
+        }
+        if self.layer_read_width == self.canvas_width
+            && self.layer_read_height == self.canvas_height
+        {
+            return Ok(());
+        }
+
+        device_push_scopes(self.device.as_ref());
+
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("BrushRenderer layer read"),
+            size: wgpu::Extent3d {
+                width: self.canvas_width.max(1),
+                height: self.canvas_height.max(1),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: LAYER_TEXTURE_FORMAT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!(
+                "wgpu validation error during layer read alloc: {err}"
+            ));
+        }
+        if let Some(err) = device_pop_scope(self.device.as_ref()) {
+            return Err(format!(
+                "wgpu out-of-memory error during layer read alloc: {err}"
+            ));
+        }
+
+        self.layer_read = Some(texture);
+        self.layer_read_view = Some(view);
+        self.layer_read_width = self.canvas_width;
+        self.layer_read_height = self.canvas_height;
+        Ok(())
+    }
+
     fn ensure_selection_mask(&mut self) -> Result<(), String> {
         if self.canvas_width == 0 || self.canvas_height == 0 {
             return Ok(());
@@ -941,7 +1077,7 @@ fn create_stroke_mask(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::R32Uint,
+        format: LAYER_TEXTURE_FORMAT,
         usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
@@ -964,7 +1100,7 @@ fn create_stroke_base(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::R32Uint,
+        format: LAYER_TEXTURE_FORMAT,
         usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
@@ -977,6 +1113,8 @@ fn create_selection_mask(
     width: u32,
     height: u32,
 ) -> (wgpu::Texture, wgpu::TextureView) {
+    let format = wgpu::TextureFormat::R8Unorm;
+    let usage = wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST;
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("BrushRenderer selection mask"),
         size: wgpu::Extent3d {
@@ -987,8 +1125,8 @@ fn create_selection_mask(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::R32Uint,
-        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
+        format,
+        usage,
         view_formats: &[],
     });
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -1119,30 +1257,28 @@ fn write_selection_mask(
         ));
     }
 
-    const BYTES_PER_PIXEL: u32 = 4;
     const COPY_BYTES_PER_ROW_ALIGNMENT: u32 = 256;
     const MAX_CHUNK_BYTES: usize = 4 * 1024 * 1024;
 
-    let bytes_per_row_unpadded = width.saturating_mul(BYTES_PER_PIXEL);
-    let bytes_per_row_padded = align_up_u32(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT);
+    let bytes_per_row_unpadded = width;
+    let bytes_per_row_padded =
+        align_up_u32(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT);
     if bytes_per_row_padded == 0 {
         return Err("selection mask bytes_per_row == 0".to_string());
     }
-
-    let row_texels = (bytes_per_row_padded / BYTES_PER_PIXEL) as usize;
     let row_bytes = bytes_per_row_padded as usize;
     let rows_per_chunk = (MAX_CHUNK_BYTES / row_bytes).max(1) as u32;
 
     let mut y: u32 = 0;
     while y < height {
         let chunk_h = (height - y).min(rows_per_chunk);
-        let mut data: Vec<u32> = vec![0; row_texels * chunk_h as usize];
+        let mut data: Vec<u8> = vec![0; row_bytes * chunk_h as usize];
         for row in 0..chunk_h {
             let src_offset = ((y + row) * width) as usize;
-            let dst_offset = row as usize * row_texels;
+            let dst_offset = row as usize * row_bytes;
             let src = &mask[src_offset..src_offset + width as usize];
             for (i, &value) in src.iter().enumerate() {
-                data[dst_offset + i] = value as u32;
+                data[dst_offset + i] = if value == 0 { 0 } else { 255 };
             }
         }
 
@@ -1153,7 +1289,7 @@ fn write_selection_mask(
                 origin: wgpu::Origin3d { x: 0, y, z: 0 },
                 aspect: wgpu::TextureAspect::All,
             },
-            bytemuck::cast_slice(&data),
+            &data,
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: Some(bytes_per_row_padded),

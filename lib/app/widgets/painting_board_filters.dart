@@ -149,13 +149,13 @@ class _ColorRangeSession {
   final List<CanvasLayerData> originalLayers;
   final int activeLayerIndex;
   CanvasLayerData? previewLayer;
-  Uint8List? rustBitmap;
-  Uint32List? rustPixels;
-  int rustWidth = 0;
-  int rustHeight = 0;
+  Uint8List? backendBitmap;
+  Uint32List? backendPixels;
+  int backendWidth = 0;
+  int backendHeight = 0;
 
-  bool get usesRust =>
-      rustPixels != null && rustWidth > 0 && rustHeight > 0;
+  bool get usesBackend =>
+      backendPixels != null && backendWidth > 0 && backendHeight > 0;
 }
 
 mixin _PaintingBoardFilterMixin
@@ -209,9 +209,9 @@ mixin _PaintingBoardFilterMixin
   Completer<_FilterPreviewResult>? _filterApplyCompleter;
   bool _filterAwaitingFrameSwap = false;
   int? _filterAwaitedFrameGeneration;
-  String? _filterRustHiddenLayerId;
-  bool _filterRustHiddenLayerVisible = false;
-  int _filterRustHideToken = 0;
+  String? _filterBackendHiddenLayerId;
+  bool _filterBackendHiddenLayerVisible = false;
+  int _filterBackendHideToken = 0;
 
   void showHueSaturationAdjustments() {
     this._openFilterPanel(_FilterPanelType.hueSaturation);
@@ -261,94 +261,95 @@ mixin _PaintingBoardFilterMixin
     this._removeFilterOverlayInternal(restoreOriginal: restoreOriginal);
   }
 
-  void _handleFilterApplyFrameProgress(BitmapCanvasFrame? frame) {
+  void _handleFilterApplyFrameProgress(CanvasFrame? frame) {
     this._handleFilterApplyFrameProgressInternal(frame);
   }
 
-  bool _shouldUseRustFilterPreview(_FilterSession session) {
-    if (!_canUseRustCanvasEngine()) {
-      return false;
+  CanvasFilterType? _backendPreviewFilterType(_FilterPanelType type) {
+    switch (type) {
+      case _FilterPanelType.hueSaturation:
+        return CanvasFilterType.hueSaturation;
+      case _FilterPanelType.brightnessContrast:
+        return CanvasFilterType.brightnessContrast;
+      case _FilterPanelType.blackWhite:
+        return CanvasFilterType.blackWhite;
+      case _FilterPanelType.binarize:
+        return CanvasFilterType.binarize;
+      case _FilterPanelType.scanPaperDrawing:
+        return CanvasFilterType.scanPaperDrawing;
+      case _FilterPanelType.gaussianBlur:
+        return CanvasFilterType.gaussianBlur;
+      case _FilterPanelType.leakRemoval:
+      case _FilterPanelType.lineNarrow:
+      case _FilterPanelType.fillExpand:
+        return null;
     }
-    return session.type == _FilterPanelType.hueSaturation ||
-        session.type == _FilterPanelType.brightnessContrast ||
-        session.type == _FilterPanelType.blackWhite ||
-        session.type == _FilterPanelType.binarize ||
-        session.type == _FilterPanelType.scanPaperDrawing ||
-        session.type == _FilterPanelType.gaussianBlur;
   }
 
-  void _enableRustFilterPreviewIfNeeded(_FilterSession session) {
-    if (!_shouldUseRustFilterPreview(session) ||
+  bool _shouldUseBackendFilterPreview(_FilterSession session) {
+    return _backend.supportsFilterType(
+      _backendPreviewFilterType(session.type),
+    );
+  }
+
+  void _enableBackendFilterPreviewIfNeeded(_FilterSession session) {
+    if (!_shouldUseBackendFilterPreview(session) ||
         _previewActiveLayerImage == null) {
-      _restoreRustLayerAfterFilterPreview();
+      _restoreBackendLayerAfterFilterPreview();
       return;
     }
-    _hideRustLayerForFilterPreview(session.activeLayerId);
+    _hideBackendLayerForFilterPreview(session.activeLayerId);
   }
 
-  void _hideRustLayerForFilterPreview(String layerId) {
-    if (!_canUseRustCanvasEngine()) {
+  void _hideBackendLayerForFilterPreview(String layerId) {
+    if (!_backend.isReady) {
       return;
     }
-    if (_filterRustHiddenLayerId == layerId) {
+    if (_filterBackendHiddenLayerId == layerId) {
       return;
     }
-    _restoreRustLayerAfterFilterPreview();
-    final int token = ++_filterRustHideToken;
+    _restoreBackendLayerAfterFilterPreview();
+    final int token = ++_filterBackendHideToken;
     // Defer hiding until the next frame so the preview overlay is ready,
     // avoiding a visible flash.
     SchedulerBinding.instance.scheduleFrameCallback((_) {
-      if (!mounted || token != _filterRustHideToken) {
+      if (!mounted || token != _filterBackendHideToken) {
         return;
       }
       final _FilterSession? session = _filterSession;
       if (session == null ||
           session.activeLayerId != layerId ||
-          !_shouldUseRustFilterPreview(session) ||
+          !_shouldUseBackendFilterPreview(session) ||
           _previewActiveLayerImage == null) {
         return;
       }
-      final BitmapLayerState? layer = _layerById(layerId);
+      final CanvasLayerInfo? layer = _layerById(layerId);
       if (layer == null || !layer.visible) {
         return;
       }
-      final int? index = _rustCanvasLayerIndexForId(layerId);
-      if (index == null) {
-        return;
-      }
-      _filterRustHiddenLayerId = layerId;
-      _filterRustHiddenLayerVisible = layer.visible;
-      CanvasEngineFfi.instance.setLayerVisible(
-        handle: _rustCanvasEngineHandle!,
-        layerIndex: index,
-        visible: false,
-      );
+      _filterBackendHiddenLayerId = layerId;
+      _filterBackendHiddenLayerVisible = layer.visible;
+      _backend.setBackendLayerVisible(layerId: layerId, visible: false);
     });
   }
 
-  void _restoreRustLayerAfterFilterPreview() {
-    _filterRustHideToken++;
-    final String? layerId = _filterRustHiddenLayerId;
+  void _restoreBackendLayerAfterFilterPreview() {
+    _filterBackendHideToken++;
+    final String? layerId = _filterBackendHiddenLayerId;
     if (layerId == null) {
       return;
     }
-    if (_canUseRustCanvasEngine()) {
-      final int? index = _rustCanvasLayerIndexForId(layerId);
-      if (index != null) {
-        CanvasEngineFfi.instance.setLayerVisible(
-          handle: _rustCanvasEngineHandle!,
-          layerIndex: index,
-          visible: _filterRustHiddenLayerVisible,
-        );
-      }
-    }
-    _filterRustHiddenLayerId = null;
-    _filterRustHiddenLayerVisible = false;
+    _backend.setBackendLayerVisible(
+      layerId: layerId,
+      visible: _filterBackendHiddenLayerVisible,
+    );
+    _filterBackendHiddenLayerId = null;
+    _filterBackendHiddenLayerVisible = false;
   }
 
   Future<void> invertActiveLayerColors() async {
     final l10n = context.l10n;
-    if (_controller.frame == null && !_canUseRustCanvasEngine()) {
+    if (_controller.frame == null && !_backend.isReady) {
       _showFilterMessage(l10n.canvasNotReadyInvert);
       return;
     }
@@ -357,7 +358,7 @@ mixin _PaintingBoardFilterMixin
       _showFilterMessage(l10n.selectEditableLayerFirst);
       return;
     }
-    final BitmapLayerState? layer = _layerById(activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(activeLayerId);
     if (layer == null) {
       _showFilterMessage(l10n.cannotLocateLayer);
       return;
@@ -367,27 +368,21 @@ mixin _PaintingBoardFilterMixin
       return;
     }
 
-    if (_canUseRustCanvasEngine()) {
-      final int? handle = _rustCanvasEngineHandle;
-      final int? layerIndex = _rustCanvasLayerIndexForId(activeLayerId);
-      if (handle == null || layerIndex == null) {
+    final bool useBackend =
+        _backend.supportsFilterType(CanvasFilterType.invert);
+    if (useBackend) {
+      if (!_backend.hasBackendLayer(layerId: activeLayerId)) {
         _showFilterMessage(l10n.cannotLocateLayer);
         return;
       }
-      final bool applied = CanvasEngineFfi.instance.applyFilter(
-        handle: handle,
-        layerIndex: layerIndex,
+      final bool applied = _backend.applyFilterToBackend(
+        layerId: activeLayerId,
         filterType: _kFilterTypeInvert,
       );
       if (!applied) {
         _showFilterMessage(l10n.filterApplyFailed);
         return;
       }
-      _recordRustHistoryAction(layerId: activeLayerId);
-      if (mounted) {
-        setState(() {});
-      }
-      _markDirty();
       return;
     }
 
@@ -410,21 +405,39 @@ mixin _PaintingBoardFilterMixin
     Color? fillColor = data.fillColor;
     bool bitmapModified = false;
     if (bitmap != null) {
-      bool hasCoverage = false;
-      for (int i = 0; i < bitmap.length; i += 4) {
-        final int alpha = bitmap[i + 3];
-        if (alpha == 0) {
-          continue;
+      final int width = data.bitmapWidth ?? 0;
+      final int height = data.bitmapHeight ?? 0;
+      final Uint8List? rustProcessed =
+          RustCpuFiltersFfi.instance.applyFilterRgbaBytes(
+            pixels: bitmap,
+            width: width,
+            height: height,
+            filterType: _kFilterTypeInvert,
+          );
+      if (rustProcessed != null) {
+        bitmap = rustProcessed;
+        if (_filterBitmapHasVisiblePixels(bitmap)) {
+          bitmapModified = true;
+        } else {
+          bitmap = null;
         }
-        hasCoverage = true;
-        bitmap[i] = 255 - bitmap[i];
-        bitmap[i + 1] = 255 - bitmap[i + 1];
-        bitmap[i + 2] = 255 - bitmap[i + 2];
-      }
-      if (hasCoverage) {
-        bitmapModified = true;
       } else {
-        bitmap = null;
+        bool hasCoverage = false;
+        for (int i = 0; i < bitmap.length; i += 4) {
+          final int alpha = bitmap[i + 3];
+          if (alpha == 0) {
+            continue;
+          }
+          hasCoverage = true;
+          bitmap[i] = 255 - bitmap[i];
+          bitmap[i + 1] = 255 - bitmap[i + 1];
+          bitmap[i + 2] = 255 - bitmap[i + 2];
+        }
+        if (hasCoverage) {
+          bitmapModified = true;
+        } else {
+          bitmap = null;
+        }
       }
     }
 
@@ -563,7 +576,7 @@ mixin _PaintingBoardFilterMixin
   }
 
   bool _ensureAntialiasLayerReady() {
-    final BitmapLayerState? layer = _currentActiveLayer();
+    final CanvasLayerInfo? layer = _currentActiveLayer();
     if (layer == null) {
       _showFilterMessage('请先选择一个可编辑的图层。');
       return false;
@@ -607,7 +620,7 @@ mixin _PaintingBoardFilterMixin
       _showFilterMessage('请先选择一个可编辑的图层。');
       return;
     }
-    final BitmapLayerState? layer = _layerById(activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(activeLayerId);
     if (layer == null) {
       _showFilterMessage('无法定位当前图层。');
       return;
@@ -632,47 +645,34 @@ mixin _PaintingBoardFilterMixin
       return;
     }
     final CanvasLayerData activeLayer = snapshot[layerIndex];
-    final bool useRust = _canUseRustCanvasEngine();
-    Uint8List? rustBitmap;
-    Uint32List? rustPixels;
-    int rustWidth = 0;
-    int rustHeight = 0;
-    if (useRust) {
-      final int? handle = _rustCanvasEngineHandle;
-      final int? rustLayerIndex = _rustCanvasLayerIndexForId(activeLayerId);
-      final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-      final int width = engineSize.width.round();
-      final int height = engineSize.height.round();
-      if (handle != null && rustLayerIndex != null && width > 0 && height > 0) {
-        final Uint32List? sourcePixels = CanvasEngineFfi.instance.readLayer(
-          handle: handle,
-          layerIndex: rustLayerIndex,
-          width: width,
-          height: height,
-        );
-        if (sourcePixels != null && sourcePixels.length == width * height) {
-          rustPixels = sourcePixels;
-          rustBitmap = this._argbPixelsToRgba(sourcePixels);
-          rustWidth = width;
-          rustHeight = height;
-        }
-      }
-      if (rustPixels == null) {
+    final bool useBackend = _backend.isReady;
+    Uint8List? backendBitmap;
+    Uint32List? backendPixels;
+    int backendWidth = 0;
+    int backendHeight = 0;
+    if (useBackend) {
+      final _LayerPixels? sourceLayer =
+          _backend.readLayerPixelsFromBackend(activeLayerId);
+      if (sourceLayer == null) {
         _showFilterMessage('画布尚未准备好，无法设置色彩范围。');
         return;
       }
+      backendPixels = sourceLayer.pixels;
+      backendBitmap = this._argbPixelsToRgba(sourceLayer.pixels);
+      backendWidth = sourceLayer.width;
+      backendHeight = sourceLayer.height;
     }
-    final bool hasBitmap = useRust
-        ? rustBitmap != null &&
-            rustBitmap.isNotEmpty &&
-            rustWidth > 0 &&
-            rustHeight > 0
+    final bool hasBitmap = useBackend
+        ? backendBitmap != null &&
+            backendBitmap.isNotEmpty &&
+            backendWidth > 0 &&
+            backendHeight > 0
         : activeLayer.bitmap != null &&
             activeLayer.bitmap!.isNotEmpty &&
             (activeLayer.bitmapWidth ?? 0) > 0 &&
             (activeLayer.bitmapHeight ?? 0) > 0;
     final Color? fillColor = activeLayer.fillColor;
-    final bool hasFill = !useRust && fillColor != null && fillColor.alpha != 0;
+    final bool hasFill = !useBackend && fillColor != null && fillColor.alpha != 0;
     if (!hasBitmap && !hasFill) {
       _showFilterMessage('当前图层为空，无法设置色彩范围。');
       return;
@@ -683,12 +683,12 @@ mixin _PaintingBoardFilterMixin
       originalLayers: snapshot,
       activeLayerIndex: layerIndex,
     );
-    if (useRust) {
+    if (useBackend) {
       session
-        ..rustBitmap = rustBitmap
-        ..rustPixels = rustPixels
-        ..rustWidth = rustWidth
-        ..rustHeight = rustHeight;
+        ..backendBitmap = backendBitmap
+        ..backendPixels = backendPixels
+        ..backendWidth = backendWidth
+        ..backendHeight = backendHeight;
     }
     _colorRangeSession = session;
     _colorRangePreviewToken++;
@@ -711,8 +711,8 @@ mixin _PaintingBoardFilterMixin
       _colorRangeCardVisible = true;
       _colorRangeLoading = true;
     });
-    final int count = useRust
-        ? await _computeLayerColorCountFromPixels(rustBitmap, null)
+    final int count = useBackend
+        ? await _computeLayerColorCountFromPixels(backendBitmap, null)
         : await _computeLayerColorCount(activeLayer);
     if (!mounted || _colorRangeSession?.layerId != activeLayerId) {
       return;
@@ -855,12 +855,12 @@ mixin _PaintingBoardFilterMixin
     setState(() {
       _colorRangePreviewInFlight = true;
     });
-    final bool useRust = session.usesRust && _canUseRustCanvasEngine();
+    final bool useBackend = session.usesBackend && _backend.isReady;
     final CanvasLayerData baseLayer =
         session.originalLayers[session.activeLayerIndex];
     final Uint8List? baseBitmap =
-        useRust ? session.rustBitmap : baseLayer.bitmap;
-    final Color? baseFillColor = useRust ? null : baseLayer.fillColor;
+        useBackend ? session.backendBitmap : baseLayer.bitmap;
+    final Color? baseFillColor = useBackend ? null : baseLayer.fillColor;
     try {
       final _ColorRangeComputeResult result = await _generateColorRangeResult(
         baseBitmap,
@@ -872,18 +872,15 @@ mixin _PaintingBoardFilterMixin
           _colorRangeSession?.layerId != session.layerId) {
         return;
       }
-      if (useRust) {
+      if (useBackend) {
         final Uint8List? reduced = result.bitmap;
-        final int? handle = _rustCanvasEngineHandle;
-        final int? layerIndex = _rustCanvasLayerIndexForId(session.layerId);
         if (reduced != null &&
-            handle != null &&
-            layerIndex != null &&
-            CanvasEngineFfi.instance.writeLayer(
-              handle: handle,
-              layerIndex: layerIndex,
+            _backend.writeLayerPixelsToBackend(
+              layerId: session.layerId,
               pixels: this._rgbaToArgbPixels(reduced),
               recordUndo: false,
+              recordHistory: false,
+              markDirty: false,
             )) {
           session.previewLayer ??=
               session.originalLayers[session.activeLayerIndex];
@@ -934,7 +931,7 @@ mixin _PaintingBoardFilterMixin
       1,
       math.min(_colorRangeSelectedColors, _colorRangeMaxSelectable()),
     );
-    final bool useRust = session.usesRust && _canUseRustCanvasEngine();
+    final bool useBackend = session.usesBackend && _backend.isReady;
     if (targetColors >= availableColors) {
       _showFilterMessage('目标颜色数量不少于当前颜色数量，图层保持不变。');
       hideColorRangeCard();
@@ -946,8 +943,8 @@ mixin _PaintingBoardFilterMixin
     try {
       // 确保撤销基于应用前的原始图层状态，而非预览态。
       _restoreColorRangePreviewToOriginal(session);
-      if (useRust) {
-        final Uint8List? baseBitmap = session.rustBitmap;
+      if (useBackend) {
+        final Uint8List? baseBitmap = session.backendBitmap;
         final _ColorRangeComputeResult result = await _generateColorRangeResult(
           baseBitmap,
           null,
@@ -957,21 +954,17 @@ mixin _PaintingBoardFilterMixin
           return;
         }
         final Uint8List? reduced = result.bitmap;
-        final int? handle = _rustCanvasEngineHandle;
-        final int? layerIndex = _rustCanvasLayerIndexForId(session.layerId);
         final bool applied = reduced != null &&
-            handle != null &&
-            layerIndex != null &&
-            CanvasEngineFfi.instance.writeLayer(
-              handle: handle,
-              layerIndex: layerIndex,
+            _backend.writeLayerPixelsToBackend(
+              layerId: session.layerId,
               pixels: this._rgbaToArgbPixels(reduced),
               recordUndo: true,
+              recordHistory: true,
+              markDirty: false,
             );
         if (!applied) {
-          throw StateError('Apply rust color range failed.');
+          throw StateError('Apply backend color range failed.');
         }
-        _recordRustHistoryAction(layerId: session.layerId);
         _markDirty();
         setState(() {
           _colorRangeApplying = false;
@@ -1048,16 +1041,15 @@ mixin _PaintingBoardFilterMixin
     if (session.previewLayer == null) {
       return;
     }
-    if (session.usesRust && _canUseRustCanvasEngine()) {
-      final int? handle = _rustCanvasEngineHandle;
-      final int? layerIndex = _rustCanvasLayerIndexForId(session.layerId);
-      final Uint32List? pixels = session.rustPixels;
-      if (handle != null && layerIndex != null && pixels != null) {
-        CanvasEngineFfi.instance.writeLayer(
-          handle: handle,
-          layerIndex: layerIndex,
+    if (session.usesBackend && _backend.isReady) {
+      final Uint32List? pixels = session.backendPixels;
+      if (pixels != null) {
+        _backend.writeLayerPixelsToBackend(
+          layerId: session.layerId,
           pixels: pixels,
           recordUndo: false,
+          recordHistory: false,
+          markDirty: false,
         );
       }
       session.previewLayer = null;

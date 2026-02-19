@@ -383,11 +383,11 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
   bool _referenceModelBuiltinLoadInProgress = false;
 
   @override
-  void _recordRustHistoryAction({
+  void _recordBackendHistoryAction({
     String? layerId,
     bool deferPreview = false,
   }) {
-    super._recordRustHistoryAction(
+    super._recordBackendHistoryAction(
       layerId: layerId,
       deferPreview: deferPreview,
     );
@@ -695,33 +695,22 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     await _refreshReferenceModelTexture(showSuccessToast: false, force: true);
   }
 
-  Future<void> _syncReferenceModelTextureFromRust({
+  Future<void> _syncReferenceModelTextureFromBackend({
     required bool showWarning,
   }) async {
-    if (!_canUseRustCanvasEngine()) {
+    if (!_backend.supportsInputQueue) {
       return;
     }
     await _controller.waitForPendingWorkerTasks();
-    final int? handle = _rustCanvasEngineHandle;
-    if (handle != null) {
-      bool queueEmpty = false;
-      for (int attempt = 0; attempt < 6; attempt++) {
-        final int queued = CanvasEngineFfi.instance.getInputQueueLen(handle);
-        if (queued == 0) {
-          queueEmpty = true;
-          break;
-        }
-        await Future.delayed(const Duration(milliseconds: 16));
-      }
-      if (queueEmpty) {
-        await Future.delayed(const Duration(milliseconds: 16));
-      }
+    final bool queueEmpty = await _backend.waitForInputQueueIdle();
+    if (queueEmpty) {
+      await Future.delayed(const Duration(milliseconds: 16));
     }
-    final bool ok = _syncAllLayerPixelsFromRust();
+    final bool ok = await _backend.syncAllLayerPixelsFromBackend();
     if (!ok) {
-      debugPrint('referenceModel: rust sync failed');
+      debugPrint('referenceModel: backend sync failed');
       if (showWarning) {
-        _showRustCanvasMessage('Rust 画布同步图层失败。');
+        _showBackendCanvasMessage('画布后端同步图层失败。');
       }
     }
   }
@@ -757,7 +746,7 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     _referenceModelTextureDirty = false;
     _referenceModelTextureLoading = true;
     try {
-      await _syncReferenceModelTextureFromRust(
+      await _syncReferenceModelTextureFromBackend(
         showWarning: showSuccessToast,
       );
       final ui.Image image = await _controller.snapshotImage();

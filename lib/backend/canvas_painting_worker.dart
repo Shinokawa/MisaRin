@@ -8,6 +8,7 @@ import '../bitmap_canvas/bitmap_canvas.dart';
 import '../canvas/brush_random_rotation.dart';
 import '../canvas/canvas_tools.dart';
 import '../src/rust/api/bucket_fill.dart' as rust_bucket;
+import '../src/rust/rust_cpu_brush_ffi.dart';
 import '../src/rust/rust_init.dart';
 // Removed vector_stroke_painter import as we don't draw vectors in worker anymore.
 
@@ -30,6 +31,7 @@ class PaintingDrawCommand {
     this.radius,
     this.shapeIndex,
     this.randomRotation,
+    this.smoothRotation,
     this.rotationSeed,
     this.rotationJitter,
     this.snapToPixel,
@@ -57,6 +59,7 @@ class PaintingDrawCommand {
     required bool erase,
     double softness = 0.0,
     bool randomRotation = false,
+    bool smoothRotation = false,
     int rotationSeed = 0,
     double rotationJitter = 1.0,
     bool snapToPixel = false,
@@ -71,6 +74,7 @@ class PaintingDrawCommand {
       shapeIndex: shapeIndex,
       softness: softness,
       randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
       rotationSeed: rotationSeed,
       rotationJitter: rotationJitter,
       snapToPixel: snapToPixel,
@@ -132,6 +136,7 @@ class PaintingDrawCommand {
     required bool includeStart,
     required bool erase,
     bool randomRotation = false,
+    bool smoothRotation = false,
     int rotationSeed = 0,
     double rotationJitter = 1.0,
     double spacing = 0.15,
@@ -151,6 +156,7 @@ class PaintingDrawCommand {
       includeStartCap: includeStart,
       shapeIndex: shapeIndex,
       randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
       rotationSeed: rotationSeed,
       rotationJitter: rotationJitter,
       snapToPixel: snapToPixel,
@@ -171,6 +177,7 @@ class PaintingDrawCommand {
     double hollowRatio = 0.0,
     bool eraseOccludedParts = false,
     bool randomRotation = false,
+    bool smoothRotation = false,
     int rotationSeed = 0,
   }) {
     return PaintingDrawCommand._(
@@ -185,6 +192,7 @@ class PaintingDrawCommand {
       hollowRatio: hollowRatio,
       eraseOccludedParts: eraseOccludedParts,
       randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
       rotationSeed: rotationSeed,
     );
   }
@@ -212,6 +220,7 @@ class PaintingDrawCommand {
   final double? radius;
   final int? shapeIndex;
   final bool? randomRotation;
+  final bool? smoothRotation;
   final int? rotationSeed;
   final double? rotationJitter;
   final bool? snapToPixel;
@@ -239,6 +248,7 @@ class PaintingDrawCommand {
       'radius': radius,
       'shape': shapeIndex,
       'randomRotation': randomRotation,
+      'smoothRotation': smoothRotation,
       'rotationSeed': rotationSeed,
       'rotationJitter': rotationJitter,
       'snapToPixel': snapToPixel,
@@ -926,6 +936,7 @@ void _paintingWorkerApplyCommand({
       final double radius = (command['radius'] as num? ?? 0).toDouble();
       final int shapeIndex = command['shape'] as int? ?? 0;
       final bool randomRotation = command['randomRotation'] as bool? ?? false;
+      final bool smoothRotation = command['smoothRotation'] as bool? ?? false;
       final int rotationSeed = command['rotationSeed'] as int? ?? 0;
       final double rotationJitter =
           (command['rotationJitter'] as num? ?? 1.0).toDouble();
@@ -944,6 +955,7 @@ void _paintingWorkerApplyCommand({
         erase: erase,
         softness: softness,
         randomRotation: randomRotation,
+        smoothRotation: smoothRotation,
         rotationSeed: rotationSeed,
         rotationJitter: rotationJitter,
         snapToPixel: snapToPixel,
@@ -999,6 +1011,7 @@ void _paintingWorkerApplyCommand({
       final bool includeStart = command['includeStartCap'] as bool? ?? true;
       final int shapeIndex = command['shape'] as int? ?? 0;
       final bool randomRotation = command['randomRotation'] as bool? ?? false;
+      final bool smoothRotation = command['smoothRotation'] as bool? ?? false;
       final int rotationSeed = command['rotationSeed'] as int? ?? 0;
       final double rotationJitter =
           (command['rotationJitter'] as num? ?? 1.0).toDouble();
@@ -1022,6 +1035,7 @@ void _paintingWorkerApplyCommand({
         antialias: antialias,
         erase: erase,
         randomRotation: randomRotation,
+        smoothRotation: smoothRotation,
         rotationSeed: rotationSeed,
         rotationJitter: rotationJitter,
         spacing: spacing,
@@ -1220,9 +1234,9 @@ Future<Object?> _paintingWorkerHandleFloodFillWithRust({
   return response;
 }
 
-TransferableTypedData _paintingWorkerHandleSelectionMask(
+Future<TransferableTypedData> _paintingWorkerHandleSelectionMask(
   Map<String, Object?> payload,
-) {
+) async {
   final int width = payload['width'] as int? ?? 0;
   final int height = payload['height'] as int? ?? 0;
   final TransferableTypedData? pixelData =
@@ -1233,8 +1247,27 @@ TransferableTypedData _paintingWorkerHandleSelectionMask(
   if (width <= 0 || height <= 0 || pixelData == null) {
     return TransferableTypedData.fromList(const <Uint8List>[]);
   }
+  if (startX < 0 || startY < 0 || startX >= width || startY >= height) {
+    return TransferableTypedData.fromList(const <Uint8List>[]);
+  }
   final ByteBuffer pixelBuffer = pixelData.materialize();
   final Uint32List pixels = Uint32List.view(pixelBuffer, 0, width * height);
+  try {
+    await ensureRustInitialized();
+    final Uint8List? mask = await rust_bucket.magicWandMask(
+      width: width,
+      height: height,
+      pixels: pixels,
+      startX: startX,
+      startY: startY,
+      tolerance: tolerance,
+    );
+    if (mask != null && mask.length == width * height) {
+      return TransferableTypedData.fromList(<Uint8List>[mask]);
+    }
+  } catch (_) {
+    // Fall back to Dart implementation below.
+  }
   final Uint8List mask = Uint8List(width * height);
   final int target = pixels[startY * width + startX];
   _paintingWorkerFloodMask(
@@ -1263,6 +1296,7 @@ void _paintingWorkerStampSegment({
   required int antialias,
   required bool erase,
   required bool randomRotation,
+  required bool smoothRotation,
   required int rotationSeed,
   required double rotationJitter,
   required double spacing,
@@ -1270,6 +1304,36 @@ void _paintingWorkerStampSegment({
   required double softness,
   required bool snapToPixel,
 }) {
+  if (RustCpuBrushFfi.instance.drawStampSegment(
+    pixelsPtr: surface.pointerAddress,
+    pixelsLen: surface.pixels.length,
+    width: surface.width,
+    height: surface.height,
+    startX: start.dx,
+    startY: start.dy,
+    endX: end.dx,
+    endY: end.dy,
+    startRadius: startRadius,
+    endRadius: endRadius,
+    colorArgb: color.value,
+    brushShape: shape.index,
+    antialiasLevel: antialias,
+    includeStart: includeStart,
+    erase: erase,
+    randomRotation: randomRotation,
+    smoothRotation: smoothRotation,
+    rotationSeed: rotationSeed,
+    rotationJitter: rotationJitter,
+    spacing: spacing,
+    scatter: scatter,
+    softness: softness,
+    snapToPixel: snapToPixel,
+    accumulate: true,
+    selectionMask: mask,
+  )) {
+    surface.markDirty();
+    return;
+  }
   final double distance = (end - start).distance;
   if (!distance.isFinite || distance <= 0.0001) {
     final double sampleRadius = endRadius.isFinite ? endRadius : 0.01;
@@ -1283,6 +1347,7 @@ void _paintingWorkerStampSegment({
       erase: erase,
       softness: softness,
       randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
       rotationSeed: rotationSeed,
       rotationJitter: rotationJitter,
       snapToPixel: snapToPixel,

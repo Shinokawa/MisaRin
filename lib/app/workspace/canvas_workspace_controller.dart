@@ -3,7 +3,7 @@ import 'dart:collection';
 import 'package:flutter/widgets.dart';
 
 import '../project/project_document.dart';
-import '../../src/rust/api/workspace.dart' as rust;
+import '../../backend/workspace_backend.dart' as workspace_backend;
 
 class CanvasWorkspaceEntry {
   CanvasWorkspaceEntry({required this.document, this.isDirty = false});
@@ -24,7 +24,7 @@ class CanvasWorkspaceEntry {
 
 class CanvasWorkspaceController extends ChangeNotifier {
   CanvasWorkspaceController._() {
-    _restoreFromRust();
+    _restoreFromBackend();
   }
 
   static final CanvasWorkspaceController instance =
@@ -51,15 +51,15 @@ class CanvasWorkspaceController extends ChangeNotifier {
   void open(ProjectDocument document, {bool activate = true}) {
     final CanvasWorkspaceEntry? existing = entryById(document.id);
     final bool isDirty = existing?.isDirty ?? false;
-    final rust.WorkspaceState state = rust.workspaceOpen(
-      entry: rust.WorkspaceEntry(
+    final workspace_backend.WorkspaceState state = workspace_backend.openWorkspace(
+      entry: workspace_backend.WorkspaceEntry(
         id: document.id,
         name: document.name,
         isDirty: isDirty,
       ),
       activate: activate,
     );
-    _applyRustState(state, documentOverride: document);
+    _applyBackendState(state, documentOverride: document);
   }
 
   void updateDocument(ProjectDocument document) {
@@ -71,11 +71,12 @@ class CanvasWorkspaceController extends ChangeNotifier {
     if (current == null || current.isDirty == isDirty) {
       return;
     }
-    final rust.WorkspaceState state = rust.workspaceMarkDirty(
+    final workspace_backend.WorkspaceState state =
+        workspace_backend.markWorkspaceDirty(
       id: id,
       isDirty: isDirty,
     );
-    _applyRustState(state);
+    _applyBackendState(state);
   }
 
   void setActive(String id) {
@@ -85,14 +86,15 @@ class CanvasWorkspaceController extends ChangeNotifier {
     if (entryById(id) == null) {
       return;
     }
-    final rust.WorkspaceState state = rust.workspaceSetActive(id: id);
-    _applyRustState(state);
+    final workspace_backend.WorkspaceState state =
+        workspace_backend.setWorkspaceActive(id: id);
+    _applyBackendState(state);
   }
 
   CanvasWorkspaceEntry? neighborFor(String id) {
-    rust.WorkspaceEntry? neighbor;
+    workspace_backend.WorkspaceEntry? neighbor;
     try {
-      neighbor = rust.workspaceNeighbor(id: id);
+      neighbor = workspace_backend.workspaceNeighbor(id: id);
     } catch (_) {
       neighbor = null;
     }
@@ -119,16 +121,16 @@ class CanvasWorkspaceController extends ChangeNotifier {
     if (entryById(id) == null) {
       return;
     }
-    final rust.WorkspaceState state = rust.workspaceRemove(
+    final workspace_backend.WorkspaceState state = workspace_backend.removeWorkspace(
       id: id,
       activateAfter: activateAfter,
     );
-    _applyRustState(state);
+    _applyBackendState(state);
   }
 
   void reset() {
-    final rust.WorkspaceState state = rust.workspaceReset();
-    _applyRustState(state);
+    final workspace_backend.WorkspaceState state = workspace_backend.resetWorkspace();
+    _applyBackendState(state);
   }
 
   void reorder(int oldIndex, int newIndex) {
@@ -138,25 +140,25 @@ class CanvasWorkspaceController extends ChangeNotifier {
     if (oldIndex < 0 || oldIndex >= _entries.length) {
       return;
     }
-    final rust.WorkspaceState state = rust.workspaceReorder(
+    final workspace_backend.WorkspaceState state = workspace_backend.reorderWorkspace(
       oldIndex: oldIndex,
       newIndex: newIndex,
     );
-    _applyRustState(state);
+    _applyBackendState(state);
   }
 
-  void _restoreFromRust() {
+  void _restoreFromBackend() {
     try {
-      final rust.WorkspaceState state = rust.workspaceState();
-      _applyRustState(state);
+      final workspace_backend.WorkspaceState state = workspace_backend.workspaceState();
+      _applyBackendState(state);
     } catch (_) {
       _entries.clear();
       _activeId = null;
     }
   }
 
-  void _applyRustState(
-    rust.WorkspaceState state, {
+  void _applyBackendState(
+    workspace_backend.WorkspaceState state, {
     ProjectDocument? documentOverride,
   }) {
     final Map<String, CanvasWorkspaceEntry> cache =
@@ -173,7 +175,7 @@ class CanvasWorkspaceController extends ChangeNotifier {
     }
 
     final List<CanvasWorkspaceEntry> nextEntries = <CanvasWorkspaceEntry>[];
-    for (final rust.WorkspaceEntry entry in state.entries) {
+    for (final workspace_backend.WorkspaceEntry entry in state.entries) {
       final CanvasWorkspaceEntry? current = cache[entry.id];
       if (current == null) {
         continue;

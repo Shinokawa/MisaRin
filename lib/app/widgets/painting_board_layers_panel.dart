@@ -38,7 +38,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     required CanvasLayerBlendMode mode,
     required bool isLocked,
   }) {
-    final bool isEnabled = !isLocked && rustLayerSupported;
+    final bool isEnabled = !isLocked && backendLayerSupported;
     final TextStyle baseStyle =
         theme.typography.body ?? const TextStyle(fontSize: 14);
     final Color textColor = isEnabled
@@ -150,7 +150,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
 
   Widget? _buildLayerControlStripImpl(
     FluentThemeData theme,
-    BitmapLayerState? activeLayer,
+    CanvasLayerInfo? activeLayer,
   ) {
     if (activeLayer == null) {
       return null;
@@ -382,8 +382,8 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
 
   Map<String, bool> _computeLayerTileDimStatesImpl() {
     final Map<String, bool> dimStates = <String, bool>{};
-    BitmapLayerState? clippingOwner;
-    for (final BitmapLayerState layer in _layers) {
+    CanvasLayerInfo? clippingOwner;
+    for (final CanvasLayerInfo layer in _layers) {
       if (!layer.clippingMask) {
         clippingOwner = layer;
         dimStates[layer.id] = !layer.visible;
@@ -397,7 +397,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     return dimStates;
   }
 
-  void _pruneLayerPreviewCacheImpl(Iterable<BitmapLayerState> layers) {
+  void _pruneLayerPreviewCacheImpl(Iterable<CanvasLayerInfo> layers) {
     if (_layerPreviewCache.isEmpty) {
       return;
     }
@@ -414,12 +414,12 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     for (final String id in stale) {
       final _LayerPreviewCacheEntry? entry = _layerPreviewCache.remove(id);
       entry?.dispose();
-      _rustLayerPreviewRevisions.remove(id);
-      _rustLayerPreviewPending.remove(id);
+      _backendLayerPreviewRevisions.remove(id);
+      _backendLayerPreviewPending.remove(id);
     }
   }
 
-  void _ensureLayerPreviewImpl(BitmapLayerState layer) {
+  void _ensureLayerPreviewImpl(CanvasLayerInfo layer) {
     final _LayerPreviewCacheEntry? entry = _layerPreviewCache[layer.id];
     final int revision = _layerPreviewRevisionForLayer(layer);
     if (entry != null && entry.revision == revision) {
@@ -433,7 +433,6 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     unawaited(
       _captureLayerPreviewThumbnail(
         layerId: layer.id,
-        surface: layer.surface,
         revision: revision,
         requestId: requestId,
       ),
@@ -446,15 +445,23 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
 
   Future<void> _captureLayerPreviewThumbnailImpl({
     required String layerId,
-    required BitmapSurface surface,
     required int revision,
     required int requestId,
   }) async {
-    final bool useRust = _canUseRustCanvasEngine();
-    _LayerPreviewPixels? pixels =
-        useRust ? await _buildRustLayerPreviewPixels(layerId) : null;
-    if (!useRust) {
-      pixels = _buildLayerPreviewPixels(surface);
+    _LayerPreviewPixels? pixels = await _backend.readLayerPreviewPixels(
+      layerId: layerId,
+      maxHeight: _layerPreviewRasterHeight,
+    );
+    if (pixels == null) {
+      final Size? surfaceSize = _controller.readLayerSurfaceSize(layerId);
+      final Uint32List? layerPixels = _controller.readLayerPixels(layerId);
+      if (surfaceSize != null && layerPixels != null) {
+        pixels = _buildLayerPreviewPixels(
+          layerPixels,
+          surfaceSize.width.round(),
+          surfaceSize.height.round(),
+        );
+      }
     }
     ui.Image? image;
     if (pixels != null) {
@@ -474,51 +481,11 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     );
   }
 
-  int _layerPreviewRevisionForLayer(BitmapLayerState layer) {
-    if (!_canUseRustCanvasEngine()) {
+  int _layerPreviewRevisionForLayer(CanvasLayerInfo layer) {
+    if (!_backend.isReady) {
       return layer.revision;
     }
-    return _rustLayerPreviewRevisions[layer.id] ?? 0;
-  }
-
-  Future<_LayerPreviewPixels?> _buildRustLayerPreviewPixels(
-    String layerId,
-  ) async {
-    final int? handle = _rustCanvasEngineHandle;
-    if (!_canUseRustCanvasEngine() || handle == null) {
-      return null;
-    }
-    final int? layerIndex = _rustCanvasLayerIndexForId(layerId);
-    if (layerIndex == null) {
-      return null;
-    }
-    final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
-    final int width = engineSize.width.round();
-    final int height = engineSize.height.round();
-    if (width <= 0 || height <= 0) {
-      return null;
-    }
-    final int targetHeight = math.min(_layerPreviewRasterHeight, height);
-    final double scale = targetHeight / height;
-    final int targetWidth = math.max(1, (width * scale).round());
-    if (targetWidth <= 0 || targetHeight <= 0) {
-      return null;
-    }
-    final Uint8List? rgba = CanvasEngineFfi.instance.readLayerPreview(
-      handle: handle,
-      layerIndex: layerIndex,
-      width: targetWidth,
-      height: targetHeight,
-    );
-    if (rgba == null ||
-        rgba.length != targetWidth * targetHeight * 4) {
-      return null;
-    }
-    return _LayerPreviewPixels(
-      bytes: rgba,
-      width: targetWidth,
-      height: targetHeight,
-    );
+    return _backendLayerPreviewRevisions[layer.id] ?? 0;
   }
 
   void _applyLayerPreviewResultImpl({
@@ -550,9 +517,11 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     }
   }
 
-  _LayerPreviewPixels? _buildLayerPreviewPixelsImpl(BitmapSurface surface) {
-    final int width = surface.width;
-    final int height = surface.height;
+  _LayerPreviewPixels? _buildLayerPreviewPixelsImpl(
+    Uint32List pixels,
+    int width,
+    int height,
+  ) {
     if (width <= 0 || height <= 0) {
       return null;
     }
@@ -571,7 +540,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       final int rowBase = sourceY * width;
       for (int x = 0; x < targetWidth; x++) {
         final int sourceX = (x * stepX).floor().clamp(0, width - 1);
-        final int argb = surface.pixels[rowBase + sourceX];
+        final int argb = pixels[rowBase + sourceX];
         rgba[dest++] = (argb >> 16) & 0xFF;
         rgba[dest++] = (argb >> 8) & 0xFF;
         rgba[dest++] = argb & 0xFF;
@@ -593,14 +562,14 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       entry.dispose();
     }
     _layerPreviewCache.clear();
-    _rustLayerPreviewRevisions.clear();
-    _rustLayerPreviewPending.clear();
+    _backendLayerPreviewRevisions.clear();
+    _backendLayerPreviewPending.clear();
   }
 
   Widget _buildLayerPanelContentImpl(FluentThemeData theme) {
     final bool isSai2Layout =
         widget.toolbarLayoutStyle == PaintingToolbarLayoutStyle.sai2;
-    final List<BitmapLayerState> orderedLayers = _layers
+    final List<CanvasLayerInfo> orderedLayers = _layers
         .toList(growable: false)
         .reversed
         .toList(growable: false);
@@ -615,9 +584,9 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       tileBaseColor = fallbackCardColor;
     }
 
-    BitmapLayerState? activeLayer;
+    CanvasLayerInfo? activeLayer;
     if (activeLayerId != null) {
-      for (final BitmapLayerState candidate in _layers) {
+      for (final CanvasLayerInfo candidate in _layers) {
         if (candidate.id == activeLayerId) {
           activeLayer = candidate;
           break;
@@ -659,7 +628,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                   itemCount: orderedLayers.length,
                   onReorder: _handleLayerReorder,
                   itemBuilder: (context, index) {
-                    final BitmapLayerState layer = orderedLayers[index];
+                    final CanvasLayerInfo layer = orderedLayers[index];
                     final bool isActive = layer.id == activeLayerId;
                     final bool tileDimmed =
                         layerTileDimStates[layer.id] ?? !layer.visible;
@@ -713,7 +682,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
 
                     final Widget visibilityButton = LayerVisibilityButton(
                       visible: layer.visible,
-                      onChanged: rustLayerSupported
+                      onChanged: backendLayerSupported
                           ? (value) =>
                               _handleLayerVisibilityChanged(layer.id, value)
                           : null,
@@ -892,7 +861,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
                           ),
                           child: _LayerTile(
                             onTapDown: (_) => _handleLayerSelected(layer.id),
-                            onSecondaryTapDown: rustLayerSupported
+                            onSecondaryTapDown: backendLayerSupported
                                 ? (details) => _showLayerContextMenu(
                                       layer,
                                       details.globalPosition,
@@ -968,7 +937,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
 
   Widget _buildLayerNameRow({
     required FluentThemeData theme,
-    required BitmapLayerState layer,
+    required CanvasLayerInfo layer,
     required bool isActive,
     required bool isRenaming,
     required bool isLocked,

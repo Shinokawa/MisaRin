@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/foundation.dart';
 
 import '../l10n/l10n.dart';
 import '../project/project_document.dart';
@@ -30,6 +29,7 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
   StreamSubscription<ProjectSummary>? _subscription;
   bool _loading = true;
   String? _errorMessage;
+  String? _focusedPath;
 
   @override
   void initState() {
@@ -50,6 +50,7 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
       _projects.clear();
       _loading = true;
       _errorMessage = null;
+      _focusedPath = null;
     });
     final Stream<ProjectSummary> stream = ProjectRepository.instance
         .streamRecentProjects();
@@ -60,6 +61,7 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
         }
         setState(() {
           _projects.add(summary);
+          _focusedPath ??= summary.path;
         });
       },
       onError: (Object error) {
@@ -89,9 +91,9 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
     final l10n = context.l10n;
     return MisarinDialog(
       title: Text(l10n.recentProjectsTitle),
-      content: SizedBox(height: 320, child: _buildContent(context, theme)),
-      contentWidth: 480,
-      maxWidth: 560,
+      content: SizedBox(height: 420, child: _buildContent(context, theme)),
+      contentWidth: null,
+      maxWidth: 920,
       actions: [
         Button(
           onPressed: () => Navigator.of(context).pop(),
@@ -111,34 +113,101 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
       }
       return Center(child: Text(context.l10n.recentProjectsEmpty));
     }
-    return Stack(
+    final ProjectSummary? focused = _resolveFocusedProject();
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ListView.separated(
-          itemBuilder: (context, index) {
-            final ProjectSummary summary = _projects[index];
-            return _RecentProjectTile(
-              summary: summary,
-              onOpen: () => Navigator.of(context).pop(summary),
-            );
-          },
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemCount: _projects.length,
-        ),
-        if (_loading)
-          const Positioned(
-            right: 12,
-            top: 12,
-            child: ProgressRing(strokeWidth: 2.5),
+        Expanded(
+          flex: 3,
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.resources.subtleFillColorTertiary,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.resources.controlStrokeColorDefault,
+              ),
+            ),
+            child: Stack(
+              children: [
+                ListView.separated(
+                  padding: const EdgeInsets.all(8),
+                  itemBuilder: (context, index) {
+                    final ProjectSummary summary = _projects[index];
+                    return _RecentProjectTile(
+                      summary: summary,
+                      selected: focused?.path == summary.path,
+                      onSelect: () => _setFocus(summary.path),
+                      onOpen: () => _openProject(summary),
+                    );
+                  },
+                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  itemCount: _projects.length,
+                ),
+                if (_loading)
+                  const Positioned(
+                    right: 12,
+                    top: 12,
+                    child: ProgressRing(strokeWidth: 2.5),
+                  ),
+              ],
+            ),
           ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          flex: 2,
+          child: _RecentProjectDetails(
+            summary: focused,
+            onOpen: focused == null ? null : () => _openProject(focused),
+            onReveal: focused == null || focused.path.isEmpty
+                ? null
+                : () => unawaited(revealInFileManager(focused.path)),
+          ),
+        ),
       ],
     );
+  }
+
+  void _setFocus(String path) {
+    if (_focusedPath == path) {
+      return;
+    }
+    setState(() {
+      _focusedPath = path;
+    });
+  }
+
+  void _openProject(ProjectSummary summary) {
+    Navigator.of(context).pop(summary);
+  }
+
+  ProjectSummary? _resolveFocusedProject() {
+    final String? path = _focusedPath;
+    if (path != null) {
+      for (final ProjectSummary summary in _projects) {
+        if (summary.path == path) {
+          return summary;
+        }
+      }
+    }
+    if (_projects.isEmpty) {
+      return null;
+    }
+    return _projects.first;
   }
 }
 
 class _RecentProjectTile extends StatefulWidget {
-  const _RecentProjectTile({required this.summary, required this.onOpen});
+  const _RecentProjectTile({
+    required this.summary,
+    required this.selected,
+    required this.onSelect,
+    required this.onOpen,
+  });
 
   final ProjectSummary summary;
+  final bool selected;
+  final VoidCallback onSelect;
   final VoidCallback onOpen;
 
   @override
@@ -194,61 +263,131 @@ class _RecentProjectTileState extends State<_RecentProjectTile> {
         onSecondaryTapDown: (details) {
           _showContextMenu(details.globalPosition);
         },
-        child: HoverButton(
-          onPressed: widget.onOpen,
-          builder: (context, states) {
-            final bool hovering = states.isHovered;
-            final Color background = hovering
-                ? theme.resources.subtleFillColorSecondary
-                : theme.cardColor;
-            return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: background,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: theme.resources.controlStrongStrokeColorDefault,
-                  width: 0.6,
+        onDoubleTap: widget.onOpen,
+        child: ListTile.selectable(
+          leading: ProjectPreviewThumbnail(bytes: widget.summary.previewBytes),
+          title: Text(
+            widget.summary.name,
+            style: theme.typography.subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.l10n.lastOpened(
+                  _formatDate(widget.summary.lastOpened),
                 ),
+                style: theme.typography.caption,
               ),
-              child: Row(
+              Text(
+                context.l10n.canvasSize(
+                  widget.summary.settings.width.toInt(),
+                  widget.summary.settings.height.toInt(),
+                ),
+                style: theme.typography.caption,
+              ),
+            ],
+          ),
+          trailing: const Icon(FluentIcons.open_file, size: 16),
+          selected: widget.selected,
+          onPressed: widget.onSelect,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          tileColor: WidgetStateProperty.resolveWith(
+            (states) => states.isHovered || widget.selected
+                ? theme.resources.subtleFillColorSecondary
+                : theme.resources.subtleFillColorTertiary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentProjectDetails extends StatelessWidget {
+  const _RecentProjectDetails({
+    required this.summary,
+    required this.onOpen,
+    required this.onReveal,
+  });
+
+  final ProjectSummary? summary;
+  final VoidCallback? onOpen;
+  final VoidCallback? onReveal;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    final ProjectSummary? data = summary;
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.resources.subtleFillColorTertiary,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.resources.controlStrokeColorDefault,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: data == null
+            ? const SizedBox.shrink()
+            : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ProjectPreviewThumbnail(bytes: widget.summary.previewBytes),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.summary.name,
-                          style: theme.typography.subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          context.l10n.lastOpened(
-                            _formatDate(widget.summary.lastOpened),
-                          ),
-                          style: theme.typography.caption,
-                        ),
-                        Text(
-                          context.l10n.canvasSize(
-                            widget.summary.settings.width.toInt(),
-                            widget.summary.settings.height.toInt(),
-                          ),
-                          style: theme.typography.caption,
-                        ),
-                      ],
+                  Text(
+                    data.name,
+                    style: theme.typography.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: ProjectPreviewThumbnail(
+                      bytes: data.previewBytes,
+                      width: 240,
+                      height: 180,
                     ),
                   ),
-                  const Icon(FluentIcons.open_file, size: 18),
+                  const SizedBox(height: 12),
+                  Text(
+                    context.l10n.lastOpened(_formatDate(data.lastOpened)),
+                    style: theme.typography.caption,
+                  ),
+                  Text(
+                    context.l10n.canvasSize(
+                      data.settings.width.toInt(),
+                      data.settings.height.toInt(),
+                    ),
+                    style: theme.typography.caption,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    data.path,
+                    style: theme.typography.caption,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Spacer(),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: onOpen,
+                          child: Text(context.l10n.homeOpenProject),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Button(
+                        onPressed: onReveal,
+                        child: Text(context.l10n.openFileLocation),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-            );
-          },
-        ),
       ),
     );
   }

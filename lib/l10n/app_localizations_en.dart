@@ -253,6 +253,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get canvasBackendLabel => 'Canvas backend';
+
+  @override
+  String get canvasBackendGpu => 'Rust WGPU';
+
+  @override
+  String get canvasBackendCpu => 'Rust CPU';
+
+  @override
+  String get canvasBackendRestartHint =>
+      'Canvas backend change will take effect after restart.';
+
+  @override
   String get developerOptionsLabel => 'Developer Options';
 
   @override
@@ -408,6 +421,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get menuSelectAll => 'Select All';
+
+  @override
+  String get menuDeselect => 'Deselect';
 
   @override
   String get menuInvertSelection => 'Invert Selection';
@@ -1077,10 +1093,48 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushShape => 'Brush Shape';
 
   @override
+  String get brushAuthorLabel => 'Author';
+
+  @override
+  String get brushVersionLabel => 'Version';
+
+  @override
+  String get importBrush => 'Import Brush';
+
+  @override
+  String get exportBrush => 'Export Brush';
+
+  @override
+  String get exportBrushTitle => 'Export Brush';
+
+  @override
+  String get unsavedBrushChangesPrompt =>
+      'Brush settings have been modified. Save changes?';
+
+  @override
+  String get discardChanges => 'Discard Changes';
+
+  @override
+  String get brushShapeFolderLabel => 'Brush Shape Folder';
+
+  @override
+  String get openBrushShapesFolder => 'Open Brush Shape Folder';
+
+  @override
   String get randomRotation => 'Random rotation';
 
   @override
+  String get smoothRotation => 'Smooth rotation';
+
+  @override
   String get selectionShape => 'Selection Shape';
+
+  @override
+  String get selectionAdditive => 'Additive Selection';
+
+  @override
+  String get selectionAdditiveDesc =>
+      'When enabled, new selections are added without holding Shift.';
 
   @override
   String get fontSize => 'Font Size';

@@ -7,15 +7,18 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 
 import '../backend/canvas_raster_backend.dart';
+import '../canvas/canvas_frame.dart';
 import 'raster_frame.dart';
 import 'raster_int_rect.dart';
 
-import '../app/debug/rust_canvas_timeline.dart';
+import '../app/debug/backend_canvas_timeline.dart';
 
 const bool _kDebugRasterTiles = bool.fromEnvironment(
   'MISA_RIN_DEBUG_RASTER_TILES',
   defaultValue: false,
 );
+const double _kFullSurfaceDirtyThreshold = 0.35;
+const double _kWebFullSurfaceDirtyThreshold = 0.1;
 
 class RasterTileCache {
   RasterTileCache({
@@ -32,9 +35,9 @@ class RasterTileCache {
   final List<ui.Image> _pendingDisposals = <ui.Image>[];
   int _generation = 0;
 
-  BitmapCanvasFrame? _frame;
+  CanvasFrame? _frame;
 
-  BitmapCanvasFrame? get frame => _frame;
+  CanvasFrame? get frame => _frame;
 
   List<ui.Image> takePendingDisposals() {
     if (_pendingDisposals.isEmpty) {
@@ -45,29 +48,48 @@ class RasterTileCache {
     return result;
   }
 
-  Future<BitmapCanvasFrame?> updateTiles({
+  Future<CanvasFrame?> updateTiles({
     required CanvasRasterBackend backend,
     required List<RasterIntRect> dirtyRegions,
     required bool fullSurface,
   }) async {
-    if (dirtyRegions.isEmpty && !fullSurface) {
+    bool forceFullSurface = fullSurface;
+    if (!forceFullSurface && dirtyRegions.isNotEmpty) {
+      final double threshold = kIsWeb
+          ? _kWebFullSurfaceDirtyThreshold
+          : _kFullSurfaceDirtyThreshold;
+      final int surfacePixels = surfaceWidth * surfaceHeight;
+      int dirtyPixels = 0;
+      for (final RasterIntRect rect in dirtyRegions) {
+        dirtyPixels += rect.width * rect.height;
+        if (dirtyPixels >= surfacePixels) {
+          break;
+        }
+      }
+      if (surfacePixels > 0 &&
+          dirtyPixels >= (surfacePixels * threshold)) {
+        forceFullSurface = true;
+      }
+    }
+
+    if (dirtyRegions.isEmpty && !forceFullSurface) {
       return _frame;
     }
 
     if (kDebugMode && _kDebugRasterTiles) {
       debugPrint(
-        '[raster-tiles] updateTiles fullSurface=$fullSurface dirtyRegions=${dirtyRegions.length}',
+        '[raster-tiles] updateTiles fullSurface=$forceFullSurface dirtyRegions=${dirtyRegions.length}',
       );
     }
 
-    if (fullSurface) {
+    if (forceFullSurface) {
       for (final BitmapCanvasTile tile in _tiles.values) {
         _pendingDisposals.add(tile.image);
       }
       _tiles.clear();
     }
 
-    final Iterable<RasterIntRect> targets = fullSurface
+    final Iterable<RasterIntRect> targets = forceFullSurface
         ? backend.fullSurfaceTileRects()
         : dirtyRegions;
     if (targets.isEmpty) {
@@ -93,7 +115,7 @@ class RasterTileCache {
     }
 
     final Stopwatch sw = Stopwatch()..start();
-    final bool useSurfaceBuffer = fullSurface;
+    final bool useSurfaceBuffer = forceFullSurface;
     final int surfaceRowBytes = surfaceWidth * 4;
     Uint8List? surfaceRgba;
     final List<_PendingTile> uploads = <_PendingTile>[
@@ -138,7 +160,7 @@ class RasterTileCache {
       }),
     );
     final int decodeTime = sw.elapsedMilliseconds - startDecode;
-    RustCanvasTimeline.mark('tiles: copyPixels total took ${copyTime}ms, decodeImages total wait took ${decodeTime}ms');
+    BackendCanvasTimeline.mark('tiles: copyPixels total took ${copyTime}ms, decodeImages total wait took ${decodeTime}ms');
 
     for (final _DecodedTile tile in decodedTiles) {
       final int key = _tileKeyForRect(tile.rect);

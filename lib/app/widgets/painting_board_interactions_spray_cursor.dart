@@ -8,6 +8,15 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       }
       return (event.buttons & kPrimaryMouseButton) != 0;
     }
+    if (event.kind == PointerDeviceKind.touch) {
+      if (event is PointerUpEvent || event is PointerCancelEvent) {
+        return true;
+      }
+      if (event is PointerDownEvent || event is PointerMoveEvent) {
+        return event.down;
+      }
+      return event.down;
+    }
     if (event.kind == PointerDeviceKind.stylus ||
         event.kind == PointerDeviceKind.invertedStylus) {
       if (event is PointerUpEvent || event is PointerCancelEvent) {
@@ -137,12 +146,8 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     final bool erase = _isBrushEraserEnabled;
     final Color color =
         _activeSprayColor ?? (erase ? const Color(0xFFFFFFFF) : _primaryColor);
-    if (_rustSprayActive && _canUseRustCanvasEngine() && !engine.sampleInputColor) {
-      final int? handle = _rustCanvasEngineHandle;
-      if (handle == null) {
-        return;
-      }
-      final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    if (_backendSprayActive && _backend.supportsSpray && !engine.sampleInputColor) {
+      final Size engineSize = _backendCanvasEngineSize ?? _canvasSize;
       double sx = 1.0;
       double sy = 1.0;
       if (engineSize != _canvasSize &&
@@ -176,8 +181,7 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       );
       final int pointCount = packed.length ~/ 4;
       if (pointCount > 0) {
-        CanvasEngineFfi.instance.drawSpray(
-          handle: handle,
+        if (_backend.drawSpray(
           points: Float32List.fromList(packed),
           pointCount: pointCount,
           colorArgb: color.value,
@@ -186,11 +190,45 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
           antialiasLevel: _penAntialiasLevel,
           softness: 0.0,
           accumulate: true,
-        );
-        _rustSprayHasDrawn = true;
-        _markDirty();
+        )) {
+          _backendSprayHasDrawn = true;
+          _markDirty();
+        }
       }
       return;
+    }
+    if (!engine.sampleInputColor) {
+      final List<double> packed = <double>[];
+      engine.forEachParticle(
+        center: center,
+        particleBudget: count,
+        pressure: _sprayCurrentPressure,
+        baseColor: color,
+        onParticle: (position, particleRadius, opacityScale, baseColor) {
+          if (opacityScale <= 0.0) {
+            return;
+          }
+          packed.add(position.dx);
+          packed.add(position.dy);
+          packed.add(particleRadius);
+          packed.add(opacityScale);
+        },
+      );
+      final int pointCount = packed.length ~/ 4;
+      if (pointCount > 0 &&
+          _controller.drawSprayPoints(
+            points: Float32List.fromList(packed),
+            pointCount: pointCount,
+            color: color,
+            brushShape: BrushShape.circle,
+            antialiasLevel: _penAntialiasLevel,
+            erase: erase,
+            softness: 0.0,
+            accumulate: true,
+          )) {
+        _markDirty();
+        return;
+      }
     }
     engine.paintParticles(
       center: center,
@@ -273,12 +311,8 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     if (opacityScale <= 0.0) {
       return;
     }
-    if (_rustSprayActive && _canUseRustCanvasEngine()) {
-      final int? handle = _rustCanvasEngineHandle;
-      if (handle == null) {
-        return;
-      }
-      final Size engineSize = _rustCanvasEngineSize ?? _canvasSize;
+    if (_backendSprayActive && _backend.supportsSpray) {
+      final Size engineSize = _backendCanvasEngineSize ?? _canvasSize;
       double sx = 1.0;
       double sy = 1.0;
       if (engineSize != _canvasSize &&
@@ -292,6 +326,7 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
           : 1.0;
       final int colorArgb = (0xFF000000 | (baseColor.value & 0x00FFFFFF));
       const int kMaxBatchPoints = 1024;
+      bool drawn = false;
       int start = 0;
       while (start < positions.length) {
         final int end = math.min(start + kMaxBatchPoints, positions.length);
@@ -307,8 +342,7 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
           packed[offset + 3] = opacityScale;
           offset += 4;
         }
-        CanvasEngineFfi.instance.drawSpray(
-          handle: handle,
+        if (_backend.drawSpray(
           points: packed,
           pointCount: batchCount,
           colorArgb: colorArgb,
@@ -317,11 +351,39 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
           antialiasLevel: 3,
           softness: 1.0,
           accumulate: true,
-        );
-        _rustSprayHasDrawn = true;
+        )) {
+          drawn = true;
+        }
         start = end;
       }
+      if (drawn) {
+        _backendSprayHasDrawn = true;
+      }
       return;
+    }
+    if (positions.isNotEmpty) {
+      final int pointCount = positions.length;
+      final Float32List packed = Float32List(pointCount * 4);
+      int offset = 0;
+      for (final Offset position in positions) {
+        packed[offset] = position.dx;
+        packed[offset + 1] = position.dy;
+        packed[offset + 2] = radius;
+        packed[offset + 3] = opacityScale;
+        offset += 4;
+      }
+      if (_controller.drawSprayPoints(
+        points: packed,
+        pointCount: pointCount,
+        color: baseColor,
+        brushShape: BrushShape.circle,
+        antialiasLevel: 3,
+        erase: erase,
+        softness: 1.0,
+        accumulate: true,
+      )) {
+        return;
+      }
     }
     final Color color = baseColor.withOpacity(opacityScale);
     for (final Offset position in positions) {

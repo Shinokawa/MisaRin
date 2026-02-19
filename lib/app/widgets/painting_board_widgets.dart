@@ -1,6 +1,14 @@
 part of 'painting_board.dart';
 
 const Color _kVectorEraserPreviewColor = _kSelectionPreviewFillColor;
+const int _kWebOverlayMaxPoints = 120;
+
+int _overlayStepForPoints(int count) {
+  if (!kIsWeb || count <= _kWebOverlayMaxPoints) {
+    return 1;
+  }
+  return (count / _kWebOverlayMaxPoints).ceil();
+}
 
 void _paintStrokeOverlay({
   required Canvas canvas,
@@ -28,10 +36,18 @@ void _paintStrokeOverlay({
         ..style = PaintingStyle.fill
         ..isAntiAlias = clampedAntialias > 0)
       : null;
+  final int step = _overlayStepForPoints(points.length);
 
   switch (shape) {
     case BrushShape.circle:
-      _paintCircleStrokeOverlay(canvas, points, radii, paint, radiusScale: 1.0);
+      _paintCircleStrokeOverlay(
+        canvas,
+        points,
+        radii,
+        paint,
+        radiusScale: 1.0,
+        step: step,
+      );
       if (clearPaint != null) {
         _paintCircleStrokeOverlay(
           canvas,
@@ -39,11 +55,19 @@ void _paintStrokeOverlay({
           radii,
           clearPaint,
           radiusScale: hollowRatio.clamp(0.0, 1.0),
+          step: step,
         );
       }
       return;
     case BrushShape.square:
-      _paintSquareStrokeOverlay(canvas, points, radii, paint, radiusScale: 1.0);
+      _paintSquareStrokeOverlay(
+        canvas,
+        points,
+        radii,
+        paint,
+        radiusScale: 1.0,
+        step: step,
+      );
       if (clearPaint != null) {
         _paintSquareStrokeOverlay(
           canvas,
@@ -51,13 +75,21 @@ void _paintStrokeOverlay({
           radii,
           clearPaint,
           radiusScale: hollowRatio.clamp(0.0, 1.0),
+          step: step,
         );
       }
       return;
     case BrushShape.triangle:
     case BrushShape.star:
-      // GPU 笔刷目前仅保证圆/方形；预览这里用圆形回退，避免 UI 报错。
-      _paintCircleStrokeOverlay(canvas, points, radii, paint, radiusScale: 1.0);
+      // 后端笔刷目前仅保证圆/方形；预览这里用圆形回退，避免 UI 报错。
+      _paintCircleStrokeOverlay(
+        canvas,
+        points,
+        radii,
+        paint,
+        radiusScale: 1.0,
+        step: step,
+      );
       if (clearPaint != null) {
         _paintCircleStrokeOverlay(
           canvas,
@@ -65,6 +97,7 @@ void _paintStrokeOverlay({
           radii,
           clearPaint,
           radiusScale: hollowRatio.clamp(0.0, 1.0),
+          step: step,
         );
       }
       return;
@@ -77,20 +110,30 @@ void _paintCircleStrokeOverlay(
   List<double> radii,
   Paint paint, {
   double radiusScale = 1.0,
+  int step = 1,
 }) {
-  for (int i = 0; i < points.length; i++) {
+  final int stride = math.max(1, step);
+  for (int i = 0; i < points.length; i += stride) {
     final Offset p = points[i];
     final double r =
         (i < radii.length) ? radii[i] : (radii.isNotEmpty ? radii.last : 1.0);
     canvas.drawCircle(p, r * radiusScale, paint);
   }
+  if (points.isNotEmpty &&
+      ((points.length - 1) % stride != 0)) {
+    final Offset p = points.last;
+    final double r =
+        radii.isNotEmpty ? radii.last : 1.0;
+    canvas.drawCircle(p, r * radiusScale, paint);
+  }
 
-  for (int i = 0; i < points.length - 1; i++) {
+  for (int i = 0; i < points.length - 1; i += stride) {
+    final int j = math.min(i + stride, points.length - 1);
     final Offset p1 = points[i];
-    final Offset p2 = points[i + 1];
+    final Offset p2 = points[j];
     final double rawR1 =
         (i < radii.length) ? radii[i] : (radii.isNotEmpty ? radii.last : 1.0);
-    final double rawR2 = (i + 1 < radii.length) ? radii[i + 1] : rawR1;
+    final double rawR2 = (j < radii.length) ? radii[j] : rawR1;
     final double r1 = rawR1 * radiusScale;
     final double r2 = rawR2 * radiusScale;
 
@@ -132,6 +175,7 @@ void _paintSquareStrokeOverlay(
   List<double> radii,
   Paint paint, {
   double radiusScale = 1.0,
+  int step = 1,
 }) {
   if (points.isEmpty) {
     return;
@@ -167,11 +211,13 @@ void _paintSquareStrokeOverlay(
 
   drawSquareAt(points.first, radiusAt(0) * radiusScale);
 
-  for (int i = 0; i < points.length - 1; i++) {
+  final int stride = math.max(1, step);
+  for (int i = 0; i < points.length - 1; i += stride) {
+    final int j = math.min(i + stride, points.length - 1);
     final Offset p1 = points[i];
-    final Offset p2 = points[i + 1];
+    final Offset p2 = points[j];
     final double r1 = radiusAt(i) * radiusScale;
-    final double r2 = radiusAt(i + 1) * radiusScale;
+    final double r2 = radiusAt(j) * radiusScale;
 
     final double dist = (p2 - p1).distance;
     if (dist <= 0.1) {
@@ -179,7 +225,8 @@ void _paintSquareStrokeOverlay(
     }
 
     final double maxRadius = math.max(r1, r2);
-    final double stepSize = math.max(0.5, maxRadius * 0.25);
+    final double stepSize =
+        math.max(0.5, maxRadius * 0.25) * stride.toDouble();
     final int steps = (dist / stepSize).ceil();
     for (int s = 1; s <= steps; s++) {
       final double t = s / steps;
@@ -187,6 +234,9 @@ void _paintSquareStrokeOverlay(
       final double r = (ui.lerpDouble(r1, r2, t) ?? r2);
       drawSquareAt(pos, r);
     }
+  }
+  if ((points.length - 1) % stride != 0) {
+    drawSquareAt(points.last, radiusAt(points.length - 1) * radiusScale);
   }
 }
 
@@ -451,6 +501,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
     required this.randomRotationEnabled,
     required this.rotationSeed,
     required this.committingStrokes,
+    required this.commitOverlayOpacityFor,
+    required this.commitOverlayFadeVersion,
     this.antialiasLevel = 1,
     this.hollowStrokeEnabled = false,
     this.hollowStrokeRatio = 0.0,
@@ -465,6 +517,8 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
   final bool randomRotationEnabled;
   final int rotationSeed;
   final List<PaintingDrawCommand> committingStrokes;
+  final double Function(PaintingDrawCommand) commitOverlayOpacityFor;
+  final int commitOverlayFadeVersion;
   final int antialiasLevel;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
@@ -476,9 +530,16 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
     // Draw committing strokes (fading out/waiting for raster) first
     for (final PaintingDrawCommand command in committingStrokes) {
       if (command.points == null || command.radii == null) continue;
-      final Color commandColor = command.erase
+      final double opacity = commitOverlayOpacityFor(command);
+      if (opacity <= 0.0) {
+        continue;
+      }
+      final Color baseColor = command.erase
           ? eraserPreviewColor
           : Color(command.color);
+      final int alpha = (baseColor.alpha * opacity).round().clamp(0, 255) as int;
+      final Color commandColor =
+          alpha == baseColor.alpha ? baseColor : baseColor.withAlpha(alpha);
       final bool commandHollow = (command.hollow ?? false) && !command.erase;
       _paintStrokeOverlay(
         canvas: canvas,
@@ -520,6 +581,7 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         oldDelegate.randomRotationEnabled != randomRotationEnabled ||
         oldDelegate.rotationSeed != rotationSeed ||
         oldDelegate.committingStrokes != committingStrokes ||
+        oldDelegate.commitOverlayFadeVersion != commitOverlayFadeVersion ||
         oldDelegate.antialiasLevel != antialiasLevel ||
         oldDelegate.hollowStrokeEnabled != hollowStrokeEnabled ||
         oldDelegate.hollowStrokeRatio != hollowStrokeRatio ||

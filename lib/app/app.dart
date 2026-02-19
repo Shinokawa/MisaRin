@@ -1,13 +1,13 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 import 'dart:ui' show FramePhase, FrameTiming;
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' as material;
 import 'package:flutter/scheduler.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:misa_rin/l10n/app_localizations.dart';
+import 'package:misa_rin/utils/io_shim.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'dialogs/misarin_dialog.dart';
 import 'l10n/locale_controller.dart';

@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:misa_rin/utils/io_shim.dart';
 import 'package:path/path.dart' as p;
 
 class RecentProjectsIndex {

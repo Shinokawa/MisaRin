@@ -11,9 +11,10 @@ mixin _PaintingBoardBuildMixin
         _PaintingBoardReferenceModelMixin,
         _PaintingBoardPerspectiveMixin,
         _PaintingBoardTextMixin,
+        _PaintingBoardSelectionMixin,
         _PaintingBoardFilterMixin {
   void _selectBrushPreset(String id);
-  Future<void> _openBrushPresetEditor();
+  Future<void> _openBrushPresetPicker();
 
   OverlayEntry? _workspaceCardsOverlayEntry;
   bool _workspaceCardsOverlaySyncScheduled = false;
@@ -359,19 +360,19 @@ mixin _PaintingBoardBuildMixin
     );
   }
 
-  bool _shouldShowRustFilterPreviewOverlay(_FilterSession session) {
-    if (!_shouldUseRustFilterPreview(session)) {
+  bool _shouldShowBackendFilterPreviewOverlay(_FilterSession session) {
+    if (!_shouldUseBackendFilterPreview(session)) {
       return false;
     }
     if (_previewActiveLayerImage == null) {
       return false;
     }
-    return _filterRustHiddenLayerId == session.activeLayerId;
+    return _filterBackendHiddenLayerId == session.activeLayerId;
   }
 
-  Widget _buildRustFilterPreviewOverlay() {
+  Widget _buildBackendFilterPreviewOverlay() {
     final _FilterSession? session = _filterSession;
-    if (session == null || !_shouldShowRustFilterPreviewOverlay(session)) {
+    if (session == null || !_shouldShowBackendFilterPreviewOverlay(session)) {
       return const SizedBox.shrink();
     }
 
@@ -486,7 +487,7 @@ mixin _PaintingBoardBuildMixin
       }
     }
 
-    final BitmapLayerState? layer = _layerById(session.activeLayerId);
+    final CanvasLayerInfo? layer = _layerById(session.activeLayerId);
     final double opacity = (layer?.opacity ?? 1.0).clamp(0.0, 1.0);
     if (opacity < 0.999) {
       activeLayerWidget = Opacity(opacity: opacity, child: activeLayerWidget);

@@ -127,6 +127,10 @@
       "max": {}
     }
   },
+  "canvasBackendLabel": "画布后端",
+  "canvasBackendGpu": "Rust WGPU",
+  "canvasBackendCpu": "Rust CPU",
+  "canvasBackendRestartHint": "切换画布后端需要重启后生效。",
   "developerOptionsLabel": "开发者选项",
   "performanceOverlayLabel": "性能监控面板",
   "performanceOverlayDesc": "打开后会在屏幕角落显示 Flutter Performance Pulse 仪表盘，实时展示 FPS、CPU、内存与磁盘等数据。",
@@ -200,6 +204,7 @@
   "menuTransform": "变换",
 
   "menuSelectAll": "全选",
+  "menuDeselect": "取消选择",
   "menuInvertSelection": "反选",
 
   "menuPalette": "调色盘",
@@ -468,9 +473,21 @@
   "brushFlow": "流量",
   "brushScatter": "散布",
   "brushRotationJitter": "旋转抖动",
+  "smoothRotation": "平滑旋转",
   "brushSnapToPixel": "像素对齐",
   "brushAntialiasing": "笔刷抗锯齿",
+  "brushAuthorLabel": "作者",
+  "brushVersionLabel": "版本",
+  "importBrush": "导入笔刷",
+  "exportBrush": "导出笔刷",
+  "exportBrushTitle": "导出笔刷",
+  "unsavedBrushChangesPrompt": "笔刷参数已修改，是否保存？",
+  "discardChanges": "放弃修改",
+  "brushShapeFolderLabel": "笔刷形状文件夹",
+  "openBrushShapesFolder": "打开笔刷形状文件夹",
   "bucketAntialiasing": "填充抗锯齿",
   "colorTransparent": "透明",
-  "swapDimensions": "交换宽高"
+  "swapDimensions": "交换宽高",
+  "selectionAdditive": "允许交集",
+  "selectionAdditiveDesc": "开启后无需按 Shift 也可多次框选并合并选区。"
 }

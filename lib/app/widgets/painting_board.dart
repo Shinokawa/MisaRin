@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -19,7 +18,8 @@ import 'package:flutter/foundation.dart'
         defaultTargetPlatform,
         TargetPlatform,
         kIsWeb,
-        protected;
+        protected, kDebugMode;
+import 'package:misa_rin/utils/io_shim.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material
@@ -71,22 +71,32 @@ import 'package:flutter/widgets.dart'
         WidgetsBinding;
 import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
+import 'package:misa_rin/canvas/canvas_backend.dart';
+import 'package:misa_rin/canvas/canvas_backend_state.dart';
+import 'package:misa_rin/src/rust/rust_cpu_filters_ffi.dart';
 import 'package:path/path.dart' as p;
 import 'package:vector_math/vector_math_64.dart' show Matrix4, Vector3;
 import 'package:file_picker/file_picker.dart';
 
 import '../dialogs/misarin_dialog.dart';
-import '../dialogs/brush_preset_editor_dialog.dart';
+import '../dialogs/brush_preset_picker_dialog.dart';
 import '../l10n/l10n.dart';
-import '../debug/rust_canvas_timeline.dart';
+import 'package:misa_rin/canvas/canvas_facade.dart';
+import 'package:misa_rin/canvas/canvas_frame.dart';
+import 'package:misa_rin/canvas/canvas_factory.dart';
+import 'package:misa_rin/canvas/canvas_layer_info.dart';
+import 'package:misa_rin/canvas/canvas_composite_layer.dart';
+import 'package:misa_rin/canvas/canvas_pixel_utils.dart';
+import '../debug/backend_canvas_timeline.dart';
 
 import '../../minecraft/bedrock_model.dart';
 import '../../minecraft/bedrock_animation.dart';
 import '../../bitmap_canvas/bitmap_canvas.dart';
-import '../../bitmap_canvas/raster_frame.dart';
 import '../../bitmap_canvas/controller.dart';
 import '../../brushes/brush_library.dart';
 import '../../brushes/brush_preset.dart';
+import '../../brushes/brush_shape_library.dart';
+import '../../brushes/brush_shape_raster.dart';
 import '../../bitmap_canvas/stroke_dynamics.dart'
     show StrokeDynamics, StrokePressureProfile, StrokeSampleMetrics;
 import '../../bitmap_canvas/stroke_sample.dart';
@@ -97,6 +107,7 @@ import '../../canvas/canvas_settings.dart';
 import '../../canvas/canvas_exporter.dart';
 import '../../canvas/canvas_tools.dart';
 import '../../canvas/canvas_viewport.dart';
+import '../../canvas/canvas_backend.dart';
 import '../../canvas/brush_random_rotation.dart';
 import '../../canvas/text_renderer.dart';
 import '../../canvas/perspective_guide.dart';
@@ -106,8 +117,8 @@ import '../toolbars/layouts/layouts.dart';
 import '../toolbars/widgets/measured_size.dart';
 import '../../painting/krita_spray_engine.dart';
 import 'tool_cursor_overlay.dart';
-import 'rust_canvas_surface.dart';
-import 'package:misa_rin/src/rust/canvas_engine_ffi.dart';
+import 'adaptive_canvas_surface.dart';
+import 'package:misa_rin/canvas/canvas_engine_bridge.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
 import '../menu/menu_action_dispatcher.dart';
 import '../constants/color_line_presets.dart';
@@ -132,7 +143,6 @@ import '../../backend/layout_compute_worker.dart';
 import '../../backend/canvas_painting_worker.dart';
 import '../../backend/canvas_raster_backend.dart';
 import '../../backend/rgba_utils.dart';
-import '../../src/rust/api/selection_path.dart' as rust_selection_path;
 import '../../performance/canvas_perf_stress.dart';
 import '../../performance/stroke_latency_monitor.dart';
 import '../workspace/workspace_shared_state.dart';
@@ -155,6 +165,8 @@ part 'painting_board_perspective.dart';
 	part 'painting_board_text_painter.dart';
 	part 'painting_board_clipboard.dart';
 	part 'painting_board_interactions.dart';
+	part 'painting_board_interactions_backend.dart';
+	part 'painting_board_interactions_pointer.dart';
 	part 'painting_board_interactions_preferences.dart';
 	part 'painting_board_interactions_stroke.dart';
 	part 'painting_board_interactions_spray_cursor.dart';

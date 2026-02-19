@@ -1,8 +1,8 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:misa_rin/utils/io_shim.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -33,7 +33,7 @@ class ProjectRepository {
     if (_projectDirectory != null) {
       return _projectDirectory!;
     }
-    final Directory base = await getApplicationDocumentsDirectory();
+    final base = await getApplicationDocumentsDirectory();
     final Directory directory = Directory(p.join(base.path, _folderName));
     if (!await directory.exists()) {
       await directory.create(recursive: true);

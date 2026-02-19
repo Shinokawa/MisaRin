@@ -14,6 +14,7 @@ pub(crate) struct EngineBrushSettings {
     pub(crate) antialias_level: u32,
     pub(crate) shape: BrushShape,
     pub(crate) random_rotation: bool,
+    pub(crate) smooth_rotation: bool,
     pub(crate) rotation_seed: u32,
     pub(crate) spacing: f32,
     pub(crate) hardness: f32,
@@ -37,6 +38,7 @@ impl Default for EngineBrushSettings {
             antialias_level: 1,
             shape: BrushShape::Circle,
             random_rotation: false,
+            smooth_rotation: false,
             rotation_seed: 0,
             spacing: 0.15,
             hardness: 0.8,
@@ -487,15 +489,26 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
         let dirty = compute_dirty_rect_i32(&points, &dirty_radii, canvas_width, canvas_height);
         before_draw(brush, dirty);
 
-        let needs_rotation = brush_settings.random_rotation
-            && brush_settings.rotation_jitter > 0.0001
-            && !matches!(brush_settings.shape, BrushShape::Circle);
-        let rotations = if needs_rotation {
+        let supports_rotation = !matches!(brush_settings.shape, BrushShape::Circle);
+        let use_smooth = brush_settings.smooth_rotation && supports_rotation;
+        let use_random =
+            brush_settings.random_rotation && brush_settings.rotation_jitter > 0.0001 && supports_rotation;
+        let rotations = if use_smooth || use_random {
+            let jitter = if brush_settings.rotation_jitter.is_finite() {
+                brush_settings.rotation_jitter.clamp(0.0, 1.0)
+            } else {
+                1.0
+            };
             let mut rotations: Vec<PointRotation> = Vec::with_capacity(points.len());
-            for point in &points {
-                let angle =
-                    brush_random_rotation_radians(*point, brush_settings.rotation_seed)
-                        * brush_settings.rotation_jitter;
+            for (idx, point) in points.iter().enumerate() {
+                let mut angle = if use_smooth {
+                    stroke_direction_angle(&points, idx)
+                } else {
+                    0.0
+                };
+                if use_random {
+                    angle += brush_random_rotation_radians(*point, brush_settings.rotation_seed) * jitter;
+                }
                 rotations.push(PointRotation {
                     sin: angle.sin(),
                     cos: angle.cos(),
@@ -1053,6 +1066,30 @@ fn point_distance(a: Point2D, b: Point2D) -> f32 {
     let dx = a.x - b.x;
     let dy = a.y - b.y;
     (dx * dx + dy * dy).sqrt()
+}
+
+fn stroke_direction_angle(points: &[Point2D], index: usize) -> f32 {
+    if points.len() < 2 {
+        return 0.0;
+    }
+    let (dx, dy) = if index + 1 < points.len() {
+        let next = points[index + 1];
+        let curr = points[index];
+        (next.x - curr.x, next.y - curr.y)
+    } else if index > 0 {
+        let curr = points[index];
+        let prev = points[index - 1];
+        (curr.x - prev.x, curr.y - prev.y)
+    } else {
+        (0.0, 0.0)
+    };
+    if !dx.is_finite() || !dy.is_finite() {
+        return 0.0;
+    }
+    if dx.abs() <= 1.0e-6 && dy.abs() <= 1.0e-6 {
+        return 0.0;
+    }
+    dy.atan2(dx)
 }
 
 fn turning_angle(prev: Point2D, curr: Point2D, next: Point2D) -> f32 {

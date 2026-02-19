@@ -5,9 +5,9 @@ use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use metal::foreign_types::ForeignType;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use wgpu_hal::api::Metal;
 
 use crate::api::bucket_fill;
@@ -20,6 +20,7 @@ use crate::gpu::filter_renderer::{
     FILTER_FILL_EXPAND, FILTER_GAUSSIAN_BLUR, FILTER_HUE_SATURATION, FILTER_INVERT,
     FILTER_LEAK_REMOVAL, FILTER_LINE_NARROW, FILTER_SCAN_PAPER_DRAWING,
 };
+use crate::gpu::layer_format::LAYER_TEXTURE_FORMAT;
 
 use super::layers::LayerTextures;
 use super::present::{
@@ -115,6 +116,7 @@ pub(crate) enum EngineCommand {
         antialias_level: u32,
         brush_shape: u32,
         random_rotation: bool,
+        smooth_rotation: bool,
         rotation_seed: u32,
         spacing: f32,
         hardness: f32,
@@ -254,7 +256,7 @@ static DEVICE_CONTEXT: OnceLock<Result<EngineDeviceContext, String>> = OnceLock:
 
 fn device_context() -> Result<&'static EngineDeviceContext, String> {
     let init_result = DEVICE_CONTEXT.get_or_init(|| {
-        let backends = if cfg!(target_os = "macos") {
+        let backends = if cfg!(any(target_os = "macos", target_os = "ios")) {
             wgpu::Backends::METAL
         } else if cfg!(target_os = "windows") {
             wgpu::Backends::DX12
@@ -291,6 +293,10 @@ fn device_context() -> Result<&'static EngineDeviceContext, String> {
             None,
         ))
         .map_err(|e| format!("wgpu: request_device failed: {e:?}"))?;
+
+        device.on_uncaptured_error(Box::new(|err| {
+            eprintln!("[misa-rin][wgpu] {err}");
+        }));
 
         Ok(EngineDeviceContext {
             _instance: instance,
@@ -641,7 +647,9 @@ fn can_use_vector_preview(
 }
 
 fn preview_use_accumulate(_brush_settings: &EngineBrushSettings) -> bool {
-    false
+    // Preview is drawn over the composited frame; max blending hides dark strokes
+    // on light backgrounds, so use alpha blending for visibility.
+    true
 }
 
 fn build_preview_config(
@@ -684,19 +692,24 @@ fn build_preview_segments(
     if points.is_empty() || points.len() != radii.len() {
         return Vec::new();
     }
-    let needs_rotation = brush_settings.random_rotation
+    let supports_rotation = !matches!(brush_settings.shape, BrushShape::Circle);
+    let use_smooth = brush_settings.smooth_rotation && supports_rotation;
+    let use_random = brush_settings.random_rotation
         && brush_settings.rotation_jitter > 0.0001
-        && !matches!(brush_settings.shape, BrushShape::Circle);
+        && supports_rotation;
+    let jitter = if brush_settings.rotation_jitter.is_finite() {
+        brush_settings.rotation_jitter.clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
     let mut segments: Vec<PreviewSegment> = Vec::with_capacity(points.len());
     if points.len() == 1 {
         let p0 = points[0];
         let radius = radii[0];
-        let rotation = if needs_rotation {
-            brush_random_rotation_radians(p0, brush_settings.rotation_seed)
-                * brush_settings.rotation_jitter
-        } else {
-            0.0
-        };
+        let mut rotation = 0.0;
+        if use_random {
+            rotation += brush_random_rotation_radians(p0, brush_settings.rotation_seed) * jitter;
+        }
         return vec![PreviewSegment {
             p0: [p0.x, p0.y],
             p1: [p0.x, p0.y],
@@ -711,12 +724,14 @@ fn build_preview_segments(
         let p1 = points[i + 1];
         let r0 = radii[i];
         let r1 = radii[i + 1];
-        let rotation = if needs_rotation {
-            brush_random_rotation_radians(p0, brush_settings.rotation_seed)
-                * brush_settings.rotation_jitter
+        let mut rotation = if use_smooth {
+            (p1.y - p0.y).atan2(p1.x - p0.x)
         } else {
             0.0
         };
+        if use_random {
+            rotation += brush_random_rotation_radians(p0, brush_settings.rotation_seed) * jitter;
+        }
         segments.push(PreviewSegment {
             p0: [p0.x, p0.y],
             p1: [p1.x, p1.y],
@@ -889,6 +904,14 @@ fn render_streamline_frame(
         return false;
     }
     let mut before_draw = |brush: &mut BrushRenderer, dirty_rect| {
+        if let Err(err) =
+            brush.prepare_layer_read(layer_texture, animation.layer_index, dirty_rect)
+        {
+            debug::log(
+                LogLevel::Warn,
+                format_args!("Brush layer read prep failed: {err}"),
+            );
+        }
         undo_manager.capture_before_for_dirty_rect(
             device.as_ref(),
             queue.as_ref(),
@@ -998,6 +1021,12 @@ fn commit_preview_stroke(
     }
     let use_hollow_base = use_hollow_mask && !brush_settings.hollow_erase_occluded;
     let mut before_draw = |brush: &mut BrushRenderer, dirty_rect| {
+        if let Err(err) = brush.prepare_layer_read(layer_texture, layer_index, dirty_rect) {
+            debug::log(
+                LogLevel::Warn,
+                format_args!("Brush layer read prep failed: {err}"),
+            );
+        }
         undo_manager.capture_before_for_dirty_rect(
             device.as_ref(),
             queue.as_ref(),
@@ -1443,18 +1472,25 @@ fn render_thread_main(
                                 }
 
                                 if let Some(payload) = stroke.take_streamline_payload() {
-                                    let points = payload.points;
+                                    let mut from_points = payload.points;
                                     let strength = payload.strength;
-                                    if points.len() > 2 && strength > 0.0001 {
-                                        let smoothed = apply_streamline(&points, strength);
+                                    if let Some(state) = preview_state.as_ref() {
+                                        if state.points.len() == from_points.len()
+                                            && !state.points.is_empty()
+                                        {
+                                            from_points = state.points.clone();
+                                        }
+                                    }
+                                    if from_points.len() > 2 && strength > 0.0001 {
+                                        let smoothed = apply_streamline(&from_points, strength);
                                         if !smoothed.is_empty()
-                                            && smoothed.len() == points.len()
+                                            && smoothed.len() == from_points.len()
                                         {
                                             let duration =
                                                 streamline_animation_duration(strength);
                                             let (preview_from, preview_to, preview_len) =
                                                 match build_streamline_preview(
-                                                    &points, &smoothed,
+                                                    &from_points, &smoothed,
                                                 ) {
                                                     Some((preview_from, preview_to)) => {
                                                         let len = preview_from.len();
@@ -1464,14 +1500,14 @@ fn render_thread_main(
                                                             len,
                                                         )
                                                     }
-                                                    None => (None, None, points.len()),
+                                                    None => (None, None, from_points.len()),
                                                 };
                                             if debug::level() >= LogLevel::Info {
                                                 debug::log(
                                                     LogLevel::Info,
                                                     format_args!(
                                                         "streamline start points={} preview_points={} strength={:.3} duration_ms={}",
-                                                        points.len(),
+                                                        from_points.len(),
                                                         preview_len,
                                                         strength,
                                                         duration.as_millis()
@@ -1484,8 +1520,8 @@ fn render_thread_main(
                                                 duration,
                                                 next_frame_at: now,
                                                 frame_interval: Duration::from_millis(16),
-                                                pending_first_frame: false,
-                                                from_points: points,
+                                                pending_first_frame: true,
+                                                from_points,
                                                 to_points: smoothed,
                                                 preview_from_points: preview_from,
                                                 preview_to_points: preview_to,
@@ -1595,6 +1631,18 @@ fn render_thread_main(
                                 let segment_drawn = {
                                     let mut before_draw =
                                         |brush: &mut BrushRenderer, dirty_rect| {
+                                            if let Err(err) = brush.prepare_layer_read(
+                                                layer_texture,
+                                                layer_idx,
+                                                dirty_rect,
+                                            ) {
+                                                debug::log(
+                                                    LogLevel::Warn,
+                                                    format_args!(
+                                                        "Brush layer read prep failed: {err}"
+                                                    ),
+                                                );
+                                            }
                                             undo_manager.capture_before_for_dirty_rect(
                                                 device.as_ref(),
                                                 queue.as_ref(),
@@ -1647,18 +1695,18 @@ fn render_thread_main(
                                 drawn_any |= segment_drawn;
 
                                 if let Some(payload) = stroke.take_streamline_payload() {
-                                    let points = payload.points;
+                                    let from_points = payload.points;
                                     let strength = payload.strength;
-                                    if points.len() > 2 && strength > 0.0001 {
-                                        let smoothed = apply_streamline(&points, strength);
+                                    if from_points.len() > 2 && strength > 0.0001 {
+                                        let smoothed = apply_streamline(&from_points, strength);
                                         if !smoothed.is_empty()
-                                            && smoothed.len() == points.len()
+                                            && smoothed.len() == from_points.len()
                                         {
                                             let duration =
                                                 streamline_animation_duration(strength);
                                             let (preview_from, preview_to, preview_len) =
                                                 match build_streamline_preview(
-                                                    &points, &smoothed,
+                                                    &from_points, &smoothed,
                                                 ) {
                                                     Some((preview_from, preview_to)) => {
                                                         let len = preview_from.len();
@@ -1668,14 +1716,14 @@ fn render_thread_main(
                                                             len,
                                                         )
                                                     }
-                                                    None => (None, None, points.len()),
+                                                    None => (None, None, from_points.len()),
                                                 };
                                             if debug::level() >= LogLevel::Info {
                                                 debug::log(
                                                     LogLevel::Info,
                                                     format_args!(
                                                         "streamline start points={} preview_points={} strength={:.3} duration_ms={}",
-                                                        points.len(),
+                                                        from_points.len(),
                                                         preview_len,
                                                         strength,
                                                         duration.as_millis()
@@ -1688,8 +1736,8 @@ fn render_thread_main(
                                                 duration,
                                                 next_frame_at: now,
                                                 frame_interval: Duration::from_millis(16),
-                                                pending_first_frame: false,
-                                                from_points: points,
+                                                pending_first_frame: true,
+                                                from_points,
                                                 to_points: smoothed,
                                                 preview_from_points: preview_from,
                                                 preview_to_points: preview_to,
@@ -1720,6 +1768,16 @@ fn render_thread_main(
                                 && brush_settings.hollow_ratio > 0.0001
                                 && !brush_settings.hollow_erase_occluded;
                             let mut before_draw = |brush: &mut BrushRenderer, dirty_rect| {
+                                if let Err(err) =
+                                    brush.prepare_layer_read(layer_texture, layer_idx, dirty_rect)
+                                {
+                                    debug::log(
+                                        LogLevel::Warn,
+                                        format_args!(
+                                            "Brush layer read prep failed: {err}"
+                                        ),
+                                    );
+                                }
                                 undo_manager.capture_before_for_dirty_rect(
                                     device.as_ref(),
                                     queue.as_ref(),
@@ -2706,6 +2764,7 @@ fn handle_engine_command(
             antialias_level,
             brush_shape,
             random_rotation,
+            smooth_rotation,
             rotation_seed,
             spacing,
             hardness,
@@ -2725,6 +2784,7 @@ fn handle_engine_command(
             brush_settings.antialias_level = antialias_level;
             brush_settings.shape = map_brush_shape(brush_shape);
             brush_settings.random_rotation = random_rotation;
+            brush_settings.smooth_rotation = smooth_rotation;
             brush_settings.rotation_seed = rotation_seed;
             brush_settings.spacing = spacing;
             brush_settings.hardness = hardness;
@@ -2809,6 +2869,12 @@ fn handle_engine_command(
                 softness,
                 antialias_level,
             );
+            if let Err(err) = brush_ref.prepare_layer_read(layers.texture(), layer_idx, dirty) {
+                debug::log(
+                    LogLevel::Warn,
+                    format_args!("Brush layer read prep failed: {err}"),
+                );
+            }
             undo.begin_stroke_if_needed(layer_idx);
             undo.capture_before_for_dirty_rect(
                 device.as_ref(),
@@ -4615,7 +4681,7 @@ fn reorder_layer_textures(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::R32Uint,
+        format: LAYER_TEXTURE_FORMAT,
         usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
@@ -5276,7 +5342,7 @@ fn mul255(channel: u32, alpha: u32) -> u32 {
     (channel * alpha + 127) / 255
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 fn mtl_device_ptr(device: &wgpu::Device) -> *mut c_void {
     let result = unsafe {
         device.as_hal::<Metal, _, _>(|hal_device| {
@@ -5289,7 +5355,7 @@ fn mtl_device_ptr(device: &wgpu::Device) -> *mut c_void {
     result.flatten().unwrap_or(std::ptr::null_mut())
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "ios")))]
 fn mtl_device_ptr(_device: &wgpu::Device) -> *mut c_void {
     std::ptr::null_mut()
 }
@@ -5302,7 +5368,7 @@ pub(crate) fn create_engine(width: u32, height: u32) -> Result<u64, String> {
     let ctx = device_context()?;
 
     let mtl_device_ptr = mtl_device_ptr(ctx.device.as_ref()) as usize;
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
     if mtl_device_ptr == 0 {
         return Err("wgpu: failed to extract underlying MTLDevice".to_string());
     }

@@ -1,12 +1,15 @@
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/widgets.dart' show Localizations;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../bitmap_canvas/stroke_dynamics.dart' show StrokePressureProfile;
+import '../../../brushes/brush_library.dart';
 import '../../../brushes/brush_preset.dart';
+import '../../../brushes/brush_shape_library.dart';
 import '../../../canvas/canvas_tools.dart';
 import '../../../canvas/text_renderer.dart' show CanvasTextOrientation;
 import '../../dialogs/font_family_picker_dialog.dart';
@@ -16,6 +19,7 @@ import '../../preferences/app_preferences.dart'
 import '../../constants/pen_constants.dart'
     show kSprayStrokeMin, kSprayStrokeMax;
 import '../../tooltips/hover_detail_tooltip.dart';
+import '../../widgets/brush_preset_stroke_preview.dart';
 import 'measured_size.dart';
 import 'selection_shape_icon.dart';
 
@@ -32,8 +36,7 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onSprayModeChanged,
     required this.brushPresets,
     required this.activeBrushPresetId,
-    required this.onBrushPresetChanged,
-    required this.onEditBrushPreset,
+    required this.onOpenBrushPresetPicker,
     required this.strokeStabilizerStrength,
     required this.onStrokeStabilizerChanged,
     required this.streamlineStrength,
@@ -62,6 +65,8 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onLayerAdjustCropOutsideChanged,
     required this.selectionShape,
     required this.onSelectionShapeChanged,
+    required this.selectionAdditiveEnabled,
+    required this.onSelectionAdditiveChanged,
     required this.shapeToolVariant,
     required this.onShapeToolVariantChanged,
     required this.shapeFillEnabled,
@@ -110,8 +115,7 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<SprayMode> onSprayModeChanged;
   final List<BrushPreset> brushPresets;
   final String activeBrushPresetId;
-  final ValueChanged<String> onBrushPresetChanged;
-  final VoidCallback onEditBrushPreset;
+  final VoidCallback onOpenBrushPresetPicker;
   final double strokeStabilizerStrength;
   final ValueChanged<double> onStrokeStabilizerChanged;
   final double streamlineStrength;
@@ -141,6 +145,8 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<bool> onLayerAdjustCropOutsideChanged;
   final SelectionShape selectionShape;
   final ValueChanged<SelectionShape> onSelectionShapeChanged;
+  final bool selectionAdditiveEnabled;
+  final ValueChanged<bool> onSelectionAdditiveChanged;
   final ShapeToolVariant shapeToolVariant;
   final ValueChanged<ShapeToolVariant> onShapeToolVariantChanged;
   final bool shapeFillEnabled;
@@ -404,7 +410,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         );
         break;
       case CanvasTool.selection:
-        content = _buildSelectionShapeRow(theme);
+        content = _buildSelectionControls(theme);
         break;
       case CanvasTool.selectionPen:
         content = _buildBrushSizeRow(theme);
@@ -619,74 +625,132 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   Widget _buildBrushPresetRow(FluentThemeData theme) {
     final l10n = context.l10n;
     final List<BrushPreset> presets = widget.brushPresets;
-    final String selectedId = presets.any(
-          (preset) => preset.id == widget.activeBrushPresetId,
-        )
-        ? widget.activeBrushPresetId
-        : (presets.isNotEmpty ? presets.first.id : '');
-    final List<ComboBoxItem<String>> items = presets
-        .map(
-          (preset) => ComboBoxItem<String>(
-            value: preset.id,
-            child: Text(preset.name),
-          ),
-        )
-        .toList(growable: false);
+    final BrushPreset? selected = presets.cast<BrushPreset?>().firstWhere(
+          (preset) => preset?.id == widget.activeBrushPresetId,
+          orElse: () => presets.isNotEmpty ? presets.first : null,
+        );
+    final String selectedName = selected == null
+        ? '--'
+        : BrushLibrary.instance.displayNameFor(
+            selected,
+            Localizations.localeOf(context),
+          );
+    final bool enabled = presets.isNotEmpty;
+    final BrushPreset? sanitized = selected?.sanitized();
+    final String tooltipDetail = sanitized == null
+        ? l10n.brushPresetDesc
+        : _buildBrushPresetTooltip(l10n, sanitized);
+    final TextStyle titleStyle =
+        theme.typography.bodyStrong ?? const TextStyle(fontSize: 14);
+    final double previewHeight = (titleStyle.fontSize ?? 14) + 4;
+    final double previewWidth = widget.compactLayout ? 90 : 120;
+    final Color previewColor = enabled
+        ? theme.resources.textFillColorPrimary
+        : theme.resources.textFillColorDisabled;
 
-    final Widget combo = _wrapComboTooltip(
-      label: l10n.brushPreset,
-      detail: l10n.brushPresetDesc,
-      child: SizedBox(
-        width: widget.compactLayout ? double.infinity : 180,
-        child: ComboBox<String>(
-          value: selectedId,
-          items: items,
-          onChanged: (value) {
-            if (value != null) {
-              widget.onBrushPresetChanged(value);
-            }
-          },
-        ),
+    final Widget previewBox = Container(
+      width: previewWidth,
+      height: previewHeight,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.resources.controlFillColorDefault,
+        border: Border.all(color: theme.resources.controlStrokeColorDefault),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: sanitized == null
+          ? Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '--',
+                style: theme.typography.caption?.copyWith(color: previewColor),
+              ),
+            )
+          : BrushPresetStrokePreview(
+              preset: sanitized,
+              height: previewHeight - 4,
+              color: previewColor,
+            ),
+    );
+
+    final Widget previewWithTooltip = HoverDetailTooltip(
+      message: selectedName,
+      detail: tooltipDetail,
+      child: previewBox,
+    );
+
+    final Widget clickablePreview = MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: enabled ? widget.onOpenBrushPresetPicker : null,
+        child: previewWithTooltip,
       ),
     );
 
-    final Widget editButton = _wrapButtonTooltip(
-      label: l10n.editBrushPreset,
-      detail: l10n.editBrushPresetDesc,
-      child: IconButton(
-        icon: const Icon(FluentIcons.edit, size: 16),
-        onPressed: presets.isEmpty ? null : widget.onEditBrushPreset,
-      ),
-    );
-
-    if (!widget.compactLayout) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(l10n.brushPreset, style: theme.typography.bodyStrong),
-          const SizedBox(width: 8),
-          combo,
-          const SizedBox(width: 8),
-          editButton,
-        ],
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(l10n.brushPreset, style: theme.typography.bodyStrong),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(child: combo),
-            const SizedBox(width: 8),
-            editButton,
-          ],
+        Text(l10n.brushPreset, style: titleStyle),
+        const SizedBox(width: 8),
+        clickablePreview,
+        const SizedBox(width: 8),
+        Flexible(
+          fit: FlexFit.loose,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: widget.compactLayout ? 140 : 220,
+            ),
+            child: Text(
+              selectedName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.typography.body,
+            ),
+          ),
         ),
       ],
     );
+  }
+
+  String _buildBrushPresetTooltip(AppLocalizations l10n, BrushPreset preset) {
+    final BrushPreset sanitized = preset.sanitized();
+    final List<String> lines = <String>[
+      '${l10n.brushShape}: ${_shapeLabel(l10n, sanitized)}',
+      '${l10n.brushSpacing}: ${sanitized.spacing.toStringAsFixed(2)}',
+      '${l10n.brushHardness}: ${_formatPercent(sanitized.hardness)}',
+      '${l10n.brushFlow}: ${_formatPercent(sanitized.flow)}',
+      '${l10n.brushScatter}: ${_formatPercent(sanitized.scatter)}',
+      '${l10n.randomRotation}: ${_boolLabel(l10n, sanitized.randomRotation)}',
+      '${l10n.smoothRotation}: ${_boolLabel(l10n, sanitized.smoothRotation)}',
+      '${l10n.brushRotationJitter}: ${_formatPercent(sanitized.rotationJitter)}',
+      '${l10n.brushAntialiasing}: ${sanitized.antialiasLevel}',
+      '${l10n.hollowStroke}: ${_boolLabel(l10n, sanitized.hollowEnabled)}',
+    ];
+    if (sanitized.hollowEnabled) {
+      lines.add(
+        '${l10n.hollowStrokeRatio}: ${_formatPercent(sanitized.hollowRatio)}',
+      );
+    }
+    lines.add(
+      '${l10n.autoSharpTaper}: ${_boolLabel(l10n, sanitized.autoSharpTaper)}',
+    );
+    lines.add(
+      '${l10n.brushSnapToPixel}: ${_boolLabel(l10n, sanitized.snapToPixel)}',
+    );
+    return lines.join('\n');
+  }
+
+  String _boolLabel(AppLocalizations l10n, bool value) {
+    return value ? l10n.on : l10n.off;
+  }
+
+  String _formatPercent(double value) {
+    return '${(value * 100).round()}%';
+  }
+
+  String _shapeLabel(AppLocalizations l10n, BrushPreset preset) {
+    final BrushShapeLibrary shapes = BrushLibrary.instance.shapeLibrary;
+    return shapes.labelFor(l10n, preset.resolvedShapeId);
   }
 
   Widget _buildSelectionShapeRow(FluentThemeData theme) {
@@ -716,6 +780,22 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         Text(context.l10n.selectionShape, style: theme.typography.bodyStrong),
         const SizedBox(height: 8),
         selector,
+      ],
+    );
+  }
+
+  Widget _buildSelectionControls(FluentThemeData theme) {
+    final l10n = context.l10n;
+    return _buildControlsGroup(
+      [
+        _buildSelectionShapeRow(theme),
+        _buildToggleSwitchRow(
+          theme,
+          label: l10n.selectionAdditive,
+          detail: l10n.selectionAdditiveDesc,
+          value: widget.selectionAdditiveEnabled,
+          onChanged: widget.onSelectionAdditiveChanged,
+        ),
       ],
     );
   }
@@ -1959,7 +2039,6 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     return trimmed.isEmpty ? '0' : trimmed;
   }
 }
-
 class _BucketOptionTile extends StatelessWidget {
   const _BucketOptionTile({
     required this.title,

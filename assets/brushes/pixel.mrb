@@ -1,0 +1,42 @@
+MRB-TEXT 1
+[brush.json]
+length:534
+{
+  "formatVersion": 1,
+  "id": "pixel",
+  "name": "pixel",
+  "author": "Misa Rin",
+  "version": "1.0.0",
+  "shape": 2,
+  "shapeId": "square",
+  "shapeFile": "square.svg",
+  "shapeType": "svg",
+  "spacing": 0.25,
+  "hardness": 1.0,
+  "flow": 1.0,
+  "scatter": 0.0,
+  "randomRotation": false,
+  "smoothRotation": false,
+  "rotationJitter": 0.0,
+  "antialiasLevel": 0,
+  "hollowEnabled": false,
+  "hollowRatio": 0.0,
+  "hollowEraseOccludedParts": false,
+  "autoSharpTaper": false,
+  "snapToPixel": true,
+  "langFile": "brush_lang.txt"
+}
+[brush_lang.txt]
+length:115
+pixel|en|Pixel
+pixel|ja|ピクセル
+pixel|ko|픽셀
+pixel|zh|像素笔
+pixel|zh_CN|像素笔
+pixel|zh_TW|像素筆
+[square.svg]
+length:130
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect x="10" y="10" width="80" height="80" fill="black"/>
+</svg>
+
