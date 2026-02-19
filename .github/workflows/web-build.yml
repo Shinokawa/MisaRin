@@ -44,7 +44,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo install wasm-bindgen-cli --locked
+          cargo install wasm-bindgen-cli --locked --version 0.2.106
       - name: 构建 Rust wasm 并写入 Web 包
         shell: bash
         run: |
