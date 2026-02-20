@@ -392,14 +392,16 @@ mixin _PaintingBoardBuildMixin
     );
 
     if (session.type == _FilterPanelType.gaussianBlur) {
-      final double sigma = _gaussianBlurSigmaForRadius(
-        session.gaussianBlur.radius,
-      );
-      if (sigma > 0) {
-        activeLayerWidget = ImageFiltered(
-          imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-          child: activeLayerWidget,
+      if (!useFilteredPreviewImage) {
+        final double sigma = _gaussianBlurSigmaForRadius(
+          session.gaussianBlur.radius,
         );
+        if (sigma > 0) {
+          activeLayerWidget = ImageFiltered(
+            imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+            child: activeLayerWidget,
+          );
+        }
       }
     } else if (session.type == _FilterPanelType.hueSaturation) {
       final double hue = session.hueSaturation.hue;

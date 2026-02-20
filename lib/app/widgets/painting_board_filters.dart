@@ -205,6 +205,9 @@ mixin _PaintingBoardFilterMixin
   bool _previewBinarizeUpdateScheduled = false;
   bool _previewBinarizeUpdateInFlight = false;
   int _previewBinarizeUpdateToken = 0;
+  bool _previewGaussianBlurUpdateScheduled = false;
+  bool _previewGaussianBlurUpdateInFlight = false;
+  int _previewGaussianBlurUpdateToken = 0;
   bool _filterApplying = false;
   Completer<_FilterPreviewResult>? _filterApplyCompleter;
   bool _filterAwaitingFrameSwap = false;
