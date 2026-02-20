@@ -794,6 +794,19 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
     }
   }
 
+  void _refreshBackendLayerPreviewsAfterHistoryChange() {
+    if (!_backend.isReady) {
+      return;
+    }
+    for (final CanvasLayerInfo layer in _controller.layers) {
+      if (_backend.supportsInputQueue) {
+        _scheduleBackendLayerPreviewRefresh(layer.id);
+      } else {
+        _bumpBackendLayerPreviewRevision(layer.id);
+      }
+    }
+  }
+
   Future<bool> undo() async {
     _refreshHistoryLimit();
     if (_useCombinedHistory) {
@@ -803,6 +816,7 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
           return false;
         }
         _commitHistoryUndoAction();
+        _refreshBackendLayerPreviewsAfterHistoryChange();
         _markDirty();
         setState(() {});
         return true;
@@ -844,6 +858,7 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
           return false;
         }
         _commitHistoryRedoAction();
+        _refreshBackendLayerPreviewsAfterHistoryChange();
         _markDirty();
         setState(() {});
         return true;
