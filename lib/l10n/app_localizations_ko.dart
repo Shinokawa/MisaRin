@@ -1047,6 +1047,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get brushPresetPencil => '연필';
 
   @override
+  String get brushPresetCel => '셀화 브러시';
+
+  @override
   String get brushPresetPen => '펜';
 
   @override

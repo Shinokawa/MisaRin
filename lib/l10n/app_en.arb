@@ -514,6 +514,7 @@
   "brushPresetDialogTitle": "Edit Brush Preset",
   "brushPresetNameLabel": "Preset Name",
   "brushPresetPencil": "Pencil",
+  "brushPresetCel": "Cel Brush",
   "brushPresetPen": "Pen",
   "brushPresetPixel": "Pixel",
   "brushSpacing": "Spacing",

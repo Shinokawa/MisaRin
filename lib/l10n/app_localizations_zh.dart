@@ -1037,6 +1037,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get brushPresetPencil => '铅笔';
 
   @override
+  String get brushPresetCel => '赛璐璐画笔';
+
+  @override
   String get brushPresetPen => '钢笔';
 
   @override
@@ -2725,6 +2728,9 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get brushPresetPencil => '铅笔';
 
   @override
+  String get brushPresetCel => '赛璐璐画笔';
+
+  @override
   String get brushPresetPen => '钢笔';
 
   @override
@@ -3649,6 +3655,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get brushPresetPencil => '鉛筆';
+
+  @override
+  String get brushPresetCel => '賽璐璐畫筆';
 
   @override
   String get brushPresetPen => '鋼筆';

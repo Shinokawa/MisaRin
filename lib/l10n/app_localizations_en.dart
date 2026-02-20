@@ -1066,6 +1066,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushPresetPencil => 'Pencil';
 
   @override
+  String get brushPresetCel => 'Cel Brush';
+
+  @override
   String get brushPresetPen => 'Pen';
 
   @override

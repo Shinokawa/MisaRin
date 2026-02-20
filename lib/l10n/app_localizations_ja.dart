@@ -1043,6 +1043,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get brushPresetPencil => '鉛筆';
 
   @override
+  String get brushPresetCel => 'セル画ブラシ';
+
+  @override
   String get brushPresetPen => 'ペン';
 
   @override

@@ -51,6 +51,7 @@ class BrushLibrary extends ChangeNotifier {
 
   static const List<String> _defaultBrushAssets = <String>[
     'assets/brushes/pencil.mrb',
+    'assets/brushes/cel.mrb',
     'assets/brushes/pen.mrb',
     'assets/brushes/pixel.mrb',
     'assets/brushes/triangle.mrb',
@@ -946,6 +947,7 @@ class _UserBrushEntry {
 class _DefaultPresetNames {
   const _DefaultPresetNames({
     required this.pencil,
+    required this.cel,
     required this.pen,
     required this.pixel,
     required this.triangle,
@@ -954,6 +956,7 @@ class _DefaultPresetNames {
   });
 
   final String pencil;
+  final String cel;
   final String pen;
   final String pixel;
   final String triangle;
@@ -963,6 +966,7 @@ class _DefaultPresetNames {
   static _DefaultPresetNames fromL10n(AppLocalizations l10n) {
     return _DefaultPresetNames(
       pencil: l10n.brushPresetPencil,
+      cel: l10n.brushPresetCel,
       pen: l10n.brushPresetPen,
       pixel: l10n.brushPresetPixel,
       triangle: l10n.triangle,
@@ -975,6 +979,8 @@ class _DefaultPresetNames {
     switch (id) {
       case 'pencil':
         return pencil;
+      case 'cel':
+        return cel;
       case 'pen':
         return pen;
       case 'pixel':
