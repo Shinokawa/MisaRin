@@ -598,13 +598,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     ShapeToolVariant.line;
                                             final Color? previewFillColor =
                                                 previewFillEnabled
-                                                    ? (previewErase
-                                                        ? _kVectorEraserPreviewColor
-                                                        : _primaryColor.withAlpha(
-                                                            (_primaryColor.alpha * 0.35)
-                                                                .round()
-                                                                .clamp(0, 255),
-                                                          ))
+                                                    ? previewStrokeColor
                                                     : null;
                                             final CanvasLayerInfo activeLayer =
                                                 _controller.activeLayer;
