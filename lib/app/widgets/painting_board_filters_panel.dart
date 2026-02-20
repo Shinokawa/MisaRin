@@ -544,9 +544,13 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     }
     final Size size = MediaQuery.sizeOf(context);
     if (_filterPanelOffset == Offset.zero) {
+      final double targetLeft = (size.width - _kFilterPanelWidth) * 0.5;
+      final double targetTop = (size.height - _kFilterPanelMinHeight) * 0.5;
+      final double maxLeft = math.max(16.0, size.width - _kFilterPanelWidth - 16.0);
+      final double maxTop = math.max(16.0, size.height - _kFilterPanelMinHeight - 16.0);
       _filterPanelOffset = Offset(
-        math.max(16, size.width - _kFilterPanelWidth - 32),
-        math.max(16, size.height * 0.2),
+        targetLeft.clamp(16.0, maxLeft),
+        targetTop.clamp(16.0, maxTop),
       );
       _filterPanelOffsetIsOverlay = true;
     }

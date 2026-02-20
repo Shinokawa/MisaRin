@@ -135,30 +135,68 @@ Offset _workspacePanelSpawnOffset(
   double margin = 16,
   double verticalGap = 12,
 }) {
-  final double settingsLeft;
-  if (host._toolbarHitRegions.isNotEmpty) {
-    settingsLeft = host._toolbarHitRegions
-        .map((rect) => rect.right)
-        .fold(margin, math.max);
-  } else {
-    settingsLeft =
-        _toolButtonPadding + host._toolbarLayout.width + _toolSettingsSpacing;
-  }
-  final double baseLeft = math.max(margin, settingsLeft);
-  final double settingsBottom =
-      _toolButtonPadding + host._toolSettingsCardSize.height;
-  final double baseTop = math.max(margin, settingsBottom + verticalGap);
-  double targetLeft = baseLeft + additionalDx;
-  double targetTop = baseTop + additionalDy;
   final Size workspaceSize = host._workspaceSize;
-  if (!workspaceSize.isEmpty) {
+  Size referenceSize = workspaceSize;
+  final bool workspaceUsable =
+      referenceSize.width.isFinite &&
+      referenceSize.height.isFinite &&
+      referenceSize.width > 0 &&
+      referenceSize.height > 0;
+  if (!workspaceUsable) {
+    referenceSize = MediaQuery.sizeOf(host.context);
+  }
+  final bool referenceUsable =
+      referenceSize.width.isFinite &&
+      referenceSize.height.isFinite &&
+      referenceSize.width > 0 &&
+      referenceSize.height > 0;
+
+  double targetLeft;
+  double targetTop;
+  if (referenceUsable) {
+    targetLeft = (referenceSize.width - panelWidth) * 0.5;
+    targetTop = (referenceSize.height - panelHeight) * 0.5;
+  } else {
+    final double settingsLeft;
+    if (host._toolbarHitRegions.isNotEmpty) {
+      settingsLeft = host._toolbarHitRegions
+          .map((rect) => rect.right)
+          .fold(margin, math.max);
+    } else {
+      settingsLeft =
+          _toolButtonPadding + host._toolbarLayout.width + _toolSettingsSpacing;
+    }
+    final double baseLeft = math.max(margin, settingsLeft);
+    final double settingsBottom =
+        _toolButtonPadding + host._toolSettingsCardSize.height;
+    final double baseTop = math.max(margin, settingsBottom + verticalGap);
+    targetLeft = baseLeft;
+    targetTop = baseTop;
+  }
+
+  targetLeft += additionalDx;
+  targetTop += additionalDy;
+
+  Size clampSize = workspaceSize;
+  final bool clampUsable =
+      clampSize.width.isFinite &&
+      clampSize.height.isFinite &&
+      clampSize.width > 0 &&
+      clampSize.height > 0;
+  if (!clampUsable) {
+    clampSize = referenceSize;
+  }
+  if (clampSize.width.isFinite &&
+      clampSize.height.isFinite &&
+      clampSize.width > 0 &&
+      clampSize.height > 0) {
     final double maxLeft = math.max(
       margin,
-      workspaceSize.width - panelWidth - margin,
+      clampSize.width - panelWidth - margin,
     );
     final double maxTop = math.max(
       margin,
-      workspaceSize.height - panelHeight - margin,
+      clampSize.height - panelHeight - margin,
     );
     targetLeft = targetLeft.clamp(margin, maxLeft);
     targetTop = targetTop.clamp(margin, maxTop);
