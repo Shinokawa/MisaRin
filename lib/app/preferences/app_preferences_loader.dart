@@ -119,9 +119,9 @@ Future<AppPreferences> _loadAppPreferences() async {
                   )
                 : _defaultNewCanvasBackgroundColor;
             final bool decodedTouchDrawingEnabled =
-              version >= 41 && bytes.length >= 62
-              ? bytes[61] != 0
-              : _defaultTouchDrawingEnabled;
+                version >= 43 && bytes.length >= 66
+                ? bytes[65] != 0
+                : _defaultTouchDrawingEnabled;
             final bool decodedHollowStrokeEnabled;
             final double decodedHollowStrokeRatio;
             final bool decodedHollowStrokeEraseOccludedParts;
