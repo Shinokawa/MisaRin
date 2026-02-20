@@ -33,16 +33,56 @@ function(apply_cargokit target manifest_dir lib_name any_symbol_name)
         set(CARGOKIT_TARGET_PLATFORM "windows-x64")
     endif()
 
+    # Resolve the manifest directory to avoid symlink + ".." normalization issues
+    # when plugins are built from .plugin_symlinks.
+    get_filename_component(CARGOKIT_SOURCE_DIR_REAL "${CMAKE_CURRENT_SOURCE_DIR}" REALPATH)
+    if (IS_ABSOLUTE "${manifest_dir}")
+        set(CARGOKIT_MANIFEST_DIR_RAW "${manifest_dir}")
+    else()
+        set(CARGOKIT_MANIFEST_DIR_RAW "${CARGOKIT_SOURCE_DIR_REAL}/${manifest_dir}")
+    endif()
+    get_filename_component(CARGOKIT_MANIFEST_DIR_REAL "${CARGOKIT_MANIFEST_DIR_RAW}" REALPATH)
+    if (CARGOKIT_MANIFEST_DIR_REAL)
+        set(CARGOKIT_MANIFEST_DIR "${CARGOKIT_MANIFEST_DIR_REAL}")
+    else()
+        set(CARGOKIT_MANIFEST_DIR "${CARGOKIT_MANIFEST_DIR_RAW}")
+    endif()
+    if(WIN32)
+        # REALPATH does not properly resolve symlinks on windows :-/
+        set(CARGOKIT_RESOLVE_SYMLINKS "${cargokit_cmake_root}/cmake/resolve_symlinks.ps1")
+        if (EXISTS "${CARGOKIT_RESOLVE_SYMLINKS}")
+            execute_process(
+                COMMAND powershell -ExecutionPolicy Bypass -File "${CARGOKIT_RESOLVE_SYMLINKS}" "${CARGOKIT_MANIFEST_DIR}"
+                OUTPUT_VARIABLE CARGOKIT_MANIFEST_DIR_WIN
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                RESULT_VARIABLE CARGOKIT_RESOLVE_RESULT
+            )
+            if (CARGOKIT_RESOLVE_RESULT EQUAL 0 AND CARGOKIT_MANIFEST_DIR_WIN)
+                set(CARGOKIT_MANIFEST_DIR "${CARGOKIT_MANIFEST_DIR_WIN}")
+            endif()
+        endif()
+    endif()
+
     set(CARGOKIT_ENV
         "CARGOKIT_CMAKE=${CMAKE_COMMAND}"
         "CARGOKIT_CONFIGURATION=$<CONFIG>"
-        "CARGOKIT_MANIFEST_DIR=${CMAKE_CURRENT_SOURCE_DIR}/${manifest_dir}"
+        "CARGOKIT_MANIFEST_DIR=${CARGOKIT_MANIFEST_DIR}"
         "CARGOKIT_TARGET_TEMP_DIR=${CARGOKIT_TEMP_DIR}"
         "CARGOKIT_OUTPUT_DIR=${CARGOKIT_OUTPUT_DIR}"
         "CARGOKIT_TARGET_PLATFORM=${CARGOKIT_TARGET_PLATFORM}"
         "CARGOKIT_TOOL_TEMP_DIR=${CARGOKIT_TEMP_DIR}/tool"
         "CARGOKIT_ROOT_PROJECT_DIR=${CMAKE_SOURCE_DIR}"
     )
+
+    set(CARGOKIT_MANIFEST_PATH "${CARGOKIT_MANIFEST_DIR}/Cargo.toml")
+    set(CARGOKIT_LOCK_PATH "${CARGOKIT_MANIFEST_DIR}/Cargo.lock")
+    file(GLOB_RECURSE CARGOKIT_RUST_SOURCES
+        "${CARGOKIT_MANIFEST_DIR}/src/*.rs"
+    )
+    set(CARGOKIT_DEPENDS ${CARGOKIT_MANIFEST_PATH} ${CARGOKIT_RUST_SOURCES})
+    if (EXISTS "${CARGOKIT_LOCK_PATH}")
+        list(APPEND CARGOKIT_DEPENDS "${CARGOKIT_LOCK_PATH}")
+    endif()
 
     if (WIN32)
         set(SCRIPT_EXTENSION ".cmd")
@@ -60,6 +100,7 @@ function(apply_cargokit target manifest_dir lib_name any_symbol_name)
                 OUTPUT
                 "${CMAKE_CURRENT_BINARY_DIR}/${CONFIG}/${CARGOKIT_LIB_FULL_NAME}"
                 "${CMAKE_CURRENT_BINARY_DIR}/_phony_"
+                DEPENDS ${CARGOKIT_DEPENDS}
                 COMMAND ${CMAKE_COMMAND} -E env ${CARGOKIT_ENV}
                 "${cargokit_cmake_root}/run_build_tool${SCRIPT_EXTENSION}" build-cmake
                 VERBATIM
@@ -70,6 +111,7 @@ function(apply_cargokit target manifest_dir lib_name any_symbol_name)
             OUTPUT
             ${OUTPUT_LIB}
             "${CMAKE_CURRENT_BINARY_DIR}/_phony_"
+            DEPENDS ${CARGOKIT_DEPENDS}
             COMMAND ${CMAKE_COMMAND} -E env ${CARGOKIT_ENV}
             "${cargokit_cmake_root}/run_build_tool${SCRIPT_EXTENSION}" build-cmake
             VERBATIM

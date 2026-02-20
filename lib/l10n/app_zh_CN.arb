@@ -466,6 +466,7 @@
   "brushPresetDialogTitle": "编辑笔刷预设",
   "brushPresetNameLabel": "预设名称",
   "brushPresetPencil": "铅笔",
+  "brushPresetCel": "赛璐璐画笔",
   "brushPresetPen": "钢笔",
   "brushPresetPixel": "像素笔",
   "brushSpacing": "间距",
@@ -489,5 +490,22 @@
   "colorTransparent": "透明",
   "swapDimensions": "交换宽高",
   "selectionAdditive": "允许交集",
-  "selectionAdditiveDesc": "开启后无需按 Shift 也可多次框选并合并选区。"
+  "selectionAdditiveDesc": "开启后无需按 Shift 也可多次框选并合并选区。",
+  "autoSaveCleanupThresholdLabel": "自动保存清理阈值",
+  "autoSaveCleanupThresholdValue": "当前阈值：{size}",
+  "@autoSaveCleanupThresholdValue": {
+    "placeholders": {
+      "size": {}
+    }
+  },
+  "autoSaveCleanupThresholdDesc": "自动保存文件夹总大小超过该值时，启动会提示清理。",
+  "autoSaveCleanupDialogTitle": "自动保存占用过大",
+  "autoSaveCleanupDialogMessage": "自动保存文件已占用 {size}（阈值 {limit}）。是否立即清理？",
+  "@autoSaveCleanupDialogMessage": {
+    "placeholders": {
+      "size": {},
+      "limit": {}
+    }
+  },
+  "autoSaveCleanupDialogClean": "清理"
 }

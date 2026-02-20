@@ -163,6 +163,9 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     _previewBinarizeUpdateToken++;
     _previewBinarizeUpdateScheduled = false;
     _previewBinarizeUpdateInFlight = false;
+    _previewGaussianBlurUpdateToken++;
+    _previewGaussianBlurUpdateScheduled = false;
+    _previewGaussianBlurUpdateInFlight = false;
     if (session.type == _FilterPanelType.hueSaturation) {
       _scheduleHueSaturationPreviewImageUpdate();
     } else if (session.type == _FilterPanelType.blackWhite ||
@@ -170,6 +173,8 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
       _scheduleBlackWhitePreviewImageUpdate();
     } else if (session.type == _FilterPanelType.binarize) {
       _scheduleBinarizePreviewImageUpdate();
+    } else if (session.type == _FilterPanelType.gaussianBlur) {
+      _scheduleGaussianBlurPreviewImageUpdate();
     }
     if (useBackendPreview) {
       _enableBackendFilterPreviewIfNeeded(session);
@@ -427,6 +432,88 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     }
   }
 
+  void _scheduleGaussianBlurPreviewImageUpdate() {
+    final _FilterSession? session = _filterSession;
+    if (session == null || session.type != _FilterPanelType.gaussianBlur) {
+      return;
+    }
+    if (!_shouldUseBackendFilterPreview(session)) {
+      return;
+    }
+    if (_previewActiveLayerPixels == null || _previewActiveLayerImage == null) {
+      return;
+    }
+    _previewGaussianBlurUpdateScheduled = true;
+    if (!_previewGaussianBlurUpdateInFlight) {
+      unawaited(_runGaussianBlurPreviewImageUpdate());
+    }
+  }
+
+  Future<void> _runGaussianBlurPreviewImageUpdate() async {
+    if (_previewGaussianBlurUpdateInFlight) {
+      return;
+    }
+    _previewGaussianBlurUpdateInFlight = true;
+    while (_previewGaussianBlurUpdateScheduled) {
+      _previewGaussianBlurUpdateScheduled = false;
+      final _FilterSession? session = _filterSession;
+      final ui.Image? baseImage = _previewActiveLayerImage;
+      final Uint8List? source = _previewActiveLayerPixels;
+      if (session == null ||
+          session.type != _FilterPanelType.gaussianBlur ||
+          baseImage == null ||
+          source == null) {
+        break;
+      }
+      final double radius = session.gaussianBlur.radius;
+      if (radius <= 0) {
+        if (_previewFilteredImageType == _FilterPanelType.gaussianBlur) {
+          setState(() {
+            _previewFilteredActiveLayerImage?.dispose();
+            _previewFilteredActiveLayerImage = null;
+            _previewFilteredImageType = null;
+          });
+        }
+        continue;
+      }
+      final int token = ++_previewGaussianBlurUpdateToken;
+      final List<Object?> args = <Object?>[
+        source,
+        baseImage.width,
+        baseImage.height,
+        radius,
+      ];
+      Uint8List processed;
+      try {
+        processed = await _generateGaussianBlurPreviewBytes(args);
+      } catch (error) {
+        debugPrint('Failed to compute gaussian blur preview: $error');
+        break;
+      }
+      if (!mounted || token != _previewGaussianBlurUpdateToken) {
+        break;
+      }
+      final ui.Image image = await _decodeImage(
+        processed,
+        baseImage.width,
+        baseImage.height,
+      );
+      if (!mounted || token != _previewGaussianBlurUpdateToken) {
+        image.dispose();
+        break;
+      }
+      setState(() {
+        _previewFilteredActiveLayerImage?.dispose();
+        _previewFilteredActiveLayerImage = image;
+        _previewFilteredImageType = _FilterPanelType.gaussianBlur;
+      });
+    }
+    _previewGaussianBlurUpdateInFlight = false;
+    if (_previewGaussianBlurUpdateScheduled) {
+      unawaited(_runGaussianBlurPreviewImageUpdate());
+    }
+  }
+
   List<double>? _calculateCurrentFilterMatrix() {
     final _FilterSession? session = _filterSession;
     if (session == null) return null;
@@ -457,9 +544,13 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     }
     final Size size = MediaQuery.sizeOf(context);
     if (_filterPanelOffset == Offset.zero) {
+      final double targetLeft = (size.width - _kFilterPanelWidth) * 0.5;
+      final double targetTop = (size.height - _kFilterPanelMinHeight) * 0.5;
+      final double maxLeft = math.max(16.0, size.width - _kFilterPanelWidth - 16.0);
+      final double maxTop = math.max(16.0, size.height - _kFilterPanelMinHeight - 16.0);
       _filterPanelOffset = Offset(
-        math.max(16, size.width - _kFilterPanelWidth - 32),
-        math.max(16, size.height * 0.2),
+        targetLeft.clamp(16.0, maxLeft),
+        targetTop.clamp(16.0, maxTop),
       );
       _filterPanelOffsetIsOverlay = true;
     }
@@ -776,6 +867,7 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     session.gaussianBlur.radius = radius.clamp(0.0, _kGaussianBlurMaxRadius);
     setState(() {});
     _filterOverlayEntry?.markNeedsBuild();
+    _scheduleGaussianBlurPreviewImageUpdate();
     _requestFilterPreview();
   }
 

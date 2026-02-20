@@ -36,3 +36,27 @@ Future<void> revealInFileManager(String projectPath) async {
     debugPrintStack(stackTrace: stackTrace);
   }
 }
+
+Future<void> revealDirectoryInFileManager(String directoryPath) async {
+  if (directoryPath.isEmpty) {
+    return;
+  }
+  if (kIsWeb) {
+    return;
+  }
+  final Directory directory = Directory(directoryPath);
+  try {
+    final bool directoryExists = await directory.exists();
+    final String target = directoryExists ? directory.path : directoryPath;
+    if (Platform.isMacOS) {
+      await Process.run('open', [target]);
+    } else if (Platform.isWindows) {
+      await Process.run('explorer.exe', [target]);
+    } else if (Platform.isLinux) {
+      await Process.run('xdg-open', [target]);
+    }
+  } catch (error, stackTrace) {
+    debugPrint('Failed to reveal directory location: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+}

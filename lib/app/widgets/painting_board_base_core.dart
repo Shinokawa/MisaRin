@@ -40,6 +40,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   int _twoFingerLastTapEpochMs = 0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
   double _sprayStrokeWidth = _defaultSprayStrokeWidth;
+  double _eraserStrokeWidth = _defaultEraserStrokeWidth;
   SprayMode _sprayMode = AppPreferences.defaultSprayMode;
   double _strokeStabilizerStrength =
       AppPreferences.defaultStrokeStabilizerStrength;
@@ -543,11 +544,16 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     return pending;
   }
 
-  void _simulateStrokeWithSyntheticTimeline(
+  void _emitSyntheticStrokeTimeline(
     List<_SyntheticStrokeSample> samples, {
     required double totalDistance,
     required double initialTimestamp,
     _SyntheticStrokeTimelineStyle style = _SyntheticStrokeTimelineStyle.natural,
+    required void Function(
+      _SyntheticStrokeSample sample,
+      double timestamp,
+      double deltaTime,
+    ) onSample,
   }) {
     if (samples.isEmpty) {
       return;
@@ -601,12 +607,29 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
         weights[i] * scale,
       );
       timestamp += deltaTime;
-      _controller.extendStroke(
-        samples[i].point,
-        deltaTimeMillis: deltaTime,
-        timestampMillis: timestamp,
-      );
+      onSample(samples[i], timestamp, deltaTime);
     }
+  }
+
+  void _simulateStrokeWithSyntheticTimeline(
+    List<_SyntheticStrokeSample> samples, {
+    required double totalDistance,
+    required double initialTimestamp,
+    _SyntheticStrokeTimelineStyle style = _SyntheticStrokeTimelineStyle.natural,
+  }) {
+    _emitSyntheticStrokeTimeline(
+      samples,
+      totalDistance: totalDistance,
+      initialTimestamp: initialTimestamp,
+      style: style,
+      onSample: (sample, timestamp, deltaTime) {
+        _controller.extendStroke(
+          sample.point,
+          deltaTimeMillis: deltaTime,
+          timestampMillis: timestamp,
+        );
+      },
+    );
   }
 
   double _syntheticStrokeTotalDistance(List<_SyntheticStrokeSample> samples) {
@@ -1000,6 +1023,8 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     Size? engineSize,
     bool isNewEngine,
   ) {
+    final int? prevHandle = _backendCanvasEngineHandle;
+    final Size? prevSize = _backendCanvasEngineSize;
     final bool handleChanged = _backendCanvasEngineHandle != handle;
     final bool sizeChanged = _backendCanvasEngineSize != engineSize;
     final bool engineReset = handleChanged || sizeChanged || isNewEngine;
@@ -1016,9 +1041,13 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       final String sizeText = engineSize == null
           ? 'null'
           : '${engineSize.width.round()}x${engineSize.height.round()}';
+      final String prevSizeText = prevSize == null
+          ? 'null'
+          : '${prevSize.width.round()}x${prevSize.height.round()}';
       debugPrint(
-        'paintingBoard: backend engine info handle=$handle '
-        'size=$sizeText newEngine=$isNewEngine',
+        'paintingBoard: backend engine info surfaceKey=${widget.surfaceKey} '
+        'handle=$handle prevHandle=$prevHandle '
+        'size=$sizeText prevSize=$prevSizeText newEngine=$isNewEngine',
       );
       if (kDebugMode &&
           defaultTargetPlatform == TargetPlatform.iOS &&
@@ -1311,8 +1340,22 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     if (_backendPixelsSyncedHandle == handle) {
       return;
     }
+    debugPrint(
+      'paintingBoard: sync backend pixels start surfaceKey=${widget.surfaceKey} '
+      'handle=$handle prevSynced=$_backendPixelsSyncedHandle '
+      'layers=${_controller.layers.length}',
+    );
     if (_syncAllLayerPixelsToBackend()) {
       _backendPixelsSyncedHandle = handle;
+      debugPrint(
+        'paintingBoard: sync backend pixels ok surfaceKey=${widget.surfaceKey} '
+        'handle=$handle',
+      );
+    } else {
+      debugPrint(
+        'paintingBoard: sync backend pixels failed surfaceKey=${widget.surfaceKey} '
+        'handle=$handle',
+      );
     }
   }
 

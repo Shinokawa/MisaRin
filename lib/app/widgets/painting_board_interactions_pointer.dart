@@ -99,12 +99,15 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
           if (shiftPressed) {
             final Offset? anchor = _lastBrushLineAnchor;
             if (anchor != null) {
+              final bool? snapToPixelOverride =
+                  _brushSnapToPixel ? false : null;
               if (_useCpuStrokeQueue) {
                 _enqueueCpuStrokeEvent(
                   type: _CpuStrokeEventType.down,
                   boardLocal: anchor,
                   timestamp: event.timeStamp,
                   event: event,
+                  snapToPixelOverride: snapToPixelOverride,
                 );
                 _enqueueCpuStrokeEvent(
                   type: _CpuStrokeEventType.move,
@@ -120,7 +123,12 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
                 );
                 return;
               }
-              await _startStroke(anchor, event.timeStamp, event);
+              await _startStroke(
+                anchor,
+                event.timeStamp,
+                event,
+                snapToPixelOverride: snapToPixelOverride,
+              );
               _appendPoint(boardLocal, event.timeStamp, event);
               _finishStroke(event.timeStamp);
               return;
@@ -152,6 +160,7 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
                 start: anchor,
                 end: boardLocal,
                 event: event,
+                snapToPixelOverride: _brushSnapToPixel ? false : null,
               )) {
             _lastBrushLineAnchor = _clampToCanvas(boardLocal);
             return;
@@ -886,6 +895,19 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
     }
   }
 
+  void _refreshBackendLayerPreviewsAfterHistoryChange() {
+    if (!_backend.isReady) {
+      return;
+    }
+    for (final CanvasLayerInfo layer in _controller.layers) {
+      if (_backend.supportsInputQueue) {
+        _scheduleBackendLayerPreviewRefresh(layer.id);
+      } else {
+        _bumpBackendLayerPreviewRevision(layer.id);
+      }
+    }
+  }
+
   Future<bool> undo() async {
     _refreshHistoryLimit();
     if (_useCombinedHistory) {
@@ -895,6 +917,7 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
           return false;
         }
         _commitHistoryUndoAction();
+        _refreshBackendLayerPreviewsAfterHistoryChange();
         _markDirty();
         setState(() {});
         return true;
@@ -936,6 +959,7 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
           return false;
         }
         _commitHistoryRedoAction();
+        _refreshBackendLayerPreviewsAfterHistoryChange();
         _markDirty();
         setState(() {});
         return true;

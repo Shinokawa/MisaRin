@@ -19,7 +19,7 @@ import '../../l10n/l10n.dart';
 import '../../preferences/app_preferences.dart'
     show BucketSwallowColorLineMode, PenStrokeSliderRange;
 import '../../constants/pen_constants.dart'
-    show kSprayStrokeMin, kSprayStrokeMax;
+    show kSprayStrokeMin, kSprayStrokeMax, kEraserStrokeMin, kEraserStrokeMax;
 import '../../tooltips/hover_detail_tooltip.dart';
 import '../../widgets/brush_preset_stroke_preview.dart';
 import 'measured_size.dart';
@@ -31,10 +31,12 @@ class ToolSettingsCard extends StatefulWidget {
     required this.activeTool,
     required this.penStrokeWidth,
     required this.sprayStrokeWidth,
+    required this.eraserStrokeWidth,
     required this.sprayMode,
     required this.penStrokeSliderRange,
     required this.onPenStrokeWidthChanged,
     required this.onSprayStrokeWidthChanged,
+    required this.onEraserStrokeWidthChanged,
     required this.onSprayModeChanged,
     required this.brushPresets,
     required this.activeBrushPresetId,
@@ -112,10 +114,12 @@ class ToolSettingsCard extends StatefulWidget {
   final CanvasTool activeTool;
   final double penStrokeWidth;
   final double sprayStrokeWidth;
+  final double eraserStrokeWidth;
   final SprayMode sprayMode;
   final PenStrokeSliderRange penStrokeSliderRange;
   final ValueChanged<double> onPenStrokeWidthChanged;
   final ValueChanged<double> onSprayStrokeWidthChanged;
+  final ValueChanged<double> onEraserStrokeWidthChanged;
   final ValueChanged<SprayMode> onSprayModeChanged;
   final List<BrushPreset> brushPresets;
   final String activeBrushPresetId;
@@ -209,14 +213,33 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   double get _sliderMin => widget.penStrokeSliderRange.min;
   double get _sliderMax => widget.penStrokeSliderRange.max;
   bool get _isSprayTool => widget.activeTool == CanvasTool.spray;
-  double get _activeSliderMin => _isSprayTool ? kSprayStrokeMin : _sliderMin;
-  double get _activeSliderMax => _isSprayTool ? kSprayStrokeMax : _sliderMax;
+  bool get _isEraserTool => widget.activeTool == CanvasTool.eraser;
+  double get _activeSliderMin => _isSprayTool
+      ? kSprayStrokeMin
+      : _isEraserTool
+          ? kEraserStrokeMin
+          : _sliderMin;
+  double get _activeSliderMax => _isSprayTool
+      ? kSprayStrokeMax
+      : _isEraserTool
+          ? kEraserStrokeMax
+          : _sliderMax;
   bool get _sliderUsesIntegers =>
       _isSprayTool ||
+      _isEraserTool ||
       widget.penStrokeSliderRange == PenStrokeSliderRange.compact;
-  double get _activeBrushValue => _isSprayTool
-      ? widget.sprayStrokeWidth.clamp(kSprayStrokeMin, kSprayStrokeMax)
-      : widget.penStrokeSliderRange.clamp(widget.penStrokeWidth);
+  double get _activeBrushValue =>
+      _resolveBrushValue(widget.activeTool, widget);
+
+  double _resolveBrushValue(CanvasTool tool, ToolSettingsCard widget) {
+    if (tool == CanvasTool.spray) {
+      return widget.sprayStrokeWidth.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    }
+    if (tool == CanvasTool.eraser) {
+      return widget.eraserStrokeWidth.clamp(kEraserStrokeMin, kEraserStrokeMax);
+    }
+    return widget.penStrokeSliderRange.clamp(widget.penStrokeWidth);
+  }
 
   @override
   void initState() {
@@ -231,9 +254,10 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   void didUpdateWidget(covariant ToolSettingsCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     final double newValue = _activeBrushValue;
-    final double previousValue = oldWidget.activeTool == CanvasTool.spray
-        ? oldWidget.sprayStrokeWidth
-        : oldWidget.penStrokeWidth;
+    final double previousValue = _resolveBrushValue(
+      oldWidget.activeTool,
+      oldWidget,
+    );
     final bool toolChanged = widget.activeTool != oldWidget.activeTool;
     if (!_focusNode.hasFocus &&
         (toolChanged || (newValue - previousValue).abs() >= 0.01)) {
@@ -1414,6 +1438,10 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       final double clamped = value.clamp(kSprayStrokeMin, kSprayStrokeMax);
       return clamped.roundToDouble();
     }
+    if (_isEraserTool) {
+      final double clamped = value.clamp(kEraserStrokeMin, kEraserStrokeMax);
+      return clamped.roundToDouble();
+    }
     return widget.penStrokeSliderRange.clamp(value);
   }
 
@@ -1424,6 +1452,11 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         return;
       }
       widget.onSprayStrokeWidthChanged(clamped);
+    } else if (_isEraserTool) {
+      if ((clamped - widget.eraserStrokeWidth).abs() < 0.0005) {
+        return;
+      }
+      widget.onEraserStrokeWidthChanged(clamped);
     } else {
       if ((clamped - widget.penStrokeWidth).abs() < 0.0005) {
         return;
@@ -1433,7 +1466,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   }
 
   String _formatBrushValue(double value) {
-    if (_isSprayTool) {
+    if (_isSprayTool || _isEraserTool) {
       return value.round().toString();
     }
     return _formatValue(value);
@@ -2071,9 +2104,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
 
   void _adjustBrushSizeBy(int delta) {
     final double nextValue = _clampBrushValue(_activeBrushValue + delta);
-    final double previousValue = _isSprayTool
-        ? widget.sprayStrokeWidth
-        : widget.penStrokeWidth;
+    final double previousValue = _activeBrushValue;
     if ((nextValue - previousValue).abs() < 0.0005) {
       return;
     }

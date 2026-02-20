@@ -21,6 +21,7 @@ const double _toolSettingsSpacing = 12;
 const double _zoomStep = 1.1;
 const double _defaultPenStrokeWidth = 3;
 const double _defaultSprayStrokeWidth = kDefaultSprayStrokeWidth;
+const double _defaultEraserStrokeWidth = _defaultPenStrokeWidth;
 const double _sidePanelWidth = 240;
 const double _sidePanelSpacing = 12;
 const double _colorIndicatorSize = 56;

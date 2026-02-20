@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart' show StatefulElement, State, StatefulWidge
 import 'package:path/path.dart' as p;
 import 'package:misa_rin/canvas/canvas_engine_bridge.dart';
 
+import '../../brushes/brush_library.dart';
 import '../../canvas/canvas_settings.dart';
 import '../dialogs/canvas_settings_dialog.dart';
 import '../dialogs/settings_dialog.dart';
@@ -139,16 +140,25 @@ class AppMenuActions {
       }
     }
 
+    void setBrushPreset(String id) {
+      try {
+        BrushLibrary.instance.selectPreset(id);
+      } catch (_) {}
+    }
+
     switch (preset) {
       case WorkspacePreset.illustration:
+        setBrushPreset('pencil');
         setPenAntialias(1);
         break;
       case WorkspacePreset.celShading:
+        setBrushPreset('cel');
         setPenAntialias(0);
         setBucketAntialias(0);
         setBucketSwallowColorLine(true);
         break;
       case WorkspacePreset.pixel:
+        setBrushPreset('pixel');
         setPenAntialias(0);
         setBucketAntialias(0);
         setStrokeStabilizerStrength(0.0);

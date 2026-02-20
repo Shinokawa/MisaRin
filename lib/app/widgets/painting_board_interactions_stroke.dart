@@ -85,6 +85,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     Duration timestamp,
     PointerEvent? rawEvent, {
     bool skipUndo = false,
+    bool? snapToPixelOverride,
   }) async {
     _resetPerspectiveLock();
     final Offset start = _sanitizeStrokePosition(
@@ -108,6 +109,8 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       _activeStylusPressureMax = null;
     }
     final bool erase = _isBrushEraserEnabled;
+    final double strokeWidth =
+        _activeTool == CanvasTool.eraser ? _eraserStrokeWidth : _penStrokeWidth;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
     final bool hollow = _hollowStrokeEnabled && !erase;
     _lastStrokeBoardPosition = start;
@@ -124,7 +127,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       _controller.beginStroke(
         start,
         color: strokeColor,
-        radius: _penStrokeWidth / 2,
+        radius: strokeWidth / 2,
         simulatePressure: _simulatePenPressure,
         useDevicePressure: _activeStrokeUsesStylus,
         stylusPressureBlend: stylusBlend,
@@ -143,7 +146,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
         flow: _brushFlow,
         scatter: _brushScatter,
         rotationJitter: _brushRotationJitter,
-        snapToPixel: _brushSnapToPixel,
+        snapToPixel: snapToPixelOverride ?? _brushSnapToPixel,
         streamlineStrength: _streamlineStrength,
         erase: erase,
         hollow: hollow,
@@ -245,29 +248,22 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       return;
     }
     final bool useBackendCanvas =
-        _backend.isSupported && _brushShapeSupportsBackend;
-    if (!useBackendCanvas) {
-      await _startStroke(anchor, timestamp, rawEvent);
-      _appendPoint(snapped, timestamp, rawEvent);
-      _finishStroke(timestamp);
+        _backend.supportsInputQueue && _brushShapeSupportsBackend;
+    if (useBackendCanvas) {
+      final bool backendOk = _drawBackendStrokeFromPoints(
+        points: <Offset>[anchor, snapped],
+        initialTimestampMillis: timestamp.inMicroseconds / 1000.0,
+        simulatePressure: _simulatePenPressure,
+        rawEvent: rawEvent,
+      );
       _clearPerspectivePenPreview();
-      return;
+      if (backendOk) {
+        return;
+      }
     }
-    if (!await _backend.syncActiveLayerFromBackend(
-      warnIfFailed: true,
-      skipIfUnavailable: false,
-    )) {
-      _clearPerspectivePenPreview();
-      return;
-    }
-    await _startStroke(anchor, timestamp, rawEvent, skipUndo: true);
+    await _startStroke(anchor, timestamp, rawEvent);
     _appendPoint(snapped, timestamp, rawEvent);
     _finishStroke(timestamp);
-    await _backend.commitActiveLayerToBackend(
-      waitForPending: true,
-      warnIfFailed: true,
-      skipIfUnavailable: false,
-    );
     _clearPerspectivePenPreview();
   }
 

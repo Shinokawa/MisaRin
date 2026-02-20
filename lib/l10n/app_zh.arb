@@ -425,16 +425,16 @@
   "workspacePreset": "工作预设",
   "workspacePresetDesc": "创建画布时自动应用常用工具参数。",
   "workspaceIllustration": "插画",
-  "workspaceIllustrationDesc": "画笔边缘柔化设为 1 级",
-  "workspaceIllustrationDesc2": "流线：开启",
+  "workspaceIllustrationDesc": "画笔：铅笔，边缘柔化：1",
+  "workspaceIllustrationDesc2": "流线：保持",
   "workspaceCelShading": "赛璐璐",
-  "workspaceCelShadingDesc1": "画笔边缘柔化设为 0 级",
+  "workspaceCelShadingDesc1": "画笔：赛璐璐画笔，边缘柔化：0",
   "workspaceCelShadingDesc2": "油漆桶吞并色线：开启",
   "workspaceCelShadingDesc3": "油漆桶边缘柔化：关闭",
   "workspacePixel": "像素",
-  "workspacePixelDesc1": "笔刷/油漆桶边缘柔化设为 0 级",
+  "workspacePixelDesc1": "画笔：像素笔，笔刷/油漆桶边缘柔化：0",
   "workspacePixelDesc2": "显示网格：开启",
-  "workspacePixelDesc3": "矢量作画：关闭",
+  "workspacePixelDesc3": "矢量作画：保持",
   "workspacePixelDesc4": "手抖修正：0",
   "workspaceDefault": "默认",
   "workspaceDefaultDesc": "不更改当前工具参数",
@@ -514,6 +514,7 @@
   "brushPresetDialogTitle": "编辑笔刷预设",
   "brushPresetNameLabel": "预设名称",
   "brushPresetPencil": "铅笔",
+  "brushPresetCel": "赛璐璐画笔",
   "brushPresetPen": "钢笔",
   "brushPresetPixel": "像素笔",
   "brushSpacing": "间距",
@@ -873,5 +874,22 @@
   "rendererCinematic": "宣传片",
   "rendererCinematicDesc": "还原 Minecraft 官方宣传片风格，包含柔和阴影与高对比度光效。",
   "rendererCycles": "写实",
-  "rendererCyclesDesc": "模拟路径追踪风格，极其逼真的光照效果。"
+  "rendererCyclesDesc": "模拟路径追踪风格，极其逼真的光照效果。",
+  "autoSaveCleanupThresholdLabel": "自动保存清理阈值",
+  "autoSaveCleanupThresholdValue": "当前阈值：{size}",
+  "@autoSaveCleanupThresholdValue": {
+    "placeholders": {
+      "size": {}
+    }
+  },
+  "autoSaveCleanupThresholdDesc": "自动保存文件夹总大小超过该值时，启动会提示清理。",
+  "autoSaveCleanupDialogTitle": "自动保存占用过大",
+  "autoSaveCleanupDialogMessage": "自动保存文件已占用 {size}（阈值 {limit}）。是否立即清理？",
+  "@autoSaveCleanupDialogMessage": {
+    "placeholders": {
+      "size": {},
+      "limit": {}
+    }
+  },
+  "autoSaveCleanupDialogClean": "清理"
 }

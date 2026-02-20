@@ -1643,13 +1643,13 @@ abstract class AppLocalizations {
   /// No description provided for @workspaceIllustrationDesc.
   ///
   /// In en, this message translates to:
-  /// **'Brush edge softening set to level 1'**
+  /// **'Brush: Pencil, Edge softening: 1'**
   String get workspaceIllustrationDesc;
 
   /// No description provided for @workspaceIllustrationDesc2.
   ///
   /// In en, this message translates to:
-  /// **'StreamLine: On'**
+  /// **'Streamline: Unchanged'**
   String get workspaceIllustrationDesc2;
 
   /// No description provided for @workspaceCelShading.
@@ -1661,7 +1661,7 @@ abstract class AppLocalizations {
   /// No description provided for @workspaceCelShadingDesc1.
   ///
   /// In en, this message translates to:
-  /// **'Brush edge softening set to level 0'**
+  /// **'Brush: Cel Brush, Edge softening: 0'**
   String get workspaceCelShadingDesc1;
 
   /// No description provided for @workspaceCelShadingDesc2.
@@ -1685,7 +1685,7 @@ abstract class AppLocalizations {
   /// No description provided for @workspacePixelDesc1.
   ///
   /// In en, this message translates to:
-  /// **'Brush/Fill tool antialiasing set to level 0'**
+  /// **'Brush: Pixel, Brush/Fill tool antialiasing: 0'**
   String get workspacePixelDesc1;
 
   /// No description provided for @workspacePixelDesc2.
@@ -1697,7 +1697,7 @@ abstract class AppLocalizations {
   /// No description provided for @workspacePixelDesc3.
   ///
   /// In en, this message translates to:
-  /// **'Vector Drawing: Off'**
+  /// **'Vector Drawing: Unchanged'**
   String get workspacePixelDesc3;
 
   /// No description provided for @workspacePixelDesc4.
@@ -2023,6 +2023,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pencil'**
   String get brushPresetPencil;
+
+  /// No description provided for @brushPresetCel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cel Brush'**
+  String get brushPresetCel;
 
   /// No description provided for @brushPresetPen.
   ///
@@ -3997,6 +4003,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Simulates path tracing style, extremely realistic lighting effects.'**
   String get rendererCyclesDesc;
+
+  /// No description provided for @autoSaveCleanupThresholdLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-save cleanup threshold'**
+  String get autoSaveCleanupThresholdLabel;
+
+  /// No description provided for @autoSaveCleanupThresholdValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Current threshold: {size}'**
+  String autoSaveCleanupThresholdValue(Object size);
+
+  /// No description provided for @autoSaveCleanupThresholdDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'If the auto-save folder exceeds this size, you will be prompted to clean up on startup.'**
+  String get autoSaveCleanupThresholdDesc;
+
+  /// No description provided for @autoSaveCleanupDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-save storage is large'**
+  String get autoSaveCleanupDialogTitle;
+
+  /// No description provided for @autoSaveCleanupDialogMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-saved projects are using {size} (limit {limit}). Clean up now?'**
+  String autoSaveCleanupDialogMessage(Object size, Object limit);
+
+  /// No description provided for @autoSaveCleanupDialogClean.
+  ///
+  /// In en, this message translates to:
+  /// **'Clean Up'**
+  String get autoSaveCleanupDialogClean;
 }
 
 class _AppLocalizationsDelegate

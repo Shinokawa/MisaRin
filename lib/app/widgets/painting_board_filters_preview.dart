@@ -659,6 +659,9 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     _previewBinarizeUpdateScheduled = false;
     _previewBinarizeUpdateInFlight = false;
     _previewBinarizeUpdateToken++;
+    _previewGaussianBlurUpdateScheduled = false;
+    _previewGaussianBlurUpdateInFlight = false;
+    _previewGaussianBlurUpdateToken++;
     _filterLoading = false;
     _filterApplying = false;
 

@@ -33,6 +33,41 @@ class PaintingBoardState extends _PaintingBoardBase
   bool? _menuPasteEnabled;
   bool? _menuMergeDownEnabled;
 
+  int _layerSignature(CanvasLayerData layer) {
+    return layer.id.hashCode;
+  }
+
+  int _layersSignature(List<CanvasLayerData>? layers) {
+    if (layers == null || layers.isEmpty) {
+      return 0;
+    }
+    final List<String> ids = <String>[
+      for (final CanvasLayerData layer in layers) layer.id,
+    ];
+    ids.sort();
+    int hash = 17;
+    for (final String id in ids) {
+      hash = 37 * hash + id.hashCode;
+    }
+    return hash;
+  }
+
+  bool _initialLayersEquivalent(
+    List<CanvasLayerData>? a,
+    List<CanvasLayerData>? b,
+  ) {
+    if (identical(a, b)) {
+      return true;
+    }
+    if (a == null || b == null) {
+      return false;
+    }
+    if (a.length != b.length) {
+      return false;
+    }
+    return _layersSignature(a) == _layersSignature(b);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +96,10 @@ class PaintingBoardState extends _PaintingBoardBase
     _sprayStrokeWidth = prefs.sprayStrokeWidth.clamp(
       kSprayStrokeMin,
       kSprayStrokeMax,
+    );
+    _eraserStrokeWidth = prefs.eraserStrokeWidth.clamp(
+      kEraserStrokeMin,
+      kEraserStrokeMax,
     );
     _sprayMode = prefs.sprayMode;
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
@@ -816,9 +855,25 @@ class PaintingBoardState extends _PaintingBoardBase
         widget.settings.backgroundColor != oldWidget.settings.backgroundColor;
     final bool logicChanged =
         widget.settings.creationLogic != oldWidget.settings.creationLogic;
-    final bool layersChanged =
-        !identical(widget.initialLayers, oldWidget.initialLayers);
-    if (sizeChanged || backgroundChanged || logicChanged || layersChanged) {
+    final bool layersChanged = !_initialLayersEquivalent(
+      widget.initialLayers,
+      oldWidget.initialLayers,
+    );
+    final int oldLayersSig = _layersSignature(oldWidget.initialLayers);
+    final int newLayersSig = _layersSignature(widget.initialLayers);
+    final bool shouldRecreate = sizeChanged || backgroundChanged || logicChanged;
+    if (shouldRecreate) {
+      debugPrint(
+        'paintingBoard: recreate controller surfaceKey=${widget.surfaceKey} '
+        'sizeChanged=$sizeChanged backgroundChanged=$backgroundChanged '
+        'logicChanged=$logicChanged layersChanged=$layersChanged '
+        'old=${oldWidget.settings.width.round()}x${oldWidget.settings.height.round()} '
+        'new=${widget.settings.width.round()}x${widget.settings.height.round()} '
+        'oldLayers=${oldWidget.initialLayers?.length ?? 0} '
+        'newLayers=${widget.initialLayers?.length ?? 0} '
+        'oldSig=$oldLayersSig newSig=$newLayersSig '
+        'backendSupported=${_backend.isSupported}',
+      );
       if (sizeChanged) {
         debugPrint(
           'paintingBoard: size changed '
@@ -865,6 +920,15 @@ class PaintingBoardState extends _PaintingBoardBase
       });
       _notifyViewInfoChanged();
       _syncBackendCanvasLayersToEngine();
+    }
+    if (!shouldRecreate && layersChanged) {
+      debugPrint(
+        'paintingBoard: initialLayers changed (ignored) '
+        'surfaceKey=${widget.surfaceKey} '
+        'oldSig=$oldLayersSig newSig=$newLayersSig '
+        'oldLayers=${oldWidget.initialLayers?.length ?? 0} '
+        'newLayers=${widget.initialLayers?.length ?? 0}',
+      );
     }
   }
 
@@ -984,6 +1048,7 @@ class PaintingBoardState extends _PaintingBoardBase
       colorLineColor: _colorLineColor.value,
       penStrokeWidth: _penStrokeWidth,
       sprayStrokeWidth: _sprayStrokeWidth,
+      eraserStrokeWidth: _eraserStrokeWidth,
       sprayMode: _sprayMode,
       penStrokeSliderRange: _penStrokeSliderRange,
       brushPresetId:
@@ -1036,6 +1101,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateTextStrokeWidth(snapshot.textStrokeWidth);
     _updatePenStrokeWidth(snapshot.penStrokeWidth);
     _updateSprayStrokeWidth(snapshot.sprayStrokeWidth);
+    _updateEraserStrokeWidth(snapshot.eraserStrokeWidth);
     _updateSprayMode(snapshot.sprayMode);
     if (_penStrokeSliderRange != snapshot.penStrokeSliderRange) {
       setState(() => _penStrokeSliderRange = snapshot.penStrokeSliderRange);

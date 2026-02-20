@@ -839,16 +839,16 @@ class AppLocalizationsKo extends AppLocalizations {
   String get workspaceIllustration => '일러스트레이션';
 
   @override
-  String get workspaceIllustrationDesc => '브러시 가장자리 부드러움을 레벨 1로 설정';
+  String get workspaceIllustrationDesc => '브러시: 연필, 가장자리 부드러움: 1';
 
   @override
-  String get workspaceIllustrationDesc2 => '스트림라인: 켜기';
+  String get workspaceIllustrationDesc2 => '스트림라인: 변경 없음';
 
   @override
   String get workspaceCelShading => '셀 셰이딩';
 
   @override
-  String get workspaceCelShadingDesc1 => '브러시 가장자리 부드러움을 레벨 0으로 설정';
+  String get workspaceCelShadingDesc1 => '브러시: 셀화 브러시, 가장자리 부드러움: 0';
 
   @override
   String get workspaceCelShadingDesc2 => '채우기 도구 영역 확장: 켜기';
@@ -860,13 +860,13 @@ class AppLocalizationsKo extends AppLocalizations {
   String get workspacePixel => '픽셀 아트';
 
   @override
-  String get workspacePixelDesc1 => '브러시/채우기 도구 안티앨리어싱을 레벨 0으로 설정';
+  String get workspacePixelDesc1 => '브러시: 픽셀, 브러시/채우기 도구 안티앨리어싱: 0';
 
   @override
   String get workspacePixelDesc2 => '그리드 표시: 켜기';
 
   @override
-  String get workspacePixelDesc3 => '벡터 드로잉: 끄기';
+  String get workspacePixelDesc3 => '벡터 드로잉: 변경 없음';
 
   @override
   String get workspacePixelDesc4 => '손떨림 보정: 0';
@@ -1045,6 +1045,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get brushPresetPencil => '연필';
+
+  @override
+  String get brushPresetCel => '셀화 브러시';
 
   @override
   String get brushPresetPen => '펜';
@@ -2126,4 +2129,27 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get rendererCyclesDesc => '패스 트레이싱 스타일 시뮬레이션. 매우 사실적인 조명 효과.';
+
+  @override
+  String get autoSaveCleanupThresholdLabel => '자동 저장 정리 임계값';
+
+  @override
+  String autoSaveCleanupThresholdValue(Object size) {
+    return '현재 임계값: $size';
+  }
+
+  @override
+  String get autoSaveCleanupThresholdDesc =>
+      '자동 저장 폴더의 총 크기가 이 값을 넘으면 시작 시 정리 안내가 표시됩니다.';
+
+  @override
+  String get autoSaveCleanupDialogTitle => '자동 저장 용량이 큽니다';
+
+  @override
+  String autoSaveCleanupDialogMessage(Object size, Object limit) {
+    return '자동 저장 프로젝트가 $size를 사용 중입니다(한도 $limit). 지금 정리할까요?';
+  }
+
+  @override
+  String get autoSaveCleanupDialogClean => '정리';
 }

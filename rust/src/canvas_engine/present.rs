@@ -1,6 +1,12 @@
 use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+#[cfg(target_os = "windows")]
+use std::sync::atomic::AtomicU64;
+#[cfg(target_os = "windows")]
+use std::time::Instant;
+
+use crate::gpu::debug::{self, LogLevel};
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 use metal::foreign_types::ForeignType;
@@ -20,8 +26,9 @@ use winapi::Interface as _;
 use winapi::um::{d3d12 as d3d12_ty, handleapi::CloseHandle, winnt};
 
 pub(crate) struct PresentTarget {
-    _texture: wgpu::Texture,
-    pub(crate) view: wgpu::TextureView,
+    render_texture: wgpu::Texture,
+    pub(crate) render_view: wgpu::TextureView,
+    shared_texture: Option<wgpu::Texture>,
     pub(crate) width: u32,
     pub(crate) height: u32,
     _bytes_per_row: u32,
@@ -30,13 +37,30 @@ pub(crate) struct PresentTarget {
 }
 
 impl PresentTarget {
+    pub(crate) fn render_texture(&self) -> &wgpu::Texture {
+        &self.render_texture
+    }
+
+    pub(crate) fn render_view(&self) -> &wgpu::TextureView {
+        &self.render_view
+    }
+
+    pub(crate) fn shared_texture(&self) -> Option<&wgpu::Texture> {
+        self.shared_texture.as_ref()
+    }
+
     pub(crate) fn texture(&self) -> &wgpu::Texture {
-        &self._texture
+        &self.render_texture
     }
 
     #[cfg(target_os = "windows")]
     pub(crate) fn dxgi_handle(&self) -> Option<usize> {
         self.dxgi_handle.map(|handle| handle as usize)
+    }
+
+    #[cfg(target_os = "windows")]
+    pub(crate) fn take_dxgi_handle(&mut self) -> Option<usize> {
+        self.dxgi_handle.take().map(|handle| handle as usize)
     }
 }
 
@@ -55,6 +79,15 @@ pub(crate) struct PresentRenderer {
     pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
 }
+
+#[cfg(target_os = "windows")]
+const PRESENT_GPU_LOG_EVERY: u64 = 120;
+#[cfg(target_os = "windows")]
+static PRESENT_GPU_ACCUM_US: AtomicU64 = AtomicU64::new(0);
+#[cfg(target_os = "windows")]
+static PRESENT_GPU_MAX_US: AtomicU64 = AtomicU64::new(0);
+#[cfg(target_os = "windows")]
+static PRESENT_GPU_COUNT: AtomicU64 = AtomicU64::new(0);
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -313,16 +346,41 @@ impl PresentRenderer {
         })
     }
 
-    pub(crate) fn render(
+    pub(crate) fn render_present(
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         bind_group: &wgpu::BindGroup,
-        present_view: &wgpu::TextureView,
+        target: &PresentTarget,
         frame_ready: Arc<AtomicBool>,
+        frame_in_flight: Arc<AtomicBool>,
     ) {
-        self.render_base(device, queue, bind_group, present_view);
-        signal_frame_ready(queue, frame_ready);
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("misa-rin present renderer encoder"),
+        });
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("misa-rin present renderer pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target.render_view(),
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, bind_group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+
+        copy_render_to_shared(&mut encoder, target);
+        queue.submit(Some(encoder.finish()));
+        signal_frame_ready(queue, frame_ready, frame_in_flight);
     }
 
     pub(crate) fn render_base(
@@ -358,11 +416,84 @@ impl PresentRenderer {
     }
 }
 
-pub(crate) fn signal_frame_ready(queue: &wgpu::Queue, frame_ready: Arc<AtomicBool>) {
-    frame_ready.store(true, Ordering::Release);
+pub(crate) fn copy_render_to_shared(
+    encoder: &mut wgpu::CommandEncoder,
+    target: &PresentTarget,
+) {
+    let Some(shared_texture) = target.shared_texture() else {
+        return;
+    };
+    if target.width == 0 || target.height == 0 {
+        return;
+    }
+    encoder.copy_texture_to_texture(
+        wgpu::ImageCopyTexture {
+            texture: target.render_texture(),
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::ImageCopyTexture {
+            texture: shared_texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::Extent3d {
+            width: target.width,
+            height: target.height,
+            depth_or_array_layers: 1,
+        },
+    );
+}
+
+pub(crate) fn signal_frame_ready(
+    queue: &wgpu::Queue,
+    frame_ready: Arc<AtomicBool>,
+    frame_in_flight: Arc<AtomicBool>,
+) {
+    debug::log(LogLevel::Verbose, format_args!("frame_ready queued"));
+    #[cfg(target_os = "windows")]
+    let submitted_at = Instant::now();
+    // Mark in-flight; only flip to ready once GPU work completes.
+    frame_ready.store(false, Ordering::Release);
+    frame_in_flight.store(true, Ordering::Release);
     let frame_ready_done = Arc::clone(&frame_ready);
+    let frame_in_flight_done = Arc::clone(&frame_in_flight);
     queue.on_submitted_work_done(move || {
+        frame_in_flight_done.store(false, Ordering::Release);
         frame_ready_done.store(true, Ordering::Release);
+        debug::log(LogLevel::Verbose, format_args!("frame_ready done"));
+        #[cfg(target_os = "windows")]
+        {
+            let elapsed_us = submitted_at.elapsed().as_micros() as u64;
+            PRESENT_GPU_ACCUM_US.fetch_add(elapsed_us, Ordering::Relaxed);
+            let mut prev = PRESENT_GPU_MAX_US.load(Ordering::Relaxed);
+            while elapsed_us > prev {
+                match PRESENT_GPU_MAX_US.compare_exchange(
+                    prev,
+                    elapsed_us,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                ) {
+                    Ok(_) => break,
+                    Err(next) => prev = next,
+                }
+            }
+            let count = PRESENT_GPU_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+            if count % PRESENT_GPU_LOG_EVERY == 0 {
+                let sum = PRESENT_GPU_ACCUM_US.swap(0, Ordering::Relaxed);
+                let max = PRESENT_GPU_MAX_US.swap(0, Ordering::Relaxed);
+                let avg_ms = (sum as f64) / (PRESENT_GPU_LOG_EVERY as f64) / 1000.0;
+                let max_ms = (max as f64) / 1000.0;
+                debug::log(
+                    LogLevel::Info,
+                    format_args!(
+                        "[perf] present gpu done avg={avg_ms:.2}ms max={max_ms:.2}ms"
+                    ),
+                );
+            }
+        }
     });
 }
 
@@ -420,8 +551,9 @@ pub(crate) fn attach_present_texture(
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         return Some(PresentTarget {
-            _texture: texture,
-            view,
+            render_texture: texture,
+            render_view: view,
+            shared_texture: None,
             width,
             height,
             _bytes_per_row: bytes_per_row,
@@ -457,8 +589,9 @@ pub(crate) fn attach_present_texture(
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let bytes_per_row = width.saturating_mul(4);
         return Some(PresentTarget {
-            _texture: texture,
-            view,
+            render_texture: texture,
+            render_view: view,
+            shared_texture: None,
             width,
             height,
             _bytes_per_row: bytes_per_row,
@@ -540,6 +673,24 @@ pub(crate) fn create_dxgi_shared_present_target(
             .ok_or_else(|| "wgpu: dx12 backend unavailable".to_string())?
     }?;
 
+    let render_texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("misa-rin present texture (internal render)"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Bgra8Unorm,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let render_view = render_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
     let hal_texture = unsafe {
         dx12::Device::texture_from_raw(
             resource,
@@ -566,17 +717,17 @@ pub(crate) fn create_dxgi_shared_present_target(
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Bgra8Unorm,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     };
 
-    let texture = unsafe { device.create_texture_from_hal::<Dx12>(hal_texture, &desc) };
-    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let shared_texture = unsafe { device.create_texture_from_hal::<Dx12>(hal_texture, &desc) };
     let bytes_per_row = width.saturating_mul(4);
 
     Ok(PresentTarget {
-        _texture: texture,
-        view,
+        render_texture,
+        render_view,
+        shared_texture: Some(shared_texture),
         width,
         height,
         _bytes_per_row: bytes_per_row,

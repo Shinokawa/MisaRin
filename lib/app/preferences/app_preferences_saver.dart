@@ -15,6 +15,11 @@ Future<void> _saveAppPreferences() async {
   );
   prefs.sprayStrokeWidth = sprayWidthValue;
   final int sprayWidth = _encodeSprayStrokeWidth(sprayWidthValue);
+  final double eraserWidthValue = _clampEraserStrokeWidth(
+    prefs.eraserStrokeWidth,
+  );
+  prefs.eraserStrokeWidth = eraserWidthValue;
+  final int eraserWidth = _encodeEraserStrokeWidth(eraserWidthValue);
   final double stylusCurve = _clampStylusFactor(
     prefs.stylusPressureCurve,
     lower: _stylusCurveLowerBound,
@@ -76,6 +81,9 @@ Future<void> _saveAppPreferences() async {
   final int newCanvasBackgroundColorValue =
       prefs.newCanvasBackgroundColor.value;
   final int canvasBackendEncoded = _encodeCanvasBackend(prefs.canvasBackend);
+  final int autoSaveCleanupThresholdMb =
+      _clampAutoSaveCleanupThresholdMb(prefs.autoSaveCleanupThresholdMb);
+  prefs.autoSaveCleanupThresholdMb = autoSaveCleanupThresholdMb;
 
   final Uint8List payload = Uint8List.fromList(<int>[
     _version,
@@ -139,6 +147,10 @@ Future<void> _saveAppPreferences() async {
     (newCanvasBackgroundColorValue >> 8) & 0xff,
     (newCanvasBackgroundColorValue >> 16) & 0xff,
     (newCanvasBackgroundColorValue >> 24) & 0xff,
+    autoSaveCleanupThresholdMb & 0xff,
+    (autoSaveCleanupThresholdMb >> 8) & 0xff,
+    eraserWidth & 0xff,
+    (eraserWidth >> 8) & 0xff,
     prefs.touchDrawingEnabled ? 1 : 0,
   ]);
   await _writePreferencesPayload(payload);

@@ -8,6 +8,35 @@ double _gaussianBlurSigmaForRadius(double radius) {
   return math.max(0.1, clampedRadius * 0.5);
 }
 
+Future<Uint8List> _generateGaussianBlurPreviewBytes(List<Object?> args) async {
+  if (kIsWeb) {
+    return _computeGaussianBlurPreviewPixels(args);
+  }
+  final int width = (args[1] as num).toInt();
+  final int height = (args[2] as num).toInt();
+  if (width > 0 && height > 0 && width * height <= 65536) {
+    return _computeGaussianBlurPreviewPixels(args);
+  }
+  try {
+    return await compute<List<Object?>, Uint8List>(
+      _computeGaussianBlurPreviewPixels,
+      args,
+    );
+  } on UnsupportedError catch (_) {
+    return _computeGaussianBlurPreviewPixels(args);
+  }
+}
+
+Uint8List _computeGaussianBlurPreviewPixels(List<Object?> args) {
+  final Uint8List source = args[0] as Uint8List;
+  final int width = (args[1] as num).toInt();
+  final int height = (args[2] as num).toInt();
+  final double radius = (args[3] as num).toDouble();
+  final Uint8List pixels = Uint8List.fromList(source);
+  _filterApplyGaussianBlurToBitmap(pixels, width, height, radius);
+  return pixels;
+}
+
 void _filterApplyGaussianBlurToBitmap(
   Uint8List bitmap,
   int width,
@@ -767,4 +796,3 @@ int _filterUnmultiplyChannelByAlpha(int channel, int alpha) {
   }
   return value;
 }
-

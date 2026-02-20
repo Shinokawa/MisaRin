@@ -124,6 +124,32 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
 
+    final bool canUseBackendStroke =
+        _backend.supportsInputQueue && _brushShapeSupportsBackend;
+    final bool requiresCpuFill =
+        _shapeFillEnabled && _shapeToolVariant != ShapeToolVariant.line;
+    if (canUseBackendStroke && !requiresCpuFill) {
+      if (_shapeRasterPreviewSnapshot != null) {
+        _clearShapePreviewOverlay();
+      }
+      final List<Offset> effectivePoints = _simulatePenPressure
+          ? _densifyStrokePolyline(strokePoints)
+          : strokePoints;
+      final bool backendOk = _drawBackendStrokeFromPoints(
+        points: effectivePoints,
+        initialTimestampMillis: 0.0,
+        simulatePressure: _simulatePenPressure,
+      );
+      if (backendOk) {
+        _disposeShapeRasterPreview(
+          restoreLayer: false,
+          clearPreviewImage: true,
+        );
+        setState(_resetShapeDrawingState);
+        return;
+      }
+    }
+
     final _CanvasRasterEditSession edit = await _backend.beginRasterEdit(
       captureUndoOnFallback: !_shapeUndoCapturedForPreview,
       warnIfFailed: true,
@@ -317,6 +343,14 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   Future<void> _prepareShapeRasterPreview({bool captureUndo = true}) async {
+    if (_backend.isReady && _brushShapeSupportsBackend) {
+      _shapeUndoCapturedForPreview = false;
+      _shapeRasterPreviewSnapshot = null;
+      _shapeRasterPreviewPixels = null;
+      _shapePreviewDirtyRect = null;
+      _clearShapePreviewRasterImage(notify: false);
+      return;
+    }
     if (_shapeUndoCapturedForPreview) {
       return;
     }
@@ -349,6 +383,10 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   void _refreshShapeRasterPreview(List<Offset> strokePoints) {
+    if (_backend.isReady && _brushShapeSupportsBackend) {
+      _shapePreviewDirtyRect = null;
+      return;
+    }
     final bool useBackendCanvas = _backend.isReady;
     final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
     if (snapshot == null || strokePoints.length < 2) {

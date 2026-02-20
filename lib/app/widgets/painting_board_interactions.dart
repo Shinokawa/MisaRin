@@ -266,12 +266,14 @@ class _CpuStrokeEvent {
     required this.position,
     required this.timestamp,
     required this.event,
+    this.snapToPixelOverride,
   });
 
   final _CpuStrokeEventType type;
   final Offset position;
   final Duration timestamp;
   final PointerEvent? event;
+  final bool? snapToPixelOverride;
 }
 
 mixin _PaintingBoardInteractionMixin
@@ -287,6 +289,7 @@ mixin _PaintingBoardInteractionMixin
   final _BackendPressureSimulator _backendPressureSimulator =
       _BackendPressureSimulator();
   bool _backendFlushScheduled = false;
+  bool _backendRasterOutputSuppressed = false;
   int? _backendActivePointer;
   bool _backendActiveStrokeUsesPressure = true;
   bool _backendSimulatePressure = false;
@@ -304,6 +307,28 @@ mixin _PaintingBoardInteractionMixin
   final List<_CpuStrokeEvent> _cpuStrokeQueue = <_CpuStrokeEvent>[];
   bool _cpuStrokeFlushScheduled = false;
   bool _cpuStrokeProcessing = false;
+
+  void _suppressRasterOutputForBackendStroke() {
+    if (_backendRasterOutputSuppressed) {
+      return;
+    }
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) {
+      return;
+    }
+    if (!_backend.isSupported || !_controller.rasterOutputEnabled) {
+      return;
+    }
+    _controller.setRasterOutputEnabled(false);
+    _backendRasterOutputSuppressed = true;
+  }
+
+  void _restoreRasterOutputAfterBackendStroke() {
+    if (!_backendRasterOutputSuppressed) {
+      return;
+    }
+    _backendRasterOutputSuppressed = false;
+    _controller.setRasterOutputEnabled(true);
+  }
 
   void clear() async {
     if (_isTextEditingActive) {
@@ -432,6 +457,16 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateEraserStrokeWidth(double value) {
+    final double clamped = value.clamp(kEraserStrokeMin, kEraserStrokeMax);
+    if ((_eraserStrokeWidth - clamped).abs() < 0.0005) {
+      return;
+    }
+    setState(() => _eraserStrokeWidth = clamped);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.eraserStrokeWidth = clamped;
+    unawaited(AppPreferences.save());
+  }
 
   @override
   void _updatePenPressureSimulation(bool value) {

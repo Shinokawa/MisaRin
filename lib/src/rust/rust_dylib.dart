@@ -3,6 +3,11 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+const bool _kRustDylibLog = bool.fromEnvironment(
+  'MISA_RIN_RUST_DYLIB_LOG',
+  defaultValue: false,
+);
+
 /// Opens the native Rust library that backs both flutter_rust_bridge APIs and
 /// the hand-written dart:ffi shims (rustCpu brush/blend/filters/etc).
 ///
@@ -22,6 +27,17 @@ class RustDynamicLibrary {
 
   static ffi.DynamicLibrary _openImpl() {
     if (Platform.isWindows) {
+      if (_kRustDylibLog) {
+        final String cwd = Directory.current.path;
+        final String exeDir = p.dirname(Platform.resolvedExecutable);
+        final String cwdDll = p.join(cwd, 'rust_lib_misa_rin.dll');
+        final String exeDll = p.join(exeDir, 'rust_lib_misa_rin.dll');
+        print(
+          'RustDynamicLibrary windows: '
+          'cwd=$cwd exists=${File(cwdDll).existsSync()} '
+          'exeDir=$exeDir exists=${File(exeDll).existsSync()}',
+        );
+      }
       return ffi.DynamicLibrary.open('rust_lib_misa_rin.dll');
     }
 

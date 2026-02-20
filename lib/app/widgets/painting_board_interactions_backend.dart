@@ -68,6 +68,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     required Offset boardLocal,
     required Duration timestamp,
     required PointerEvent? event,
+    bool? snapToPixelOverride,
   }) {
     _cpuStrokeQueue.add(
       _CpuStrokeEvent(
@@ -75,6 +76,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
         position: boardLocal,
         timestamp: timestamp,
         event: event,
+        snapToPixelOverride: snapToPixelOverride,
       ),
     );
     _scheduleCpuStrokeFlush();
@@ -117,7 +119,12 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
   Future<void> _processCpuStrokeEvent(_CpuStrokeEvent event) async {
     switch (event.type) {
       case _CpuStrokeEventType.down:
-        await _startStroke(event.position, event.timestamp, event.event);
+        await _startStroke(
+          event.position,
+          event.timestamp,
+          event.event,
+          snapToPixelOverride: event.snapToPixelOverride,
+        );
         break;
       case _CpuStrokeEventType.move:
         if (_isDrawing) {
@@ -330,8 +337,10 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     if (startPos == null) {
       return;
     }
+    final double baseWidth =
+        _activeTool == CanvasTool.eraser ? _eraserStrokeWidth : _penStrokeWidth;
     final double baseRadius =
-        (_penStrokeWidth / 2).clamp(0.0, 4096.0).toDouble();
+        (baseWidth / 2).clamp(0.0, 4096.0).toDouble();
     final Offset deltaToCurrent = currentPos - startPos;
     final double distToCurrent = deltaToCurrent.distance;
     if (!distToCurrent.isFinite || distToCurrent <= 0.001) {
@@ -458,6 +467,22 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       return;
     }
     _backendFlushScheduled = true;
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      scheduleMicrotask(() {
+        _backendFlushScheduled = false;
+        if (!mounted) {
+          _backendPoints.clear();
+          return;
+        }
+        final int? handle = _backendCanvasEngineHandle;
+        if (!_backend.supportsInputQueue || handle == null) {
+          _backendPoints.clear();
+          return;
+        }
+        _flushBackendPoints(handle);
+      });
+      return;
+    }
     SchedulerBinding.instance.scheduleFrameCallback((_) {
       _backendFlushScheduled = false;
       if (!mounted) {
@@ -503,6 +528,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     if (!_isBackendDrawingPointer(event)) {
       return;
     }
+    _suppressRasterOutputForBackendStroke();
     if (_kDebugBackendCanvasInput) {
       debugPrint(
         '[backend_canvas] begin backend stroke '
@@ -570,8 +596,11 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
           _autoSharpPeakEnabled && _backendPressureSimulator.isSimulatingStroke;
       if (wantsSharpTail) {
         final Offset? previousPoint = _backendLastEnginePoint;
+        final double baseWidth = _activeTool == CanvasTool.eraser
+            ? _eraserStrokeWidth
+            : _penStrokeWidth;
         final double baseRadius =
-            (_penStrokeWidth / 2).clamp(0.0, 4096.0).toDouble();
+            (baseWidth / 2).clamp(0.0, 4096.0).toDouble();
         Offset? tailPoint = _computeBackendSharpTail(
           tip: enginePos,
           previousPoint: previousPoint,
@@ -679,16 +708,77 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     _lastStrokeBoardPosition = null;
     _strokeStabilizer.reset();
     _resetPerspectiveLock();
+    _restoreRasterOutputAfterBackendStroke();
+  }
+
+  void _applyBackendBrushOverride(
+    int handle, {
+    bool? snapToPixelOverride,
+  }) {
+    if (!_backend.isReady) {
+      return;
+    }
+    double radius = (_activeTool == CanvasTool.eraser
+        ? _eraserStrokeWidth
+        : _penStrokeWidth) / 2;
+    final Size engineSize = _backendCanvasEngineSize ?? _canvasSize;
+    if (engineSize != _canvasSize &&
+        _canvasSize.width > 0 &&
+        _canvasSize.height > 0) {
+      final double sx = engineSize.width / _canvasSize.width;
+      final double sy = engineSize.height / _canvasSize.height;
+      final double scale = (sx.isFinite && sy.isFinite)
+          ? ((sx + sy) / 2.0)
+          : 1.0;
+      if (scale.isFinite && scale > 0) {
+        radius *= scale;
+      }
+    }
+    final bool erase = _isBrushEraserEnabled;
+    final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
+    CanvasBackendFacade.instance.setBrush(
+      handle: handle,
+      colorArgb: strokeColor.value,
+      baseRadius: radius,
+      usePressure:
+          _stylusPressureEnabled || _simulatePenPressure || _autoSharpPeakEnabled,
+      erase: erase,
+      antialiasLevel: _penAntialiasLevel,
+      brushShape: _brushShape.index,
+      randomRotation: _brushRandomRotationEnabled,
+      smoothRotation: _brushSmoothRotationEnabled,
+      rotationSeed: _brushRandomRotationPreviewSeed,
+      spacing: _brushSpacing,
+      hardness: _brushHardness,
+      flow: _brushFlow,
+      scatter: _brushScatter,
+      rotationJitter: _brushRotationJitter,
+      snapToPixel: snapToPixelOverride ?? _brushSnapToPixel,
+      hollow: _hollowStrokeEnabled,
+      hollowRatio: _hollowStrokeRatio,
+      hollowEraseOccludedParts: _hollowStrokeEraseOccludedParts,
+      streamlineStrength: _streamlineStrength,
+    );
   }
 
   bool _drawBackendStraightLine({
     required Offset start,
     required Offset end,
     required PointerDownEvent event,
+    bool? snapToPixelOverride,
   }) {
     final int? handle = _backendCanvasEngineHandle;
     if (!_backend.supportsInputQueue || handle == null) {
       return false;
+    }
+    final bool shouldOverrideSnap =
+        snapToPixelOverride != null &&
+        snapToPixelOverride != _brushSnapToPixel;
+    if (shouldOverrideSnap) {
+      _applyBackendBrushOverride(
+        handle,
+        snapToPixelOverride: snapToPixelOverride,
+      );
     }
     final Offset startClamped = _clampToCanvas(start);
     final Offset endClamped = _clampToCanvas(end);
@@ -709,31 +799,40 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     _backendStrokeStartPressure = 1.0;
     _backendStrokeStartIndex = 0;
 
-    _appendBackendPoint(
-      enginePos: startEngine,
-      pressure: pressure,
-      timestampUs: startTimestampUs,
-      flags: _kBackendPointFlagDown,
-      pointerId: event.pointer,
-    );
-    _appendBackendPoint(
-      enginePos: endEngine,
-      pressure: pressure,
-      timestampUs: endTimestampUs,
-      flags: _kBackendPointFlagUp,
-      pointerId: event.pointer,
-    );
-    _scheduleBackendFlush();
-    _recordBackendHistoryAction(
-      layerId: _activeLayerId,
-      deferPreview: true,
-    );
-    if (mounted) {
-      setState(() {});
+    try {
+      _appendBackendPoint(
+        enginePos: startEngine,
+        pressure: pressure,
+        timestampUs: startTimestampUs,
+        flags: _kBackendPointFlagDown,
+        pointerId: event.pointer,
+      );
+      _appendBackendPoint(
+        enginePos: endEngine,
+        pressure: pressure,
+        timestampUs: endTimestampUs,
+        flags: _kBackendPointFlagUp,
+        pointerId: event.pointer,
+      );
+      _scheduleBackendFlush();
+      _recordBackendHistoryAction(
+        layerId: _activeLayerId,
+        deferPreview: true,
+      );
+      if (mounted) {
+        setState(() {});
+      }
+      _markDirty();
+      _resetPerspectiveLock();
+      return true;
+    } finally {
+      if (shouldOverrideSnap) {
+        _applyBackendBrushOverride(
+          handle,
+          snapToPixelOverride: _brushSnapToPixel,
+        );
+      }
     }
-    _markDirty();
-    _resetPerspectiveLock();
-    return true;
   }
 
 }

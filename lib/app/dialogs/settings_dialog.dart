@@ -12,12 +12,12 @@ import '../l10n/l10n.dart';
 import '../theme/theme_controller.dart';
 import '../preferences/app_preferences.dart';
 import '../utils/tablet_input_bridge.dart';
-import '../widgets/app_notification.dart';
 import '../../performance/stroke_latency_monitor.dart';
 import 'misarin_dialog.dart';
-import '../../canvas/canvas_backend.dart';
 import '../../brushes/brush_library.dart';
 import '../utils/file_manager.dart';
+
+const int _autoSaveCleanupStepMb = 50;
 
 Future<void> showSettingsDialog(
   BuildContext context, {
@@ -72,7 +72,6 @@ enum _SettingsSection {
   stylus,
   brush,
   history,
-  canvasBackend,
   developer,
   about,
 }
@@ -96,7 +95,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late double _stylusCurve;
   late PenStrokeSliderRange _penSliderRange;
   late bool _fpsOverlayEnabled;
-  late CanvasBackend _canvasBackend;
+  late int _autoSaveCleanupThresholdMb;
   late _SettingsSection _selectedSection;
   PackageInfo? _packageInfo;
   String? _brushShapeFolderPath;
@@ -110,7 +109,8 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     _stylusCurve = AppPreferences.instance.stylusPressureCurve;
     _penSliderRange = AppPreferences.instance.penStrokeSliderRange;
     _fpsOverlayEnabled = AppPreferences.instance.showFpsOverlay;
-    _canvasBackend = AppPreferences.instance.canvasBackend;
+    _autoSaveCleanupThresholdMb =
+        AppPreferences.instance.autoSaveCleanupThresholdMb;
     _selectedSection = widget.initialSection;
     unawaited(_loadPackageInfo());
     unawaited(_loadBrushShapeFolderPath());
@@ -134,7 +134,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       _SettingsSection.stylus,
       _SettingsSection.brush,
       _SettingsSection.history,
-      if (!kIsWeb) _SettingsSection.canvasBackend,
       if (!kIsWeb) _SettingsSection.developer,
       _SettingsSection.about,
     ];
@@ -381,65 +380,93 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       case _SettingsSection.history:
         final int minHistory = AppPreferences.minHistoryLimit;
         final int maxHistory = AppPreferences.maxHistoryLimit;
-        return InfoLabel(
-          label: l10n.historyLimitLabel,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Slider(
-                value: _historyLimit.toDouble(),
-                min: minHistory.toDouble(),
-                max: maxHistory.toDouble(),
-                divisions: maxHistory - minHistory,
-                onChanged: (value) {
-                  final int rounded = value.round().clamp(
-                    minHistory,
-                    maxHistory,
-                  );
-                  if (rounded == _historyLimit) {
-                    return;
-                  }
-                  setState(() => _historyLimit = rounded);
-                  final AppPreferences prefs = AppPreferences.instance;
-                  prefs.historyLimit = rounded;
-                  unawaited(AppPreferences.save());
-                },
-              ),
-              Text(
-                l10n.historyLimitCurrent(_historyLimit),
-                style: theme.typography.caption,
-              ),
-              Text(
-                l10n.historyLimitDesc(minHistory, maxHistory),
-                style: theme.typography.caption,
-              ),
-            ],
-          ),
-        );
-      case _SettingsSection.canvasBackend:
-        if (kIsWeb) {
-          return const SizedBox.shrink();
-        }
-        return InfoLabel(
-          label: l10n.canvasBackendLabel,
-          child: ComboBox<CanvasBackend>(
-            isExpanded: true,
-            value: _canvasBackend,
-            items: CanvasBackend.values
-                .map(
-                  (backend) => ComboBoxItem<CanvasBackend>(
-                    value: backend,
-                    child: Text(_canvasBackendLabel(backend)),
+        final int minAutoSave =
+            AppPreferences.minAutoSaveCleanupThresholdMb;
+        final int maxAutoSave =
+            AppPreferences.maxAutoSaveCleanupThresholdMb;
+        final int autoSaveDivisions =
+            ((maxAutoSave - minAutoSave) / _autoSaveCleanupStepMb).round();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InfoLabel(
+              label: l10n.historyLimitLabel,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Slider(
+                    value: _historyLimit.toDouble(),
+                    min: minHistory.toDouble(),
+                    max: maxHistory.toDouble(),
+                    divisions: maxHistory - minHistory,
+                    onChanged: (value) {
+                      final int rounded = value.round().clamp(
+                        minHistory,
+                        maxHistory,
+                      );
+                      if (rounded == _historyLimit) {
+                        return;
+                      }
+                      setState(() => _historyLimit = rounded);
+                      final AppPreferences prefs = AppPreferences.instance;
+                      prefs.historyLimit = rounded;
+                      unawaited(AppPreferences.save());
+                    },
                   ),
-                )
-                .toList(growable: false),
-            onChanged: (backend) {
-              if (backend == null || backend == _canvasBackend) {
-                return;
-              }
-              _updateCanvasBackend(backend);
-            },
-          ),
+                  Text(
+                    l10n.historyLimitCurrent(_historyLimit),
+                    style: theme.typography.caption,
+                  ),
+                  Text(
+                    l10n.historyLimitDesc(minHistory, maxHistory),
+                    style: theme.typography.caption,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            InfoLabel(
+              label: l10n.autoSaveCleanupThresholdLabel,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Slider(
+                    value: _autoSaveCleanupThresholdMb
+                        .clamp(minAutoSave, maxAutoSave)
+                        .toDouble(),
+                    min: minAutoSave.toDouble(),
+                    max: maxAutoSave.toDouble(),
+                    divisions: autoSaveDivisions > 0 ? autoSaveDivisions : null,
+                    onChanged: (value) {
+                      final int step = _autoSaveCleanupStepMb;
+                      final int rounded = (value / step).round() * step;
+                      final int clamped = rounded.clamp(
+                        minAutoSave,
+                        maxAutoSave,
+                      );
+                      if (clamped == _autoSaveCleanupThresholdMb) {
+                        return;
+                      }
+                      setState(() => _autoSaveCleanupThresholdMb = clamped);
+                      final AppPreferences prefs = AppPreferences.instance;
+                      prefs.autoSaveCleanupThresholdMb = clamped;
+                      unawaited(AppPreferences.save());
+                    },
+                  ),
+                  Text(
+                    l10n.autoSaveCleanupThresholdValue(
+                      '${_autoSaveCleanupThresholdMb} MB',
+                    ),
+                    style: theme.typography.caption,
+                  ),
+                  Text(
+                    l10n.autoSaveCleanupThresholdDesc,
+                    style: theme.typography.caption,
+                  ),
+                ],
+              ),
+            ),
+          ],
         );
       case _SettingsSection.developer:
         if (kIsWeb) {
@@ -520,8 +547,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         return l10n.brushSizeSliderRangeLabel;
       case _SettingsSection.history:
         return l10n.historyLimitLabel;
-      case _SettingsSection.canvasBackend:
-        return l10n.canvasBackendLabel;
       case _SettingsSection.developer:
         return l10n.developerOptionsLabel;
       case _SettingsSection.about:
@@ -570,30 +595,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         return l10n.penSliderRangeMedium;
       case PenStrokeSliderRange.full:
         return l10n.penSliderRangeFull;
-    }
-  }
-
-  void _updateCanvasBackend(CanvasBackend backend) {
-    setState(() => _canvasBackend = backend);
-    final AppPreferences prefs = AppPreferences.instance;
-    if (prefs.canvasBackend != backend) {
-      prefs.canvasBackend = backend;
-      unawaited(AppPreferences.save());
-      AppNotifications.show(
-        context,
-        message: context.l10n.canvasBackendRestartHint,
-        severity: InfoBarSeverity.warning,
-      );
-    }
-  }
-
-  String _canvasBackendLabel(CanvasBackend backend) {
-    final l10n = context.l10n;
-    switch (backend) {
-      case CanvasBackend.rustWgpu:
-        return l10n.canvasBackendGpu;
-      case CanvasBackend.rustCpu:
-        return l10n.canvasBackendCpu;
     }
   }
 
@@ -655,7 +656,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     final int defaultHistory = AppPreferences.defaultHistoryLimit;
     final ThemeMode defaultTheme = AppPreferences.defaultThemeMode;
     final Locale? defaultLocale = AppPreferences.defaultLocaleOverride;
-    final CanvasBackend defaultBackend = AppPreferences.defaultCanvasBackend;
     controller.onThemeModeChanged(defaultTheme);
     localeController.onLocaleChanged(defaultLocale);
     setState(() {
@@ -665,7 +665,8 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       _stylusCurve = AppPreferences.defaultStylusCurve;
       _penSliderRange = AppPreferences.defaultPenStrokeSliderRange;
       _fpsOverlayEnabled = AppPreferences.defaultShowFpsOverlay;
-      _canvasBackend = defaultBackend;
+      _autoSaveCleanupThresholdMb =
+          AppPreferences.defaultAutoSaveCleanupThresholdMb;
     });
     prefs.historyLimit = defaultHistory;
     prefs.themeMode = defaultTheme;
@@ -674,14 +675,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     prefs.stylusPressureCurve = _stylusCurve;
     prefs.penStrokeSliderRange = _penSliderRange;
     prefs.updateShowFpsOverlay(_fpsOverlayEnabled);
-    if (prefs.canvasBackend != defaultBackend) {
-      prefs.canvasBackend = defaultBackend;
-      AppNotifications.show(
-        context,
-        message: context.l10n.canvasBackendRestartHint,
-        severity: InfoBarSeverity.warning,
-      );
-    }
+    prefs.autoSaveCleanupThresholdMb = _autoSaveCleanupThresholdMb;
     _clampPenWidthForRange(prefs, _penSliderRange);
     unawaited(AppPreferences.save());
   }

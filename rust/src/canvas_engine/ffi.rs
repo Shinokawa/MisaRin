@@ -12,7 +12,7 @@ use std::ffi::CString;
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
 use std::collections::HashMap;
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
 use std::sync::{Mutex, OnceLock};
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
@@ -24,7 +24,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[no_mangle]
 pub extern "C" fn engine_create(width: u32, height: u32) -> u64 {
     match create_engine(width, height) {
-        Ok(handle) => handle,
+        Ok(handle) => {
+            debug::log(
+                LogLevel::Info,
+                format_args!("engine_create ok handle={handle} size={width}x{height}"),
+            );
+            handle
+        }
         Err(err) => {
             debug::log(LogLevel::Warn, format_args!("engine_create failed: {err}"));
             0
@@ -97,6 +103,13 @@ pub extern "C" fn engine_create_present_dxgi_surface(
         return std::ptr::null_mut();
     };
 
+    debug::log(
+        LogLevel::Info,
+        format_args!(
+            "dxgi_surface request handle={handle} size={width}x{height}"
+        ),
+    );
+
     let (tx, rx) = mpsc::channel();
     if entry
         .cmd_tx
@@ -107,12 +120,43 @@ pub extern "C" fn engine_create_present_dxgi_surface(
         })
         .is_err()
     {
+        debug::log(
+            LogLevel::Warn,
+            format_args!(
+                "dxgi_surface request failed (send) handle={handle} size={width}x{height}"
+            ),
+        );
         return std::ptr::null_mut();
     }
 
     match rx.recv() {
-        Ok(Some(shared_handle)) => shared_handle as *mut c_void,
-        _ => std::ptr::null_mut(),
+        Ok(Some(shared_handle)) => {
+            debug::log(
+                LogLevel::Info,
+                format_args!(
+                    "dxgi_surface ready handle={handle} shared=0x{shared_handle:x}"
+                ),
+            );
+            shared_handle as *mut c_void
+        }
+        Ok(None) => {
+            debug::log(
+                LogLevel::Warn,
+                format_args!(
+                    "dxgi_surface failed (null) handle={handle} size={width}x{height}"
+                ),
+            );
+            std::ptr::null_mut()
+        }
+        Err(_) => {
+            debug::log(
+                LogLevel::Warn,
+                format_args!(
+                    "dxgi_surface failed (recv) handle={handle} size={width}x{height}"
+                ),
+            );
+            std::ptr::null_mut()
+        }
     }
 }
 
@@ -130,8 +174,13 @@ pub extern "C" fn engine_create_present_dxgi_surface(
 #[no_mangle]
 pub extern "C" fn engine_dispose(handle: u64) {
     let Some(entry) = remove_engine(handle) else {
+        debug::log(
+            LogLevel::Warn,
+            format_args!("engine_dispose missing handle={handle}"),
+        );
         return;
     };
+    debug::log(LogLevel::Info, format_args!("engine_dispose handle={handle}"));
     let _ = entry.cmd_tx.send(EngineCommand::Stop);
 }
 
@@ -149,6 +198,12 @@ struct FrameReadyPollStats {
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
 static FRAME_READY_STATS: OnceLock<Mutex<HashMap<u64, FrameReadyPollStats>>> = OnceLock::new();
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+static LAST_INPUT_LOG_MS: AtomicU64 = AtomicU64::new(0);
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+static LAST_BRUSH_LOG_MS: AtomicU64 = AtomicU64::new(0);
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+static LAST_FILL_LOG_MS: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
 fn frame_ready_stats() -> &'static Mutex<HashMap<u64, FrameReadyPollStats>> {
@@ -218,6 +273,22 @@ pub extern "C" fn engine_push_points(handle: u64, points: *const EnginePoint, le
         .input_queue_len
         .fetch_add(len as u64, Ordering::Relaxed)
         + len as u64;
+
+    if debug::level() >= LogLevel::Info {
+        let now = now_ms();
+        let last = LAST_INPUT_LOG_MS.load(Ordering::Relaxed);
+        if now.saturating_sub(last) >= 500 {
+            LAST_INPUT_LOG_MS.store(now, Ordering::Relaxed);
+            let first_flags = slice.first().map(|p| p.flags).unwrap_or(0);
+            let last_flags = slice.last().map(|p| p.flags).unwrap_or(0);
+            debug::log(
+                LogLevel::Info,
+                format_args!(
+                    "engine_push_points handle={handle} len={len} first_flags={first_flags} last_flags={last_flags} queue_len={queue_len}"
+                ),
+            );
+        }
+    }
 
     if debug::level() >= LogLevel::Verbose {
         const FLAG_DOWN: u32 = 1;
@@ -477,6 +548,22 @@ pub extern "C" fn engine_set_brush(
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
+    if debug::level() >= LogLevel::Info {
+        let now = now_ms();
+        let last = LAST_BRUSH_LOG_MS.load(Ordering::Relaxed);
+        if now.saturating_sub(last) >= 500 {
+            LAST_BRUSH_LOG_MS.store(now, Ordering::Relaxed);
+            debug::log(
+                LogLevel::Info,
+                format_args!(
+                    "engine_set_brush handle={handle} color=0x{color_argb:08X} radius={base_radius:.2} erase={} shape={} aa={antialias_level} pressure={}",
+                    erase != 0,
+                    brush_shape,
+                    use_pressure != 0
+                ),
+            );
+        }
+    }
     let _ = entry.cmd_tx.send(EngineCommand::SetBrush {
         color_argb,
         base_radius,
@@ -723,6 +810,19 @@ pub extern "C" fn engine_fill_layer(handle: u64, layer_index: u32, color_argb: u
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
+    if debug::level() >= LogLevel::Info {
+        let now = now_ms();
+        let last = LAST_FILL_LOG_MS.load(Ordering::Relaxed);
+        if now.saturating_sub(last) >= 500 {
+            LAST_FILL_LOG_MS.store(now, Ordering::Relaxed);
+            debug::log(
+                LogLevel::Info,
+                format_args!(
+                    "engine_fill_layer handle={handle} layer={layer_index} color=0x{color_argb:08X}"
+                ),
+            );
+        }
+    }
     let _ = entry.cmd_tx.send(EngineCommand::FillLayer {
         layer_index,
         color_argb,
@@ -1371,6 +1471,12 @@ pub extern "C" fn engine_reset_canvas_with_layers(
     let Some(entry) = lookup_engine(handle) else {
         return;
     };
+    debug::log(
+        LogLevel::Info,
+        format_args!(
+            "engine_reset_canvas_with_layers handle={handle} layers={layer_count} bg=0x{background_color_argb:08X}"
+        ),
+    );
     let _ = entry.cmd_tx.send(EngineCommand::ResetCanvasWithLayers {
         layer_count,
         background_color_argb,

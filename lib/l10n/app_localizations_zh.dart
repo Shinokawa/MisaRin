@@ -837,16 +837,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workspaceIllustration => '插画';
 
   @override
-  String get workspaceIllustrationDesc => '画笔边缘柔化设为 1 级';
+  String get workspaceIllustrationDesc => '画笔：铅笔，边缘柔化：1';
 
   @override
-  String get workspaceIllustrationDesc2 => '流线：开启';
+  String get workspaceIllustrationDesc2 => '流线：保持';
 
   @override
   String get workspaceCelShading => '赛璐璐';
 
   @override
-  String get workspaceCelShadingDesc1 => '画笔边缘柔化设为 0 级';
+  String get workspaceCelShadingDesc1 => '画笔：赛璐璐画笔，边缘柔化：0';
 
   @override
   String get workspaceCelShadingDesc2 => '油漆桶吞并色线：开启';
@@ -858,13 +858,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workspacePixel => '像素';
 
   @override
-  String get workspacePixelDesc1 => '笔刷/油漆桶边缘柔化设为 0 级';
+  String get workspacePixelDesc1 => '画笔：像素笔，笔刷/油漆桶边缘柔化：0';
 
   @override
   String get workspacePixelDesc2 => '显示网格：开启';
 
   @override
-  String get workspacePixelDesc3 => '矢量作画：关闭';
+  String get workspacePixelDesc3 => '矢量作画：保持';
 
   @override
   String get workspacePixelDesc4 => '手抖修正：0';
@@ -1035,6 +1035,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get brushPresetPencil => '铅笔';
+
+  @override
+  String get brushPresetCel => '赛璐璐画笔';
 
   @override
   String get brushPresetPen => '钢笔';
@@ -2102,6 +2105,28 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get rendererCyclesDesc => '模拟路径追踪风格，极其逼真的光照效果。';
+
+  @override
+  String get autoSaveCleanupThresholdLabel => '自动保存清理阈值';
+
+  @override
+  String autoSaveCleanupThresholdValue(Object size) {
+    return '当前阈值：$size';
+  }
+
+  @override
+  String get autoSaveCleanupThresholdDesc => '自动保存文件夹总大小超过该值时，启动会提示清理。';
+
+  @override
+  String get autoSaveCleanupDialogTitle => '自动保存占用过大';
+
+  @override
+  String autoSaveCleanupDialogMessage(Object size, Object limit) {
+    return '自动保存文件已占用 $size（阈值 $limit）。是否立即清理？';
+  }
+
+  @override
+  String get autoSaveCleanupDialogClean => '清理';
 }
 
 /// The translations for Chinese, as used in China (`zh_CN`).
@@ -2725,6 +2750,9 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get brushPresetPencil => '铅笔';
 
   @override
+  String get brushPresetCel => '赛璐璐画笔';
+
+  @override
   String get brushPresetPen => '钢笔';
 
   @override
@@ -3052,6 +3080,28 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get rendererCyclesDesc => '模拟路径追踪风格，极其逼真的光照效果。';
+
+  @override
+  String get autoSaveCleanupThresholdLabel => '自动保存清理阈值';
+
+  @override
+  String autoSaveCleanupThresholdValue(Object size) {
+    return '当前阈值：$size';
+  }
+
+  @override
+  String get autoSaveCleanupThresholdDesc => '自动保存文件夹总大小超过该值时，启动会提示清理。';
+
+  @override
+  String get autoSaveCleanupDialogTitle => '自动保存占用过大';
+
+  @override
+  String autoSaveCleanupDialogMessage(Object size, Object limit) {
+    return '自动保存文件已占用 $size（阈值 $limit）。是否立即清理？';
+  }
+
+  @override
+  String get autoSaveCleanupDialogClean => '清理';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -3651,6 +3701,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get brushPresetPencil => '鉛筆';
 
   @override
+  String get brushPresetCel => '賽璐璐畫筆';
+
+  @override
   String get brushPresetPen => '鋼筆';
 
   @override
@@ -4015,4 +4068,26 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get rendererCyclesDesc => '模擬路徑追蹤風格，極其逼真的光照效果。';
+
+  @override
+  String get autoSaveCleanupThresholdLabel => '自動保存清理閾值';
+
+  @override
+  String autoSaveCleanupThresholdValue(Object size) {
+    return '目前閾值：$size';
+  }
+
+  @override
+  String get autoSaveCleanupThresholdDesc => '自動保存資料夾總大小超過此值時，啟動會提示清理。';
+
+  @override
+  String get autoSaveCleanupDialogTitle => '自動保存占用過大';
+
+  @override
+  String autoSaveCleanupDialogMessage(Object size, Object limit) {
+    return '自動保存檔案已占用 $size（閾值 $limit）。是否立即清理？';
+  }
+
+  @override
+  String get autoSaveCleanupDialogClean => '清理';
 }

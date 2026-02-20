@@ -60,6 +60,7 @@ class ToolSettingsSnapshot {
     required this.colorLineColor,
     required this.penStrokeWidth,
     required this.sprayStrokeWidth,
+    required this.eraserStrokeWidth,
     required this.sprayMode,
     required this.penStrokeSliderRange,
     required this.brushPresetId,
@@ -99,6 +100,7 @@ class ToolSettingsSnapshot {
   final int colorLineColor;
   final double penStrokeWidth;
   final double sprayStrokeWidth;
+  final double eraserStrokeWidth;
   final SprayMode sprayMode;
   final PenStrokeSliderRange penStrokeSliderRange;
   final String brushPresetId;

@@ -855,16 +855,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get workspaceIllustration => 'Illustration';
 
   @override
-  String get workspaceIllustrationDesc => 'Brush edge softening set to level 1';
+  String get workspaceIllustrationDesc => 'Brush: Pencil, Edge softening: 1';
 
   @override
-  String get workspaceIllustrationDesc2 => 'StreamLine: On';
+  String get workspaceIllustrationDesc2 => 'Streamline: Unchanged';
 
   @override
   String get workspaceCelShading => 'Cel Shading';
 
   @override
-  String get workspaceCelShadingDesc1 => 'Brush edge softening set to level 0';
+  String get workspaceCelShadingDesc1 => 'Brush: Cel Brush, Edge softening: 0';
 
   @override
   String get workspaceCelShadingDesc2 => 'Fill tool expand to line: On';
@@ -877,13 +877,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workspacePixelDesc1 =>
-      'Brush/Fill tool antialiasing set to level 0';
+      'Brush: Pixel, Brush/Fill tool antialiasing: 0';
 
   @override
   String get workspacePixelDesc2 => 'Show Grid: On';
 
   @override
-  String get workspacePixelDesc3 => 'Vector Drawing: Off';
+  String get workspacePixelDesc3 => 'Vector Drawing: Unchanged';
 
   @override
   String get workspacePixelDesc4 => 'Stabilizer: 0';
@@ -1064,6 +1064,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get brushPresetPencil => 'Pencil';
+
+  @override
+  String get brushPresetCel => 'Cel Brush';
 
   @override
   String get brushPresetPen => 'Pen';
@@ -2194,4 +2197,27 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get rendererCyclesDesc =>
       'Simulates path tracing style, extremely realistic lighting effects.';
+
+  @override
+  String get autoSaveCleanupThresholdLabel => 'Auto-save cleanup threshold';
+
+  @override
+  String autoSaveCleanupThresholdValue(Object size) {
+    return 'Current threshold: $size';
+  }
+
+  @override
+  String get autoSaveCleanupThresholdDesc =>
+      'If the auto-save folder exceeds this size, you will be prompted to clean up on startup.';
+
+  @override
+  String get autoSaveCleanupDialogTitle => 'Auto-save storage is large';
+
+  @override
+  String autoSaveCleanupDialogMessage(Object size, Object limit) {
+    return 'Auto-saved projects are using $size (limit $limit). Clean up now?';
+  }
+
+  @override
+  String get autoSaveCleanupDialogClean => 'Clean Up';
 }

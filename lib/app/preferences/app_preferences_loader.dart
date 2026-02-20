@@ -37,6 +37,12 @@ Future<AppPreferences> _loadAppPreferences() async {
             version >= 40 && bytes.length >= 53
                 ? _decodeCanvasBackend(bytes[52])
                 : _defaultCanvasBackend;
+        final int decodedAutoSaveCleanupThresholdMb =
+            version >= 41 && bytes.length >= 63
+                ? _clampAutoSaveCleanupThresholdMb(
+                    bytes[61] | (bytes[62] << 8),
+                  )
+                : _defaultAutoSaveCleanupThresholdMb;
         if (version >= 20 && bytes.length >= 26) {
           final bool hasWorkspaceSplitPayload =
               version >= 21 && bytes.length >= 32;
@@ -78,6 +84,14 @@ Future<AppPreferences> _loadAppPreferences() async {
             final Color decodedPrimaryColor = Color(primaryColorValue);
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             final int rawStroke = bytes[6] | (bytes[7] << 8);
+            final double decodedPenStrokeWidth =
+                _decodePenStrokeWidthV10(rawStroke);
+            final double decodedEraserStrokeWidth =
+                version >= 42 && bytes.length >= 65
+                    ? _decodeEraserStrokeWidth(
+                        bytes[63] | (bytes[64] << 8),
+                      )
+                    : _clampEraserStrokeWidth(decodedPenStrokeWidth);
             final Locale? decodedLocaleOverride =
                 version >= 30 && bytes.length >= 45
                 ? _decodeLocaleOverride(bytes[44])
@@ -132,7 +146,7 @@ Future<AppPreferences> _loadAppPreferences() async {
               historyLimit: _clampHistoryLimit(rawHistory),
               themeMode: _decodeThemeMode(bytes[5]),
               localeOverride: decodedLocaleOverride,
-              penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+              penStrokeWidth: decodedPenStrokeWidth,
               simulatePenPressure: bytes[8] != 0,
               penPressureProfile: _decodePressureProfile(bytes[9]),
               penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
@@ -172,6 +186,7 @@ Future<AppPreferences> _loadAppPreferences() async {
               sai2ToolPanelSplit: decodedSai2ToolSplit,
               sai2LayerPanelWidthSplit: decodedSai2LayerSplit,
               sprayStrokeWidth: decodedSprayStrokeWidth,
+              eraserStrokeWidth: decodedEraserStrokeWidth,
               sprayMode: decodedSprayMode,
               pixelGridVisible: decodedPixelGridVisible,
               primaryColor: decodedPrimaryColor,
@@ -179,6 +194,7 @@ Future<AppPreferences> _loadAppPreferences() async {
               newCanvasHeight: decodedNewCanvasHeight,
               newCanvasBackgroundColor: decodedNewCanvasBackgroundColor,
               canvasBackend: decodedCanvasBackend,
+              autoSaveCleanupThresholdMb: decodedAutoSaveCleanupThresholdMb,
             );
             return _finalizeLoadedPreferences();
           } else if (version >= 27 && bytes.length >= 42) {
@@ -192,12 +208,16 @@ Future<AppPreferences> _loadAppPreferences() async {
             final Color decodedPrimaryColor = Color(primaryColorValue);
             final int rawHistory = bytes[3] | (bytes[4] << 8);
             final int rawStroke = bytes[6] | (bytes[7] << 8);
+            final double decodedPenStrokeWidth =
+                _decodePenStrokeWidthV10(rawStroke);
+            final double decodedEraserStrokeWidth =
+                _clampEraserStrokeWidth(decodedPenStrokeWidth);
             AppPreferences._instance = AppPreferences._(
               bucketSampleAllLayers: bytes[1] != 0,
               bucketContiguous: bytes[2] != 0,
               historyLimit: _clampHistoryLimit(rawHistory),
               themeMode: _decodeThemeMode(bytes[5]),
-              penStrokeWidth: _decodePenStrokeWidthV10(rawStroke),
+              penStrokeWidth: decodedPenStrokeWidth,
               simulatePenPressure: bytes[8] != 0,
               penPressureProfile: _decodePressureProfile(bytes[9]),
               penAntialiasLevel: _decodeAntialiasLevel(bytes[10]),
@@ -228,6 +248,7 @@ Future<AppPreferences> _loadAppPreferences() async {
               sai2ToolPanelSplit: decodedSai2ToolSplit,
               sai2LayerPanelWidthSplit: decodedSai2LayerSplit,
               sprayStrokeWidth: decodedSprayStrokeWidth,
+              eraserStrokeWidth: decodedEraserStrokeWidth,
               sprayMode: decodedSprayMode,
               pixelGridVisible: decodedPixelGridVisible,
               primaryColor: decodedPrimaryColor,
@@ -952,6 +973,8 @@ AppPreferences _finalizeLoadedPreferences() {
   final AppPreferences prefs = AppPreferences._instance!;
   if (kIsWeb) {
     prefs.canvasBackend = CanvasBackend.rustCpu;
+  } else {
+    prefs.canvasBackend = CanvasBackend.rustWgpu;
   }
   CanvasBackendState.initialize(prefs.canvasBackend);
   AppPreferences.fpsOverlayEnabledNotifier.value = prefs.showFpsOverlay;

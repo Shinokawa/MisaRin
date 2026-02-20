@@ -21,10 +21,12 @@ class ProjectRepository {
   static final ProjectRepository instance = ProjectRepository._();
 
   Directory? _projectDirectory;
+  Directory? _autoSaveDirectory;
   RecentProjectsIndex? _recentIndex;
   final _WebProjectStore? _webStore = kIsWeb ? _WebProjectStore() : null;
 
   static const String _folderName = 'MisaRin';
+  static const String _autoSaveFolderName = 'autosaves';
 
   Future<Directory> _ensureProjectDirectory() async {
     if (kIsWeb) {
@@ -43,11 +45,67 @@ class ProjectRepository {
     return directory;
   }
 
+  Future<Directory> _ensureAutoSaveDirectory() async {
+    if (kIsWeb) {
+      throw UnsupportedError('Project directory is not available on web.');
+    }
+    if (_autoSaveDirectory != null) {
+      return _autoSaveDirectory!;
+    }
+    final Directory root = await _ensureProjectDirectory();
+    final Directory directory = Directory(
+      p.join(root.path, _autoSaveFolderName),
+    );
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+    _autoSaveDirectory = directory;
+    await _migrateLegacyAutoSaves(root, directory);
+    return directory;
+  }
+
+  Future<void> _migrateLegacyAutoSaves(
+    Directory root,
+    Directory target,
+  ) async {
+    try {
+      await for (final FileSystemEntity entity in root.list(
+        recursive: false,
+        followLinks: false,
+      )) {
+        if (entity is! File) {
+          continue;
+        }
+        if (p.extension(entity.path).toLowerCase() != '.rin') {
+          continue;
+        }
+        final String fileName = p.basename(entity.path);
+        final String destination = p.join(target.path, fileName);
+        if (entity.path == destination) {
+          continue;
+        }
+        try {
+          await entity.rename(destination);
+        } catch (_) {
+          try {
+            await entity.copy(destination);
+            await entity.delete();
+          } catch (_) {
+            continue;
+          }
+        }
+        await _recentIndex?.touch(destination);
+      }
+    } catch (_) {
+      // Ignore migration failures.
+    }
+  }
+
   Future<ProjectDocument> saveDocument(ProjectDocument document) async {
     if (kIsWeb) {
       return _saveDocumentOnWeb(document);
     }
-    final Directory directory = await _ensureProjectDirectory();
+    final Directory directory = await _ensureAutoSaveDirectory();
     final String fileName = document.path == null
         ? _buildFileName(document)
         : p.basename(document.path!);
@@ -170,7 +228,7 @@ class ProjectRepository {
       yield* _webStore!.streamStoredProjects();
       return;
     }
-    final Directory directory = await _ensureProjectDirectory();
+    final Directory directory = await _ensureAutoSaveDirectory();
     await for (final FileSystemEntity entity in directory.list(
       recursive: false,
       followLinks: false,
@@ -206,6 +264,62 @@ class ProjectRepository {
         summary: summary,
       );
     }
+  }
+
+  Future<String> autoSaveDirectoryPath() async {
+    final Directory directory = await _ensureAutoSaveDirectory();
+    return directory.path;
+  }
+
+  Future<int> autoSaveDirectorySizeBytes() async {
+    if (kIsWeb) {
+      return 0;
+    }
+    final Directory directory = await _ensureAutoSaveDirectory();
+    int total = 0;
+    try {
+      await for (final FileSystemEntity entity in directory.list(
+        recursive: false,
+        followLinks: false,
+      )) {
+        if (entity is! File) {
+          continue;
+        }
+        if (p.extension(entity.path).toLowerCase() != '.rin') {
+          continue;
+        }
+        total += await entity.length();
+      }
+    } catch (_) {
+      return total;
+    }
+    return total;
+  }
+
+  Future<int> deleteAutoSavedProjects() async {
+    if (kIsWeb) {
+      return 0;
+    }
+    final Directory directory = await _ensureAutoSaveDirectory();
+    int deleted = 0;
+    try {
+      await for (final FileSystemEntity entity in directory.list(
+        recursive: false,
+        followLinks: false,
+      )) {
+        if (entity is! File) {
+          continue;
+        }
+        if (p.extension(entity.path).toLowerCase() != '.rin') {
+          continue;
+        }
+        await deleteProject(entity.path);
+        deleted += 1;
+      }
+    } catch (_) {
+      return deleted;
+    }
+    return deleted;
   }
 
   Future<void> deleteProject(String path) async {
