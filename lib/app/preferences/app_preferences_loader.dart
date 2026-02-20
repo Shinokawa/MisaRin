@@ -947,6 +947,8 @@ AppPreferences _finalizeLoadedPreferences() {
   final AppPreferences prefs = AppPreferences._instance!;
   if (kIsWeb) {
     prefs.canvasBackend = CanvasBackend.rustCpu;
+  } else {
+    prefs.canvasBackend = CanvasBackend.rustWgpu;
   }
   CanvasBackendState.initialize(prefs.canvasBackend);
   AppPreferences.fpsOverlayEnabledNotifier.value = prefs.showFpsOverlay;
