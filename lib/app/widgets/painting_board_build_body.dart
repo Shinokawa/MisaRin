@@ -578,6 +578,34 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                             final bool showBackendShapePreview =
                                                 _backend.isReady &&
                                                 _shapePreviewRasterImage != null;
+                                            final bool showVectorCurvePreview =
+                                                _backend.isReady &&
+                                                _curvePreviewPath != null &&
+                                                !showBackendCurvePreview;
+                                            final bool showVectorShapePreview =
+                                                _backend.isReady &&
+                                                _shapePreviewPath != null &&
+                                                !showBackendShapePreview;
+                                            final bool previewErase =
+                                                _isBrushEraserEnabled;
+                                            final Color previewStrokeColor =
+                                                previewErase
+                                                    ? _kVectorEraserPreviewColor
+                                                    : _primaryColor;
+                                            final bool previewFillEnabled =
+                                                _shapeFillEnabled &&
+                                                _shapeToolVariant !=
+                                                    ShapeToolVariant.line;
+                                            final Color? previewFillColor =
+                                                previewFillEnabled
+                                                    ? (previewErase
+                                                        ? _kVectorEraserPreviewColor
+                                                        : _primaryColor.withAlpha(
+                                                            (_primaryColor.alpha * 0.35)
+                                                                .round()
+                                                                .clamp(0, 255),
+                                                          ))
+                                                    : null;
                                             final CanvasLayerInfo activeLayer =
                                                 _controller.activeLayer;
                                             final ui.BlendMode?
@@ -648,6 +676,42 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                             activeStrokeIsEraser,
                                                         eraserPreviewColor:
                                                             _kVectorEraserPreviewColor,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              if (showVectorCurvePreview)
+                                                Positioned.fill(
+                                                  child: IgnorePointer(
+                                                    ignoring: true,
+                                                    child: CustomPaint(
+                                                      painter: _PathPreviewPainter(
+                                                        path: _curvePreviewPath!,
+                                                        strokeColor:
+                                                            previewStrokeColor,
+                                                        strokeWidth:
+                                                            _penStrokeWidth,
+                                                        antialiasLevel:
+                                                            _penAntialiasLevel,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              if (showVectorShapePreview)
+                                                Positioned.fill(
+                                                  child: IgnorePointer(
+                                                    ignoring: true,
+                                                    child: CustomPaint(
+                                                      painter: _PathPreviewPainter(
+                                                        path: _shapePreviewPath!,
+                                                        strokeColor:
+                                                            previewStrokeColor,
+                                                        strokeWidth:
+                                                            _penStrokeWidth,
+                                                        fill: previewFillEnabled,
+                                                        fillColor: previewFillColor,
+                                                        antialiasLevel:
+                                                            _penAntialiasLevel,
                                                       ),
                                                     ),
                                                   ),

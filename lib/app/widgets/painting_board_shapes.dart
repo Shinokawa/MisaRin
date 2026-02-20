@@ -343,6 +343,14 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   Future<void> _prepareShapeRasterPreview({bool captureUndo = true}) async {
+    if (_backend.isReady && _brushShapeSupportsBackend) {
+      _shapeUndoCapturedForPreview = false;
+      _shapeRasterPreviewSnapshot = null;
+      _shapeRasterPreviewPixels = null;
+      _shapePreviewDirtyRect = null;
+      _clearShapePreviewRasterImage(notify: false);
+      return;
+    }
     if (_shapeUndoCapturedForPreview) {
       return;
     }
@@ -375,6 +383,10 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
   }
 
   void _refreshShapeRasterPreview(List<Offset> strokePoints) {
+    if (_backend.isReady && _brushShapeSupportsBackend) {
+      _shapePreviewDirtyRect = null;
+      return;
+    }
     final bool useBackendCanvas = _backend.isReady;
     final CanvasLayerData? snapshot = _shapeRasterPreviewSnapshot;
     if (snapshot == null || strokePoints.length < 2) {

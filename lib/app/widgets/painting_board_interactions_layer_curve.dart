@@ -516,6 +516,14 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
   }
 
   Future<void> _prepareCurveRasterPreview({bool captureUndo = true}) async {
+    if (_backend.isReady && _brushShapeSupportsBackend) {
+      _curveUndoCapturedForPreview = false;
+      _curveRasterPreviewSnapshot = null;
+      _curveRasterPreviewPixels = null;
+      _curvePreviewDirtyRect = null;
+      _clearCurvePreviewRasterImage(notify: false);
+      return;
+    }
     if (_curveUndoCapturedForPreview) {
       return;
     }
@@ -548,6 +556,10 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
   }
 
   void _refreshCurveRasterPreview() {
+    if (_backend.isReady && _brushShapeSupportsBackend) {
+      _curvePreviewDirtyRect = null;
+      return;
+    }
     final bool useBackendCanvas = _backend.isReady;
     final CanvasLayerData? snapshot = _curveRasterPreviewSnapshot;
     final Offset? start = _curveAnchor;
