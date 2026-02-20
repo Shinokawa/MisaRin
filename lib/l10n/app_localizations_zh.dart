@@ -837,16 +837,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workspaceIllustration => '插画';
 
   @override
-  String get workspaceIllustrationDesc => '画笔边缘柔化设为 1 级';
+  String get workspaceIllustrationDesc => '画笔：铅笔，边缘柔化：1';
 
   @override
-  String get workspaceIllustrationDesc2 => '流线：开启';
+  String get workspaceIllustrationDesc2 => '流线：保持';
 
   @override
   String get workspaceCelShading => '赛璐璐';
 
   @override
-  String get workspaceCelShadingDesc1 => '画笔边缘柔化设为 0 级';
+  String get workspaceCelShadingDesc1 => '画笔：赛璐璐画笔，边缘柔化：0';
 
   @override
   String get workspaceCelShadingDesc2 => '油漆桶吞并色线：开启';
@@ -858,13 +858,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workspacePixel => '像素';
 
   @override
-  String get workspacePixelDesc1 => '笔刷/油漆桶边缘柔化设为 0 级';
+  String get workspacePixelDesc1 => '画笔：像素笔，笔刷/油漆桶边缘柔化：0';
 
   @override
   String get workspacePixelDesc2 => '显示网格：开启';
 
   @override
-  String get workspacePixelDesc3 => '矢量作画：关闭';
+  String get workspacePixelDesc3 => '矢量作画：保持';
 
   @override
   String get workspacePixelDesc4 => '手抖修正：0';

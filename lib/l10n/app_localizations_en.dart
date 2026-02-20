@@ -855,16 +855,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get workspaceIllustration => 'Illustration';
 
   @override
-  String get workspaceIllustrationDesc => 'Brush edge softening set to level 1';
+  String get workspaceIllustrationDesc => 'Brush: Pencil, Edge softening: 1';
 
   @override
-  String get workspaceIllustrationDesc2 => 'StreamLine: On';
+  String get workspaceIllustrationDesc2 => 'Streamline: Unchanged';
 
   @override
   String get workspaceCelShading => 'Cel Shading';
 
   @override
-  String get workspaceCelShadingDesc1 => 'Brush edge softening set to level 0';
+  String get workspaceCelShadingDesc1 => 'Brush: Cel Brush, Edge softening: 0';
 
   @override
   String get workspaceCelShadingDesc2 => 'Fill tool expand to line: On';
@@ -877,13 +877,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workspacePixelDesc1 =>
-      'Brush/Fill tool antialiasing set to level 0';
+      'Brush: Pixel, Brush/Fill tool antialiasing: 0';
 
   @override
   String get workspacePixelDesc2 => 'Show Grid: On';
 
   @override
-  String get workspacePixelDesc3 => 'Vector Drawing: Off';
+  String get workspacePixelDesc3 => 'Vector Drawing: Unchanged';
 
   @override
   String get workspacePixelDesc4 => 'Stabilizer: 0';

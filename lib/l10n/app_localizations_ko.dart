@@ -839,16 +839,16 @@ class AppLocalizationsKo extends AppLocalizations {
   String get workspaceIllustration => '일러스트레이션';
 
   @override
-  String get workspaceIllustrationDesc => '브러시 가장자리 부드러움을 레벨 1로 설정';
+  String get workspaceIllustrationDesc => '브러시: 연필, 가장자리 부드러움: 1';
 
   @override
-  String get workspaceIllustrationDesc2 => '스트림라인: 켜기';
+  String get workspaceIllustrationDesc2 => '스트림라인: 변경 없음';
 
   @override
   String get workspaceCelShading => '셀 셰이딩';
 
   @override
-  String get workspaceCelShadingDesc1 => '브러시 가장자리 부드러움을 레벨 0으로 설정';
+  String get workspaceCelShadingDesc1 => '브러시: 셀화 브러시, 가장자리 부드러움: 0';
 
   @override
   String get workspaceCelShadingDesc2 => '채우기 도구 영역 확장: 켜기';
@@ -860,13 +860,13 @@ class AppLocalizationsKo extends AppLocalizations {
   String get workspacePixel => '픽셀 아트';
 
   @override
-  String get workspacePixelDesc1 => '브러시/채우기 도구 안티앨리어싱을 레벨 0으로 설정';
+  String get workspacePixelDesc1 => '브러시: 픽셀, 브러시/채우기 도구 안티앨리어싱: 0';
 
   @override
   String get workspacePixelDesc2 => '그리드 표시: 켜기';
 
   @override
-  String get workspacePixelDesc3 => '벡터 드로잉: 끄기';
+  String get workspacePixelDesc3 => '벡터 드로잉: 변경 없음';
 
   @override
   String get workspacePixelDesc4 => '손떨림 보정: 0';

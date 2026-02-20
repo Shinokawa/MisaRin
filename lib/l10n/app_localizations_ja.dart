@@ -838,16 +838,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get workspaceIllustration => 'イラスト';
 
   @override
-  String get workspaceIllustrationDesc => 'ブラシのエッジ柔化をレベル 1 に設定';
+  String get workspaceIllustrationDesc => 'ブラシ: 鉛筆、エッジ柔化: 1';
 
   @override
-  String get workspaceIllustrationDesc2 => 'ストリームライン: オン';
+  String get workspaceIllustrationDesc2 => 'ストリームライン: 変更なし';
 
   @override
   String get workspaceCelShading => 'アニメ塗り';
 
   @override
-  String get workspaceCelShadingDesc1 => 'ブラシのエッジ柔化をレベル 0 に設定';
+  String get workspaceCelShadingDesc1 => 'ブラシ: セル画ブラシ、エッジ柔化: 0';
 
   @override
   String get workspaceCelShadingDesc2 => '塗りつぶしツールの領域拡張: オン';
@@ -859,13 +859,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get workspacePixel => 'ドット絵';
 
   @override
-  String get workspacePixelDesc1 => 'ブラシ/塗りつぶしツールのアンチエイリアスをレベル 0 に設定';
+  String get workspacePixelDesc1 => 'ブラシ: ピクセル、ブラシ/塗りつぶしツールのアンチエイリアス: 0';
 
   @override
   String get workspacePixelDesc2 => 'グリッド表示: オン';
 
   @override
-  String get workspacePixelDesc3 => 'ベクター描画: オフ';
+  String get workspacePixelDesc3 => 'ベクター描画: 変更なし';
 
   @override
   String get workspacePixelDesc4 => '手ブレ補正: 0';
