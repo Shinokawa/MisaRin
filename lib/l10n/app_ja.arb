@@ -1043,5 +1043,22 @@
   "rendererCinematic": "トレーラー",
   "rendererCinematicDesc": "Minecraft公式トレーラー風のスタイルを再現。ソフトな影と高コントラストな照明。",
   "rendererCycles": "リアル",
-  "rendererCyclesDesc": "パストレーシング風のスタイルをシミュレート。極めてリアルな照明効果。"
+  "rendererCyclesDesc": "パストレーシング風のスタイルをシミュレート。極めてリアルな照明効果。",
+  "autoSaveCleanupThresholdLabel": "自動保存のクリーンアップ閾値",
+  "autoSaveCleanupThresholdValue": "現在の閾値: {size}",
+  "@autoSaveCleanupThresholdValue": {
+    "placeholders": {
+      "size": {}
+    }
+  },
+  "autoSaveCleanupThresholdDesc": "自動保存フォルダーの合計サイズがこの値を超えると、起動時にクリーンアップを促します。",
+  "autoSaveCleanupDialogTitle": "自動保存の容量が大きすぎます",
+  "autoSaveCleanupDialogMessage": "自動保存プロジェクトが {size}（上限 {limit}）を使用しています。今すぐクリーンアップしますか？",
+  "@autoSaveCleanupDialogMessage": {
+    "placeholders": {
+      "size": {},
+      "limit": {}
+    }
+  },
+  "autoSaveCleanupDialogClean": "クリーンアップ"
 }

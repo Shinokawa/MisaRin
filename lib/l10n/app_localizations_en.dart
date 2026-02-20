@@ -2197,4 +2197,27 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get rendererCyclesDesc =>
       'Simulates path tracing style, extremely realistic lighting effects.';
+
+  @override
+  String get autoSaveCleanupThresholdLabel => 'Auto-save cleanup threshold';
+
+  @override
+  String autoSaveCleanupThresholdValue(Object size) {
+    return 'Current threshold: $size';
+  }
+
+  @override
+  String get autoSaveCleanupThresholdDesc =>
+      'If the auto-save folder exceeds this size, you will be prompted to clean up on startup.';
+
+  @override
+  String get autoSaveCleanupDialogTitle => 'Auto-save storage is large';
+
+  @override
+  String autoSaveCleanupDialogMessage(Object size, Object limit) {
+    return 'Auto-saved projects are using $size (limit $limit). Clean up now?';
+  }
+
+  @override
+  String get autoSaveCleanupDialogClean => 'Clean Up';
 }

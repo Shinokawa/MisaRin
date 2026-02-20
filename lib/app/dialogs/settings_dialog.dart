@@ -17,6 +17,8 @@ import 'misarin_dialog.dart';
 import '../../brushes/brush_library.dart';
 import '../utils/file_manager.dart';
 
+const int _autoSaveCleanupStepMb = 50;
+
 Future<void> showSettingsDialog(
   BuildContext context, {
   bool openAboutTab = false,
@@ -93,6 +95,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late double _stylusCurve;
   late PenStrokeSliderRange _penSliderRange;
   late bool _fpsOverlayEnabled;
+  late int _autoSaveCleanupThresholdMb;
   late _SettingsSection _selectedSection;
   PackageInfo? _packageInfo;
   String? _brushShapeFolderPath;
@@ -106,6 +109,8 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     _stylusCurve = AppPreferences.instance.stylusPressureCurve;
     _penSliderRange = AppPreferences.instance.penStrokeSliderRange;
     _fpsOverlayEnabled = AppPreferences.instance.showFpsOverlay;
+    _autoSaveCleanupThresholdMb =
+        AppPreferences.instance.autoSaveCleanupThresholdMb;
     _selectedSection = widget.initialSection;
     unawaited(_loadPackageInfo());
     unawaited(_loadBrushShapeFolderPath());
@@ -375,40 +380,93 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       case _SettingsSection.history:
         final int minHistory = AppPreferences.minHistoryLimit;
         final int maxHistory = AppPreferences.maxHistoryLimit;
-        return InfoLabel(
-          label: l10n.historyLimitLabel,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Slider(
-                value: _historyLimit.toDouble(),
-                min: minHistory.toDouble(),
-                max: maxHistory.toDouble(),
-                divisions: maxHistory - minHistory,
-                onChanged: (value) {
-                  final int rounded = value.round().clamp(
-                    minHistory,
-                    maxHistory,
-                  );
-                  if (rounded == _historyLimit) {
-                    return;
-                  }
-                  setState(() => _historyLimit = rounded);
-                  final AppPreferences prefs = AppPreferences.instance;
-                  prefs.historyLimit = rounded;
-                  unawaited(AppPreferences.save());
-                },
+        final int minAutoSave =
+            AppPreferences.minAutoSaveCleanupThresholdMb;
+        final int maxAutoSave =
+            AppPreferences.maxAutoSaveCleanupThresholdMb;
+        final int autoSaveDivisions =
+            ((maxAutoSave - minAutoSave) / _autoSaveCleanupStepMb).round();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InfoLabel(
+              label: l10n.historyLimitLabel,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Slider(
+                    value: _historyLimit.toDouble(),
+                    min: minHistory.toDouble(),
+                    max: maxHistory.toDouble(),
+                    divisions: maxHistory - minHistory,
+                    onChanged: (value) {
+                      final int rounded = value.round().clamp(
+                        minHistory,
+                        maxHistory,
+                      );
+                      if (rounded == _historyLimit) {
+                        return;
+                      }
+                      setState(() => _historyLimit = rounded);
+                      final AppPreferences prefs = AppPreferences.instance;
+                      prefs.historyLimit = rounded;
+                      unawaited(AppPreferences.save());
+                    },
+                  ),
+                  Text(
+                    l10n.historyLimitCurrent(_historyLimit),
+                    style: theme.typography.caption,
+                  ),
+                  Text(
+                    l10n.historyLimitDesc(minHistory, maxHistory),
+                    style: theme.typography.caption,
+                  ),
+                ],
               ),
-              Text(
-                l10n.historyLimitCurrent(_historyLimit),
-                style: theme.typography.caption,
+            ),
+            const SizedBox(height: 16),
+            InfoLabel(
+              label: l10n.autoSaveCleanupThresholdLabel,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Slider(
+                    value: _autoSaveCleanupThresholdMb
+                        .clamp(minAutoSave, maxAutoSave)
+                        .toDouble(),
+                    min: minAutoSave.toDouble(),
+                    max: maxAutoSave.toDouble(),
+                    divisions: autoSaveDivisions > 0 ? autoSaveDivisions : null,
+                    onChanged: (value) {
+                      final int step = _autoSaveCleanupStepMb;
+                      final int rounded = (value / step).round() * step;
+                      final int clamped = rounded.clamp(
+                        minAutoSave,
+                        maxAutoSave,
+                      );
+                      if (clamped == _autoSaveCleanupThresholdMb) {
+                        return;
+                      }
+                      setState(() => _autoSaveCleanupThresholdMb = clamped);
+                      final AppPreferences prefs = AppPreferences.instance;
+                      prefs.autoSaveCleanupThresholdMb = clamped;
+                      unawaited(AppPreferences.save());
+                    },
+                  ),
+                  Text(
+                    l10n.autoSaveCleanupThresholdValue(
+                      '${_autoSaveCleanupThresholdMb} MB',
+                    ),
+                    style: theme.typography.caption,
+                  ),
+                  Text(
+                    l10n.autoSaveCleanupThresholdDesc,
+                    style: theme.typography.caption,
+                  ),
+                ],
               ),
-              Text(
-                l10n.historyLimitDesc(minHistory, maxHistory),
-                style: theme.typography.caption,
-              ),
-            ],
-          ),
+            ),
+          ],
         );
       case _SettingsSection.developer:
         if (kIsWeb) {
@@ -607,6 +665,8 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       _stylusCurve = AppPreferences.defaultStylusCurve;
       _penSliderRange = AppPreferences.defaultPenStrokeSliderRange;
       _fpsOverlayEnabled = AppPreferences.defaultShowFpsOverlay;
+      _autoSaveCleanupThresholdMb =
+          AppPreferences.defaultAutoSaveCleanupThresholdMb;
     });
     prefs.historyLimit = defaultHistory;
     prefs.themeMode = defaultTheme;
@@ -615,6 +675,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     prefs.stylusPressureCurve = _stylusCurve;
     prefs.penStrokeSliderRange = _penSliderRange;
     prefs.updateShowFpsOverlay(_fpsOverlayEnabled);
+    prefs.autoSaveCleanupThresholdMb = _autoSaveCleanupThresholdMb;
     _clampPenWidthForRange(prefs, _penSliderRange);
     unawaited(AppPreferences.save());
   }

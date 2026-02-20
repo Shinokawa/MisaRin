@@ -59,12 +59,14 @@ class AppPreferences {
     this.brushToolsEraserMode = _defaultBrushToolsEraserMode,
     this.showFpsOverlay = _defaultShowFpsOverlay,
     this.pixelGridVisible = _defaultPixelGridVisible,
+    this.autoSaveCleanupThresholdMb = _defaultAutoSaveCleanupThresholdMb,
     this.workspaceLayout = _defaultWorkspaceLayout,
     this.floatingColorPanelHeight,
     this.sai2ColorPanelHeight,
     this.sai2ToolPanelSplit = _defaultSai2ToolPanelSplit,
     this.sai2LayerPanelWidthSplit = _defaultSai2LayerPanelSplit,
     this.sprayStrokeWidth = _defaultSprayStrokeWidth,
+    this.eraserStrokeWidth = _defaultEraserStrokeWidth,
     this.sprayMode = _defaultSprayMode,
     this.newCanvasWidth = _defaultNewCanvasWidth,
     this.newCanvasHeight = _defaultNewCanvasHeight,
@@ -95,6 +97,7 @@ class AppPreferences {
   static const bool defaultHollowStrokeEraseOccludedParts =
       _defaultHollowStrokeEraseOccludedParts;
   static const double defaultSprayStrokeWidth = _defaultSprayStrokeWidth;
+  static const double defaultEraserStrokeWidth = _defaultEraserStrokeWidth;
   static const SprayMode defaultSprayMode = _defaultSprayMode;
   static const bool defaultLayerAdjustCropOutside = false;
   static const Color defaultColorLineColor = _defaultColorLineColor;
@@ -111,6 +114,12 @@ class AppPreferences {
   static const int defaultBucketAntialiasLevel = _defaultBucketAntialiasLevel;
   static const bool defaultShowFpsOverlay = _defaultShowFpsOverlay;
   static const CanvasBackend defaultCanvasBackend = _defaultCanvasBackend;
+  static const int defaultAutoSaveCleanupThresholdMb =
+      _defaultAutoSaveCleanupThresholdMb;
+  static const int minAutoSaveCleanupThresholdMb =
+      _minAutoSaveCleanupThresholdMb;
+  static const int maxAutoSaveCleanupThresholdMb =
+      _maxAutoSaveCleanupThresholdMb;
   static const WorkspaceLayoutPreference defaultWorkspaceLayout =
       _defaultWorkspaceLayout;
   static const double defaultSai2ToolPanelSplit = _defaultSai2ToolPanelSplit;
@@ -143,6 +152,7 @@ class AppPreferences {
   double hollowStrokeRatio;
   bool hollowStrokeEraseOccludedParts;
   double sprayStrokeWidth;
+  double eraserStrokeWidth;
   SprayMode sprayMode;
   int newCanvasWidth;
   int newCanvasHeight;
@@ -161,6 +171,7 @@ class AppPreferences {
   int bucketAntialiasLevel;
   bool showFpsOverlay;
   bool pixelGridVisible;
+  int autoSaveCleanupThresholdMb;
   WorkspaceLayoutPreference workspaceLayout;
   double? floatingColorPanelHeight;
   double? sai2ColorPanelHeight;

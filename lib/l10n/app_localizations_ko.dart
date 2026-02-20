@@ -2129,4 +2129,27 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get rendererCyclesDesc => '패스 트레이싱 스타일 시뮬레이션. 매우 사실적인 조명 효과.';
+
+  @override
+  String get autoSaveCleanupThresholdLabel => '자동 저장 정리 임계값';
+
+  @override
+  String autoSaveCleanupThresholdValue(Object size) {
+    return '현재 임계값: $size';
+  }
+
+  @override
+  String get autoSaveCleanupThresholdDesc =>
+      '자동 저장 폴더의 총 크기가 이 값을 넘으면 시작 시 정리 안내가 표시됩니다.';
+
+  @override
+  String get autoSaveCleanupDialogTitle => '자동 저장 용량이 큽니다';
+
+  @override
+  String autoSaveCleanupDialogMessage(Object size, Object limit) {
+    return '자동 저장 프로젝트가 $size를 사용 중입니다(한도 $limit). 지금 정리할까요?';
+  }
+
+  @override
+  String get autoSaveCleanupDialogClean => '정리';
 }

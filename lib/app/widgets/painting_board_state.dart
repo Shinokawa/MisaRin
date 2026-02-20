@@ -96,6 +96,10 @@ class PaintingBoardState extends _PaintingBoardBase
       kSprayStrokeMin,
       kSprayStrokeMax,
     );
+    _eraserStrokeWidth = prefs.eraserStrokeWidth.clamp(
+      kEraserStrokeMin,
+      kEraserStrokeMax,
+    );
     _sprayMode = prefs.sprayMode;
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
     _streamlineStrength = prefs.streamlineStrength;
@@ -1035,6 +1039,7 @@ class PaintingBoardState extends _PaintingBoardBase
       colorLineColor: _colorLineColor.value,
       penStrokeWidth: _penStrokeWidth,
       sprayStrokeWidth: _sprayStrokeWidth,
+      eraserStrokeWidth: _eraserStrokeWidth,
       sprayMode: _sprayMode,
       penStrokeSliderRange: _penStrokeSliderRange,
       brushPresetId:
@@ -1087,6 +1092,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateTextStrokeWidth(snapshot.textStrokeWidth);
     _updatePenStrokeWidth(snapshot.penStrokeWidth);
     _updateSprayStrokeWidth(snapshot.sprayStrokeWidth);
+    _updateEraserStrokeWidth(snapshot.eraserStrokeWidth);
     _updateSprayMode(snapshot.sprayMode);
     if (_penStrokeSliderRange != snapshot.penStrokeSliderRange) {
       setState(() => _penStrokeSliderRange = snapshot.penStrokeSliderRange);

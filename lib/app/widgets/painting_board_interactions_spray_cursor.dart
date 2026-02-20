@@ -419,7 +419,9 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     final Offset dir = (direction != null && direction.distanceSquared > 1e-5)
         ? (direction / direction.distance)
         : Offset.zero;
-    final double stepDistance = math.max(_penStrokeWidth * 0.35, 3.0);
+    final double strokeWidth =
+        _activeTool == CanvasTool.eraser ? _eraserStrokeWidth : _penStrokeWidth;
+    final double stepDistance = math.max(strokeWidth * 0.35, 3.0);
     Offset currentPoint = anchor;
 
     setState(() {

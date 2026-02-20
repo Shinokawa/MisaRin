@@ -109,6 +109,8 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       _activeStylusPressureMax = null;
     }
     final bool erase = _isBrushEraserEnabled;
+    final double strokeWidth =
+        _activeTool == CanvasTool.eraser ? _eraserStrokeWidth : _penStrokeWidth;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
     final bool hollow = _hollowStrokeEnabled && !erase;
     _lastStrokeBoardPosition = start;
@@ -125,7 +127,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       _controller.beginStroke(
         start,
         color: strokeColor,
-        radius: _penStrokeWidth / 2,
+        radius: strokeWidth / 2,
         simulatePressure: _simulatePenPressure,
         useDevicePressure: _activeStrokeUsesStylus,
         stylusPressureBlend: stylusBlend,

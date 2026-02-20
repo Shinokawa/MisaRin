@@ -32,6 +32,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   double _scaleGestureInitialScale = 1.0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
   double _sprayStrokeWidth = _defaultSprayStrokeWidth;
+  double _eraserStrokeWidth = _defaultEraserStrokeWidth;
   SprayMode _sprayMode = AppPreferences.defaultSprayMode;
   double _strokeStabilizerStrength =
       AppPreferences.defaultStrokeStabilizerStrength;

@@ -2118,4 +2118,27 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get rendererCyclesDesc => 'パストレーシング風のスタイルをシミュレート。極めてリアルな照明効果。';
+
+  @override
+  String get autoSaveCleanupThresholdLabel => '自動保存のクリーンアップ閾値';
+
+  @override
+  String autoSaveCleanupThresholdValue(Object size) {
+    return '現在の閾値: $size';
+  }
+
+  @override
+  String get autoSaveCleanupThresholdDesc =>
+      '自動保存フォルダーの合計サイズがこの値を超えると、起動時にクリーンアップを促します。';
+
+  @override
+  String get autoSaveCleanupDialogTitle => '自動保存の容量が大きすぎます';
+
+  @override
+  String autoSaveCleanupDialogMessage(Object size, Object limit) {
+    return '自動保存プロジェクトが $size（上限 $limit）を使用しています。今すぐクリーンアップしますか？';
+  }
+
+  @override
+  String get autoSaveCleanupDialogClean => 'クリーンアップ';
 }

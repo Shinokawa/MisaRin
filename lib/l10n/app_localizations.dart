@@ -4003,6 +4003,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Simulates path tracing style, extremely realistic lighting effects.'**
   String get rendererCyclesDesc;
+
+  /// No description provided for @autoSaveCleanupThresholdLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-save cleanup threshold'**
+  String get autoSaveCleanupThresholdLabel;
+
+  /// No description provided for @autoSaveCleanupThresholdValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Current threshold: {size}'**
+  String autoSaveCleanupThresholdValue(Object size);
+
+  /// No description provided for @autoSaveCleanupThresholdDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'If the auto-save folder exceeds this size, you will be prompted to clean up on startup.'**
+  String get autoSaveCleanupThresholdDesc;
+
+  /// No description provided for @autoSaveCleanupDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-save storage is large'**
+  String get autoSaveCleanupDialogTitle;
+
+  /// No description provided for @autoSaveCleanupDialogMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-saved projects are using {size} (limit {limit}). Clean up now?'**
+  String autoSaveCleanupDialogMessage(Object size, Object limit);
+
+  /// No description provided for @autoSaveCleanupDialogClean.
+  ///
+  /// In en, this message translates to:
+  /// **'Clean Up'**
+  String get autoSaveCleanupDialogClean;
 }
 
 class _AppLocalizationsDelegate

@@ -3,7 +3,7 @@ part of 'app_preferences.dart';
 const String _folderName = 'MisaRin';
 const String _fileName = 'app_preferences.rinconfig';
 const String _preferencesStorageKey = 'misa_rin.preferences';
-const int _version = 40;
+const int _version = 42;
 const int _defaultHistoryLimit = 30;
 const int _minHistoryLimit = 5;
 const int _maxHistoryLimit = 200;
@@ -11,6 +11,7 @@ const ThemeMode _defaultThemeMode = ThemeMode.system;
 const Locale? _defaultLocaleOverride = null;
 const double _defaultPenStrokeWidth = 3.0;
 const double _defaultSprayStrokeWidth = kDefaultSprayStrokeWidth;
+const double _defaultEraserStrokeWidth = _defaultPenStrokeWidth;
 const SprayMode _defaultSprayMode = SprayMode.smudge;
 const bool _defaultSimulatePenPressure = false;
 const StrokePressureProfile _defaultPenPressureProfile =
@@ -43,6 +44,9 @@ const bool _defaultShapeToolFillEnabled = false;
 const int _defaultBucketAntialiasLevel = 0;
 const bool _defaultShowFpsOverlay = false;
 const bool _defaultPixelGridVisible = false;
+const int _defaultAutoSaveCleanupThresholdMb = 500;
+const int _minAutoSaveCleanupThresholdMb = 100;
+const int _maxAutoSaveCleanupThresholdMb = 5000;
 const WorkspaceLayoutPreference _defaultWorkspaceLayout =
     WorkspaceLayoutPreference.floating;
 const double _defaultSai2ToolPanelSplit = 0.5;

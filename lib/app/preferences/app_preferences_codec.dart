@@ -35,6 +35,19 @@ int _clampFillGapValue(int value) {
   return value.clamp(0, 64).toInt();
 }
 
+int _clampAutoSaveCleanupThresholdMb(int value) {
+  if (value <= 0) {
+    return 0;
+  }
+  if (value < _minAutoSaveCleanupThresholdMb) {
+    return _minAutoSaveCleanupThresholdMb;
+  }
+  if (value > _maxAutoSaveCleanupThresholdMb) {
+    return _maxAutoSaveCleanupThresholdMb;
+  }
+  return value;
+}
+
 ThemeMode _decodeThemeMode(int value) {
   switch (value) {
     case 0:
@@ -252,6 +265,29 @@ int _encodeSprayStrokeWidth(double value) {
   return clamped.round().clamp(
     kSprayStrokeMin.round(),
     kSprayStrokeMax.round(),
+  );
+}
+
+double _clampEraserStrokeWidth(double value) {
+  if (!value.isFinite) {
+    return _defaultEraserStrokeWidth;
+  }
+  return value.clamp(kEraserStrokeMin, kEraserStrokeMax);
+}
+
+double _decodeEraserStrokeWidth(int value) {
+  final int resolved = value.clamp(
+    kEraserStrokeMin.round(),
+    kEraserStrokeMax.round(),
+  );
+  return resolved.toDouble();
+}
+
+int _encodeEraserStrokeWidth(double value) {
+  final double clamped = _clampEraserStrokeWidth(value);
+  return clamped.round().clamp(
+    kEraserStrokeMin.round(),
+    kEraserStrokeMax.round(),
   );
 }
 

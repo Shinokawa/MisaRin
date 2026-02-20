@@ -1043,5 +1043,22 @@
   "rendererCinematic": "Trailer",
   "rendererCinematicDesc": "Recreates the official Minecraft trailer style with soft shadows and high-contrast lighting.",
   "rendererCycles": "Realistic",
-  "rendererCyclesDesc": "Simulates path tracing style, extremely realistic lighting effects."
+  "rendererCyclesDesc": "Simulates path tracing style, extremely realistic lighting effects.",
+  "autoSaveCleanupThresholdLabel": "Auto-save cleanup threshold",
+  "autoSaveCleanupThresholdValue": "Current threshold: {size}",
+  "@autoSaveCleanupThresholdValue": {
+    "placeholders": {
+      "size": {}
+    }
+  },
+  "autoSaveCleanupThresholdDesc": "If the auto-save folder exceeds this size, you will be prompted to clean up on startup.",
+  "autoSaveCleanupDialogTitle": "Auto-save storage is large",
+  "autoSaveCleanupDialogMessage": "Auto-saved projects are using {size} (limit {limit}). Clean up now?",
+  "@autoSaveCleanupDialogMessage": {
+    "placeholders": {
+      "size": {},
+      "limit": {}
+    }
+  },
+  "autoSaveCleanupDialogClean": "Clean Up"
 }

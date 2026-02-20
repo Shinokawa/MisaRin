@@ -82,8 +82,10 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
             _effectiveActiveTool == CanvasTool.layerAdjust && _isLayerDragging;
         final double overlayBrushDiameter =
             _effectiveActiveTool == CanvasTool.spray
-            ? _sprayStrokeWidth
-            : _penStrokeWidth;
+                ? _sprayStrokeWidth
+                : _effectiveActiveTool == CanvasTool.eraser
+                    ? _eraserStrokeWidth
+                    : _penStrokeWidth;
         final BrushShape overlayBrushShape =
             _effectiveActiveTool == CanvasTool.spray ||
                     _effectiveActiveTool == CanvasTool.selectionPen
@@ -204,10 +206,12 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           activeTool: _activeTool,
           penStrokeWidth: _penStrokeWidth,
           sprayStrokeWidth: _sprayStrokeWidth,
+          eraserStrokeWidth: _eraserStrokeWidth,
           sprayMode: _sprayMode,
           penStrokeSliderRange: _penStrokeSliderRange,
           onPenStrokeWidthChanged: _updatePenStrokeWidth,
           onSprayStrokeWidthChanged: _updateSprayStrokeWidth,
+          onEraserStrokeWidthChanged: _updateEraserStrokeWidth,
           onSprayModeChanged: _updateSprayMode,
           brushPresets: _brushLibrary?.presets ?? const <BrushPreset>[],
           activeBrushPresetId:
@@ -523,7 +527,11 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                         ? 0xFFFFFFFF
                                                         : _primaryColor.value,
                                                 brushRadius:
-                                                    _penStrokeWidth / 2,
+                                                    (_activeTool ==
+                                                                CanvasTool.eraser
+                                                            ? _eraserStrokeWidth
+                                                            : _penStrokeWidth) /
+                                                        2,
                                                 erase: _isBrushEraserEnabled,
                                                 brushShape: _brushShape,
                                                 brushRandomRotationEnabled:

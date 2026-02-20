@@ -2105,6 +2105,28 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get rendererCyclesDesc => '模拟路径追踪风格，极其逼真的光照效果。';
+
+  @override
+  String get autoSaveCleanupThresholdLabel => '自动保存清理阈值';
+
+  @override
+  String autoSaveCleanupThresholdValue(Object size) {
+    return '当前阈值：$size';
+  }
+
+  @override
+  String get autoSaveCleanupThresholdDesc => '自动保存文件夹总大小超过该值时，启动会提示清理。';
+
+  @override
+  String get autoSaveCleanupDialogTitle => '自动保存占用过大';
+
+  @override
+  String autoSaveCleanupDialogMessage(Object size, Object limit) {
+    return '自动保存文件已占用 $size（阈值 $limit）。是否立即清理？';
+  }
+
+  @override
+  String get autoSaveCleanupDialogClean => '清理';
 }
 
 /// The translations for Chinese, as used in China (`zh_CN`).
@@ -3058,6 +3080,28 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get rendererCyclesDesc => '模拟路径追踪风格，极其逼真的光照效果。';
+
+  @override
+  String get autoSaveCleanupThresholdLabel => '自动保存清理阈值';
+
+  @override
+  String autoSaveCleanupThresholdValue(Object size) {
+    return '当前阈值：$size';
+  }
+
+  @override
+  String get autoSaveCleanupThresholdDesc => '自动保存文件夹总大小超过该值时，启动会提示清理。';
+
+  @override
+  String get autoSaveCleanupDialogTitle => '自动保存占用过大';
+
+  @override
+  String autoSaveCleanupDialogMessage(Object size, Object limit) {
+    return '自动保存文件已占用 $size（阈值 $limit）。是否立即清理？';
+  }
+
+  @override
+  String get autoSaveCleanupDialogClean => '清理';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -4024,4 +4068,26 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get rendererCyclesDesc => '模擬路徑追蹤風格，極其逼真的光照效果。';
+
+  @override
+  String get autoSaveCleanupThresholdLabel => '自動保存清理閾值';
+
+  @override
+  String autoSaveCleanupThresholdValue(Object size) {
+    return '目前閾值：$size';
+  }
+
+  @override
+  String get autoSaveCleanupThresholdDesc => '自動保存資料夾總大小超過此值時，啟動會提示清理。';
+
+  @override
+  String get autoSaveCleanupDialogTitle => '自動保存占用過大';
+
+  @override
+  String autoSaveCleanupDialogMessage(Object size, Object limit) {
+    return '自動保存檔案已占用 $size（閾值 $limit）。是否立即清理？';
+  }
+
+  @override
+  String get autoSaveCleanupDialogClean => '清理';
 }

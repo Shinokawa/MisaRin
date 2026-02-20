@@ -454,6 +454,16 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
+  void _updateEraserStrokeWidth(double value) {
+    final double clamped = value.clamp(kEraserStrokeMin, kEraserStrokeMax);
+    if ((_eraserStrokeWidth - clamped).abs() < 0.0005) {
+      return;
+    }
+    setState(() => _eraserStrokeWidth = clamped);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.eraserStrokeWidth = clamped;
+    unawaited(AppPreferences.save());
+  }
 
   @override
   void _updatePenPressureSimulation(bool value) {

@@ -18,7 +18,7 @@ length:531
   "randomRotation": false,
   "smoothRotation": false,
   "rotationJitter": 1.0,
-  "antialiasLevel": 1,
+  "antialiasLevel": 0,
   "hollowEnabled": false,
   "hollowRatio": 0.0,
   "hollowEraseOccludedParts": false,

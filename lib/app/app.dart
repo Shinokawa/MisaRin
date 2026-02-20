@@ -20,6 +20,8 @@ import 'view/home_page.dart';
 import 'widgets/performance_pulse_overlay.dart';
 import 'workspace/canvas_workspace_controller.dart';
 import 'view/canvas_perf_stress_page.dart';
+import 'project/project_repository.dart';
+import 'utils/file_manager.dart';
 
 const bool _kCanvasPerfStressMode = bool.fromEnvironment(
   'MISA_RIN_CANVAS_PERF_STRESS',
@@ -55,6 +57,7 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
     _locale = AppPreferences.instance.localeOverride;
     _initWindowCloseHandler();
     _scheduleStartupDiagnostics();
+    _scheduleAutoSaveCleanupCheck();
   }
 
   void _handleThemeModeChanged(ThemeMode mode) {
@@ -97,6 +100,92 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
       );
       _startFrameTimingDiagnostics();
     });
+  }
+
+  void _scheduleAutoSaveCleanupCheck() {
+    if (kIsWeb) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_checkAutoSaveCleanup());
+    });
+  }
+
+  Future<void> _checkAutoSaveCleanup() async {
+    if (!mounted) {
+      return;
+    }
+    final int thresholdMb =
+        AppPreferences.instance.autoSaveCleanupThresholdMb;
+    if (thresholdMb <= 0) {
+      return;
+    }
+    final ProjectRepository repository = ProjectRepository.instance;
+    final int totalBytes = await repository.autoSaveDirectorySizeBytes();
+    final int thresholdBytes = thresholdMb * 1024 * 1024;
+    if (!mounted || totalBytes <= thresholdBytes) {
+      return;
+    }
+    final String folderPath = await repository.autoSaveDirectoryPath();
+    if (!mounted) {
+      return;
+    }
+    final String sizeText = _formatBytes(totalBytes);
+    final String limitText = _formatBytes(thresholdBytes);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final l10n = dialogContext.l10n;
+        return MisarinDialog(
+          title: Text(l10n.autoSaveCleanupDialogTitle),
+          content: Text(
+            l10n.autoSaveCleanupDialogMessage(sizeText, limitText),
+          ),
+          contentWidth: 420,
+          maxWidth: 520,
+          actions: [
+            Button(
+              onPressed: () => unawaited(
+                revealDirectoryInFileManager(folderPath),
+              ),
+              child: Text(l10n.openFolder),
+            ),
+            Button(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () async {
+                await repository.deleteAutoSavedProjects();
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+              },
+              child: Text(l10n.autoSaveCleanupDialogClean),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) {
+      return '0 B';
+    }
+    const int kB = 1024;
+    const int mB = kB * 1024;
+    const int gB = mB * 1024;
+    if (bytes >= gB) {
+      return '${(bytes / gB).toStringAsFixed(2)} GB';
+    }
+    if (bytes >= mB) {
+      return '${(bytes / mB).toStringAsFixed(1)} MB';
+    }
+    if (bytes >= kB) {
+      return '${(bytes / kB).toStringAsFixed(1)} KB';
+    }
+    return '$bytes B';
   }
 
   Future<void> _logDisplayDiagnostics(

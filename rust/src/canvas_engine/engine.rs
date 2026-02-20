@@ -578,17 +578,8 @@ fn ease_out_cubic(t: f32) -> f32 {
 }
 
 fn resample_scale_for_backlog(backlog_points: u64) -> f32 {
-    if backlog_points <= RESAMPLE_BACKLOG_SMALL {
-        1.0
-    } else if backlog_points <= RESAMPLE_BACKLOG_MEDIUM {
-        1.5
-    } else if backlog_points <= RESAMPLE_BACKLOG_LARGE {
-        2.0
-    } else if backlog_points <= RESAMPLE_BACKLOG_XL {
-        3.0
-    } else {
-        4.0
-    }
+    let _ = backlog_points;
+    1.0
 }
 
 const STREAMLINE_PREVIEW_MAX_POINTS: usize = 512;

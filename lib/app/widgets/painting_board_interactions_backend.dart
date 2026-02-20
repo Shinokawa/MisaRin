@@ -337,8 +337,10 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     if (startPos == null) {
       return;
     }
+    final double baseWidth =
+        _activeTool == CanvasTool.eraser ? _eraserStrokeWidth : _penStrokeWidth;
     final double baseRadius =
-        (_penStrokeWidth / 2).clamp(0.0, 4096.0).toDouble();
+        (baseWidth / 2).clamp(0.0, 4096.0).toDouble();
     final Offset deltaToCurrent = currentPos - startPos;
     final double distToCurrent = deltaToCurrent.distance;
     if (!distToCurrent.isFinite || distToCurrent <= 0.001) {
@@ -594,8 +596,11 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
           _autoSharpPeakEnabled && _backendPressureSimulator.isSimulatingStroke;
       if (wantsSharpTail) {
         final Offset? previousPoint = _backendLastEnginePoint;
+        final double baseWidth = _activeTool == CanvasTool.eraser
+            ? _eraserStrokeWidth
+            : _penStrokeWidth;
         final double baseRadius =
-            (_penStrokeWidth / 2).clamp(0.0, 4096.0).toDouble();
+            (baseWidth / 2).clamp(0.0, 4096.0).toDouble();
         Offset? tailPoint = _computeBackendSharpTail(
           tip: enginePos,
           previousPoint: previousPoint,
@@ -713,7 +718,9 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     if (!_backend.isReady) {
       return;
     }
-    double radius = _penStrokeWidth / 2;
+    double radius = (_activeTool == CanvasTool.eraser
+        ? _eraserStrokeWidth
+        : _penStrokeWidth) / 2;
     final Size engineSize = _backendCanvasEngineSize ?? _canvasSize;
     if (engineSize != _canvasSize &&
         _canvasSize.width > 0 &&
