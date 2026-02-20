@@ -266,12 +266,14 @@ class _CpuStrokeEvent {
     required this.position,
     required this.timestamp,
     required this.event,
+    this.snapToPixelOverride,
   });
 
   final _CpuStrokeEventType type;
   final Offset position;
   final Duration timestamp;
   final PointerEvent? event;
+  final bool? snapToPixelOverride;
 }
 
 mixin _PaintingBoardInteractionMixin

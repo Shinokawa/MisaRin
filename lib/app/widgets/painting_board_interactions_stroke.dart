@@ -85,6 +85,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
     Duration timestamp,
     PointerEvent? rawEvent, {
     bool skipUndo = false,
+    bool? snapToPixelOverride,
   }) async {
     _resetPerspectiveLock();
     final Offset start = _sanitizeStrokePosition(
@@ -143,7 +144,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
         flow: _brushFlow,
         scatter: _brushScatter,
         rotationJitter: _brushRotationJitter,
-        snapToPixel: _brushSnapToPixel,
+        snapToPixel: snapToPixelOverride ?? _brushSnapToPixel,
         streamlineStrength: _streamlineStrength,
         erase: erase,
         hollow: hollow,
