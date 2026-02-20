@@ -124,6 +124,32 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       return;
     }
 
+    final bool canUseBackendStroke =
+        _backend.supportsInputQueue && _brushShapeSupportsBackend;
+    final bool requiresCpuFill =
+        _shapeFillEnabled && _shapeToolVariant != ShapeToolVariant.line;
+    if (canUseBackendStroke && !requiresCpuFill) {
+      if (_shapeRasterPreviewSnapshot != null) {
+        _clearShapePreviewOverlay();
+      }
+      final List<Offset> effectivePoints = _simulatePenPressure
+          ? _densifyStrokePolyline(strokePoints)
+          : strokePoints;
+      final bool backendOk = _drawBackendStrokeFromPoints(
+        points: effectivePoints,
+        initialTimestampMillis: 0.0,
+        simulatePressure: _simulatePenPressure,
+      );
+      if (backendOk) {
+        _disposeShapeRasterPreview(
+          restoreLayer: false,
+          clearPreviewImage: true,
+        );
+        setState(_resetShapeDrawingState);
+        return;
+      }
+    }
+
     final _CanvasRasterEditSession edit = await _backend.beginRasterEdit(
       captureUndoOnFallback: !_shapeUndoCapturedForPreview,
       warnIfFailed: true,

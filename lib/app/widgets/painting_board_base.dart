@@ -132,6 +132,165 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     return _controller.snapshotLayers();
   }
 
+  double? _normalizePointerPressureForBackend(PointerEvent event) {
+    final double? pressure = TabletInputBridge.instance.pressureForEvent(event);
+    if (pressure == null || !pressure.isFinite) {
+      return null;
+    }
+    double lower = event.pressureMin;
+    double upper = event.pressureMax;
+    if (!lower.isFinite) {
+      lower = 0.0;
+    }
+    if (!upper.isFinite || upper <= lower) {
+      upper = lower + 1.0;
+    }
+    final double normalized = (pressure - lower) / (upper - lower);
+    if (!normalized.isFinite) {
+      return null;
+    }
+    final double curve = _stylusCurve.isFinite ? _stylusCurve : 1.0;
+    final double curved =
+        math.pow(normalized.clamp(0.0, 1.0), curve).toDouble();
+    return curved.clamp(0.0, 1.0);
+  }
+
+  bool _drawBackendStrokeFromPoints({
+    required List<Offset> points,
+    required double initialTimestampMillis,
+    bool simulatePressure = false,
+    _SyntheticStrokeTimelineStyle timelineStyle =
+        _SyntheticStrokeTimelineStyle.natural,
+    PointerEvent? rawEvent,
+  }) {
+    if (!_backend.supportsInputQueue) {
+      return false;
+    }
+    if (points.length < 2) {
+      return false;
+    }
+    final List<Offset> clamped = <Offset>[
+      for (final Offset point in points) _clampToCanvas(point),
+    ];
+    if (clamped.length < 2) {
+      return false;
+    }
+
+    final _BackendPointBuffer buffer = _BackendPointBuffer(
+      initialCapacityPoints: clamped.length + 8,
+    );
+    final _BackendPressureSimulator simulator = _BackendPressureSimulator();
+    simulator.setProfile(_penPressureProfile);
+    simulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
+
+    final bool useStylus =
+        rawEvent != null &&
+        _stylusPressureEnabled &&
+        TabletInputBridge.instance.isTabletPointer(rawEvent);
+    final double? stylusPressure = useStylus && rawEvent != null
+        ? _normalizePointerPressureForBackend(rawEvent)
+        : null;
+    final double stylusBlend =
+        useStylus && simulatePressure ? _kStylusSimulationBlend : 1.0;
+
+    final Offset startBoard = clamped.first;
+    final Offset startEngine = _backendToEngineSpace(startBoard);
+    final double initialTimestamp =
+        initialTimestampMillis.isFinite ? initialTimestampMillis : 0.0;
+    final double? initialPressure = simulator.beginStroke(
+      position: startEngine,
+      timestampMillis: initialTimestamp,
+      simulatePressure: simulatePressure,
+      useDevicePressure: useStylus,
+      stylusPressureBlend: stylusBlend,
+      stylusPressure: stylusPressure,
+    );
+    double startPressure =
+        (initialPressure ?? stylusPressure ?? 1.0).clamp(0.0, 1.0);
+    final int pointerId = rawEvent?.pointer ?? 0;
+    buffer.add(
+      x: startEngine.dx,
+      y: startEngine.dy,
+      pressure: startPressure,
+      timestampUs: (initialTimestamp * 1000.0).round(),
+      flags: _kBackendPointFlagDown,
+      pointerId: pointerId,
+    );
+
+    final List<Offset> remaining = clamped.sublist(1);
+    final List<_SyntheticStrokeSample> samples = _buildSyntheticStrokeSamples(
+      remaining,
+      startBoard,
+    );
+    if (samples.isEmpty) {
+      if (startPressure <= 0.0001) {
+        startPressure = (stylusPressure ?? 1.0).clamp(0.0, 1.0);
+      }
+      final Offset endEngine = _backendToEngineSpace(clamped.last);
+      final double endPressure = startPressure;
+      buffer.add(
+        x: endEngine.dx,
+        y: endEngine.dy,
+        pressure: endPressure,
+        timestampUs:
+            ((initialTimestamp + _syntheticStrokeMinDeltaMs) * 1000.0).round(),
+        flags: _kBackendPointFlagUp,
+        pointerId: pointerId,
+      );
+    } else {
+      final double totalDistance = _syntheticStrokeTotalDistance(samples);
+      int index = 0;
+      final int lastIndex = samples.length - 1;
+      _emitSyntheticStrokeTimeline(
+        samples,
+        totalDistance: totalDistance,
+        initialTimestamp: initialTimestamp,
+        style: timelineStyle,
+        onSample: (sample, timestamp, _) {
+          final Offset enginePos = _backendToEngineSpace(sample.point);
+          final double? simulated = simulator.samplePressure(
+            position: enginePos,
+            timestampMillis: timestamp,
+            stylusPressure: stylusPressure,
+          );
+          double pressure =
+              (simulated ?? stylusPressure ?? 1.0).clamp(0.0, 1.0);
+          final bool isLast = index == lastIndex;
+          if (isLast && _autoSharpPeakEnabled && simulator.isSimulatingStroke) {
+            pressure = 0.0;
+          }
+          buffer.add(
+            x: enginePos.dx,
+            y: enginePos.dy,
+            pressure: pressure,
+            timestampUs: (timestamp * 1000.0).round(),
+            flags: isLast ? _kBackendPointFlagUp : _kBackendPointFlagMove,
+            pointerId: pointerId,
+          );
+          index += 1;
+        },
+      );
+    }
+
+    final bool pushed = _backend.pushPointsPacked(
+      bytes: buffer.bytes,
+      pointCount: buffer.length,
+    );
+    if (!pushed) {
+      return false;
+    }
+    _recordBackendHistoryAction(layerId: _activeLayerId, deferPreview: true);
+    if (mounted) {
+      setState(() {});
+    }
+    if (_brushRandomRotationEnabled) {
+      _brushRandomRotationPreviewSeed =
+          _brushRotationRandom.nextInt(1 << 31);
+    }
+    _markDirty();
+    return true;
+  }
+
   Future<CanvasRotationResult?> rotateCanvas(CanvasRotation rotation) async {
     final int width = _controller.width;
     final int height = _controller.height;

@@ -530,11 +530,16 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     return pending;
   }
 
-  void _simulateStrokeWithSyntheticTimeline(
+  void _emitSyntheticStrokeTimeline(
     List<_SyntheticStrokeSample> samples, {
     required double totalDistance,
     required double initialTimestamp,
     _SyntheticStrokeTimelineStyle style = _SyntheticStrokeTimelineStyle.natural,
+    required void Function(
+      _SyntheticStrokeSample sample,
+      double timestamp,
+      double deltaTime,
+    ) onSample,
   }) {
     if (samples.isEmpty) {
       return;
@@ -588,12 +593,29 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
         weights[i] * scale,
       );
       timestamp += deltaTime;
-      _controller.extendStroke(
-        samples[i].point,
-        deltaTimeMillis: deltaTime,
-        timestampMillis: timestamp,
-      );
+      onSample(samples[i], timestamp, deltaTime);
     }
+  }
+
+  void _simulateStrokeWithSyntheticTimeline(
+    List<_SyntheticStrokeSample> samples, {
+    required double totalDistance,
+    required double initialTimestamp,
+    _SyntheticStrokeTimelineStyle style = _SyntheticStrokeTimelineStyle.natural,
+  }) {
+    _emitSyntheticStrokeTimeline(
+      samples,
+      totalDistance: totalDistance,
+      initialTimestamp: initialTimestamp,
+      style: style,
+      onSample: (sample, timestamp, deltaTime) {
+        _controller.extendStroke(
+          sample.point,
+          deltaTimeMillis: deltaTime,
+          timestampMillis: timestamp,
+        );
+      },
+    );
   }
 
   double _syntheticStrokeTotalDistance(List<_SyntheticStrokeSample> samples) {

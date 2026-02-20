@@ -297,51 +297,61 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
         return;
       }
       if (insideCanvas) {
-        final _CanvasRasterEditSession edit = await _backend.beginRasterEdit(
-          captureUndoOnFallback: true,
-          warnIfFailed: true,
-        );
-        if (!edit.ok) {
-          return;
-        }
-        final bool erase = _isBrushEraserEnabled;
-        final Color strokeColor = erase
-            ? const Color(0xFFFFFFFF)
-            : _primaryColor;
-        _controller.beginStroke(
-          snapped,
-          color: strokeColor,
-          radius: _penStrokeWidth / 2,
-          simulatePressure: _simulatePenPressure,
-          profile: _penPressureProfile,
-          antialiasLevel: _penAntialiasLevel,
-          brushShape: _brushShape,
-          randomRotation: _brushRandomRotationEnabled,
-          smoothRotation: _brushSmoothRotationEnabled,
-          rotationSeed: _brushRandomRotationPreviewSeed,
-          spacing: _brushSpacing,
-          hardness: _brushHardness,
-          flow: _brushFlow,
-          scatter: _brushScatter,
-          rotationJitter: _brushRotationJitter,
-          snapToPixel: _brushSnapToPixel,
-          erase: erase,
-          hollow: _hollowStrokeEnabled && !erase,
-          hollowRatio: _hollowStrokeRatio,
-          eraseOccludedParts: _hollowStrokeEraseOccludedParts,
-        );
-        _controller.endStroke();
-        if (_brushRandomRotationEnabled) {
-          _brushRandomRotationPreviewSeed =
-              _brushRotationRandom.nextInt(1 << 31);
-        }
-        if (edit.useBackend) {
-          await edit.commit(
-            waitForPending: true,
-            warnIfFailed: true,
+        bool handled = false;
+        if (_backend.supportsInputQueue && _brushShapeSupportsBackend) {
+          handled = _drawBackendStrokeFromPoints(
+            points: <Offset>[snapped, snapped],
+            initialTimestampMillis: 0.0,
+            simulatePressure: _simulatePenPressure,
           );
         }
-        _markDirty();
+        if (!handled) {
+          final _CanvasRasterEditSession edit = await _backend.beginRasterEdit(
+            captureUndoOnFallback: true,
+            warnIfFailed: true,
+          );
+          if (!edit.ok) {
+            return;
+          }
+          final bool erase = _isBrushEraserEnabled;
+          final Color strokeColor = erase
+              ? const Color(0xFFFFFFFF)
+              : _primaryColor;
+          _controller.beginStroke(
+            snapped,
+            color: strokeColor,
+            radius: _penStrokeWidth / 2,
+            simulatePressure: _simulatePenPressure,
+            profile: _penPressureProfile,
+            antialiasLevel: _penAntialiasLevel,
+            brushShape: _brushShape,
+            randomRotation: _brushRandomRotationEnabled,
+            smoothRotation: _brushSmoothRotationEnabled,
+            rotationSeed: _brushRandomRotationPreviewSeed,
+            spacing: _brushSpacing,
+            hardness: _brushHardness,
+            flow: _brushFlow,
+            scatter: _brushScatter,
+            rotationJitter: _brushRotationJitter,
+            snapToPixel: _brushSnapToPixel,
+            erase: erase,
+            hollow: _hollowStrokeEnabled && !erase,
+            hollowRatio: _hollowStrokeRatio,
+            eraseOccludedParts: _hollowStrokeEraseOccludedParts,
+          );
+          _controller.endStroke();
+          if (_brushRandomRotationEnabled) {
+            _brushRandomRotationPreviewSeed =
+                _brushRotationRandom.nextInt(1 << 31);
+          }
+          if (edit.useBackend) {
+            await edit.commit(
+              waitForPending: true,
+              warnIfFailed: true,
+            );
+          }
+          _markDirty();
+        }
       }
       setState(() {
         _curveAnchor = snapped;
@@ -399,6 +409,45 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _cancelCurvePenSegment();
       return;
     }
+    final Offset control = _computeCurveControlPoint(
+      start,
+      end,
+      _curveDragDelta,
+    );
+    if (_backend.supportsInputQueue && _brushShapeSupportsBackend) {
+      if (_curveRasterPreviewSnapshot != null) {
+        _clearCurvePreviewOverlay();
+      }
+      final Offset strokeStart = _clampToCanvas(start);
+      final List<Offset> samplePoints = _sampleQuadraticCurvePoints(
+        strokeStart,
+        control,
+        _clampToCanvas(end),
+      );
+      final List<Offset> polyline = <Offset>[strokeStart, ...samplePoints];
+      final bool backendOk = _drawBackendStrokeFromPoints(
+        points: polyline,
+        initialTimestampMillis: 0.0,
+        simulatePressure: _simulatePenPressure,
+        timelineStyle: _SyntheticStrokeTimelineStyle.fastCurve,
+      );
+      if (backendOk) {
+        _disposeCurveRasterPreview(
+          restoreLayer: false,
+          clearPreviewImage: true,
+        );
+        setState(() {
+          _curveAnchor = end;
+          _curvePendingEnd = null;
+          _curveDragOrigin = null;
+          _curveDragDelta = Offset.zero;
+          _curvePreviewPath = null;
+          _isCurvePlacingSegment = false;
+        });
+        return;
+      }
+    }
+
     final _CanvasRasterEditSession edit = await _backend.beginRasterEdit(
       captureUndoOnFallback: !_curveUndoCapturedForPreview,
       warnIfFailed: true,
@@ -407,11 +456,6 @@ extension _PaintingBoardInteractionLayerCurveExtension on _PaintingBoardInteract
       _cancelCurvePenSegment();
       return;
     }
-    final Offset control = _computeCurveControlPoint(
-      start,
-      end,
-      _curveDragDelta,
-    );
     if (_curveRasterPreviewSnapshot != null) {
       _clearCurvePreviewOverlay();
     }

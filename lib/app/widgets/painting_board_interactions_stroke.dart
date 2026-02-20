@@ -245,29 +245,22 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
       return;
     }
     final bool useBackendCanvas =
-        _backend.isSupported && _brushShapeSupportsBackend;
-    if (!useBackendCanvas) {
-      await _startStroke(anchor, timestamp, rawEvent);
-      _appendPoint(snapped, timestamp, rawEvent);
-      _finishStroke(timestamp);
+        _backend.supportsInputQueue && _brushShapeSupportsBackend;
+    if (useBackendCanvas) {
+      final bool backendOk = _drawBackendStrokeFromPoints(
+        points: <Offset>[anchor, snapped],
+        initialTimestampMillis: timestamp.inMicroseconds / 1000.0,
+        simulatePressure: _simulatePenPressure,
+        rawEvent: rawEvent,
+      );
       _clearPerspectivePenPreview();
-      return;
+      if (backendOk) {
+        return;
+      }
     }
-    if (!await _backend.syncActiveLayerFromBackend(
-      warnIfFailed: true,
-      skipIfUnavailable: false,
-    )) {
-      _clearPerspectivePenPreview();
-      return;
-    }
-    await _startStroke(anchor, timestamp, rawEvent, skipUndo: true);
+    await _startStroke(anchor, timestamp, rawEvent);
     _appendPoint(snapped, timestamp, rawEvent);
     _finishStroke(timestamp);
-    await _backend.commitActiveLayerToBackend(
-      waitForPending: true,
-      warnIfFailed: true,
-      skipIfUnavailable: false,
-    );
     _clearPerspectivePenPreview();
   }
 
