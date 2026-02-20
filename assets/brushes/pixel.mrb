@@ -1,6 +1,6 @@
 MRB-TEXT 1
 [brush.json]
-length:534
+length:533
 {
   "formatVersion": 1,
   "id": "pixel",
@@ -11,7 +11,7 @@ length:534
   "shapeId": "square",
   "shapeFile": "square.svg",
   "shapeType": "svg",
-  "spacing": 0.25,
+  "spacing": 0.7,
   "hardness": 1.0,
   "flow": 1.0,
   "scatter": 0.0,
@@ -39,4 +39,3 @@ length:130
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <rect x="10" y="10" width="80" height="80" fill="black"/>
 </svg>
-
