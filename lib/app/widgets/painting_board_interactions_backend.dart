@@ -177,6 +177,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       isInitialSample: isInitialSample,
       anchor: _lastStrokeBoardPosition,
       clampToCanvas: false,
+      applyStabilizer: false,
     );
     _lastStrokeBoardPosition = sanitized;
     return sanitized;
@@ -736,6 +737,9 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     }
     final bool erase = _isBrushEraserEnabled;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
+    final double stabilizer =
+        _strokeStabilizerStrength.clamp(0.0, 1.0);
+    final int smoothingMode = stabilizer > 0.0001 ? 3 : 1;
     CanvasBackendFacade.instance.setBrush(
       handle: handle,
       colorArgb: strokeColor.value,
@@ -758,6 +762,8 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       hollowRatio: _hollowStrokeRatio,
       hollowEraseOccludedParts: _hollowStrokeEraseOccludedParts,
       streamlineStrength: _streamlineStrength,
+      smoothingMode: smoothingMode,
+      stabilizerStrength: stabilizer,
     );
   }
 

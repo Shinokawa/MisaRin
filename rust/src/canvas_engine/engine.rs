@@ -167,6 +167,8 @@ pub(crate) enum EngineCommand {
         hollow_ratio: f32,
         hollow_erase_occluded: bool,
         streamline_strength: f32,
+        smoothing_mode: u32,
+        stabilizer_strength: f32,
     },
     BeginSpray,
     DrawSpray {
@@ -2904,6 +2906,8 @@ fn handle_engine_command(
             hollow_ratio,
             hollow_erase_occluded,
             streamline_strength,
+            smoothing_mode,
+            stabilizer_strength,
         } => {
             brush_settings.color_argb = color_argb;
             brush_settings.base_radius = base_radius;
@@ -2924,6 +2928,8 @@ fn handle_engine_command(
             brush_settings.hollow_ratio = hollow_ratio;
             brush_settings.hollow_erase_occluded = hollow_erase_occluded;
             brush_settings.streamline_strength = streamline_strength;
+            brush_settings.smoothing_mode = (smoothing_mode as u8).min(3);
+            brush_settings.stabilizer_strength = stabilizer_strength;
             brush_settings.sanitize();
             if brush.is_none() {
                 if let Err(err) = ensure_brush(brush, device, queue, canvas_width, canvas_height) {

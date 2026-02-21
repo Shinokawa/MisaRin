@@ -26,6 +26,8 @@ pub(crate) struct EngineBrushSettings {
     pub(crate) hollow_ratio: f32,
     pub(crate) hollow_erase_occluded: bool,
     pub(crate) streamline_strength: f32,
+    pub(crate) smoothing_mode: u8,
+    pub(crate) stabilizer_strength: f32,
 }
 
 impl Default for EngineBrushSettings {
@@ -50,6 +52,8 @@ impl Default for EngineBrushSettings {
             hollow_ratio: 0.0,
             hollow_erase_occluded: false,
             streamline_strength: 0.0,
+            smoothing_mode: 1,
+            stabilizer_strength: 0.0,
         }
     }
 }
@@ -97,6 +101,14 @@ impl EngineBrushSettings {
         } else {
             self.streamline_strength = self.streamline_strength.clamp(0.0, 1.0);
         }
+        if !self.stabilizer_strength.is_finite() {
+            self.stabilizer_strength = 0.0;
+        } else {
+            self.stabilizer_strength = self.stabilizer_strength.clamp(0.0, 1.0);
+        }
+        if self.smoothing_mode > 3 {
+            self.smoothing_mode = 1;
+        }
         self.antialias_level = self.antialias_level.clamp(0, 9);
         self.color_argb = apply_flow_to_argb(self.color_argb, self.flow);
     }
@@ -108,6 +120,30 @@ impl EngineBrushSettings {
     pub(crate) fn softness(&self) -> f32 {
         (1.0 - self.hardness).clamp(0.0, 1.0)
     }
+
+    fn smoothing_mode(&self) -> SmoothingMode {
+        match self.smoothing_mode {
+            1 => SmoothingMode::Simple,
+            2 => SmoothingMode::Weighted,
+            3 => SmoothingMode::Stabilizer,
+            _ => SmoothingMode::None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SmoothingMode {
+    None,
+    Simple,
+    Weighted,
+    Stabilizer,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct StrokeSample {
+    pos: Point2D,
+    pressure: f32,
+    timestamp_us: u64,
 }
 
 pub(crate) struct StreamlinePayload {
@@ -122,6 +158,251 @@ struct ConsumedStrokePoints {
     emitted: Vec<(Point2D, f32)>,
 }
 
+const MAX_SMOOTH_HISTORY: usize = 256;
+const SMOOTH_TAIL_AGGRESSIVENESS: f32 = 0.15;
+const SMOOTH_PRESSURE: bool = false;
+const STABILIZER_SMOOTH_PRESSURE: bool = true;
+const STABILIZER_SAMPLE_TIME_US: u64 = 15_000;
+const STABILIZER_DISTANCE_MAX: f32 = 50.0;
+const STABILIZER_MAX_SAMPLES: usize = 64;
+const SPEED_NORMALIZE_REF: f32 = 1.5;
+
+struct StabilizedSampler {
+    last_time_us: Option<u64>,
+    real_events: Vec<StrokeSample>,
+    last_event: Option<StrokeSample>,
+    elapsed_override_samples: usize,
+}
+
+impl StabilizedSampler {
+    fn new() -> Self {
+        Self {
+            last_time_us: None,
+            real_events: Vec::new(),
+            last_event: None,
+            elapsed_override_samples: 0,
+        }
+    }
+
+    fn clear(&mut self) {
+        if let Some(last) = self.real_events.last().copied() {
+            self.last_event = Some(last);
+        }
+        self.real_events.clear();
+        self.elapsed_override_samples = 0;
+        self.last_time_us = None;
+    }
+
+    fn add_event(&mut self, sample: StrokeSample) {
+        if self.last_time_us.is_none() {
+            self.last_time_us = Some(sample.timestamp_us);
+        }
+        self.real_events.push(sample);
+    }
+
+    fn add_finishing_event(&mut self, num_samples: usize) {
+        if self.real_events.is_empty() {
+            if let Some(last) = self.last_event {
+                self.real_events.push(last);
+            }
+        }
+        self.elapsed_override_samples = num_samples;
+    }
+
+    fn range(&mut self, current_time_us: u64) -> Vec<StrokeSample> {
+        let Some(last_time) = self.last_time_us else {
+            self.last_time_us = Some(current_time_us);
+            return Vec::new();
+        };
+
+        let elapsed_us = current_time_us.saturating_sub(last_time);
+        let mut elapsed_samples =
+            (elapsed_us / STABILIZER_SAMPLE_TIME_US) as usize + self.elapsed_override_samples;
+
+        if elapsed_samples == 0 {
+            return Vec::new();
+        }
+        if elapsed_samples > STABILIZER_MAX_SAMPLES {
+            elapsed_samples = STABILIZER_MAX_SAMPLES;
+        }
+
+        self.last_time_us = Some(current_time_us);
+        self.elapsed_override_samples = 0;
+
+        let last_event = if let Some(last) = self.real_events.last().copied() {
+            self.last_event = Some(last);
+            last
+        } else if let Some(last) = self.last_event {
+            last
+        } else {
+            return Vec::new();
+        };
+
+        let alpha = self.real_events.len() as f32 / elapsed_samples as f32;
+        let mut output: Vec<StrokeSample> = Vec::with_capacity(elapsed_samples);
+        for i in 0..elapsed_samples {
+            let idx = (alpha * i as f32).floor() as usize;
+            let sample = if idx < self.real_events.len() {
+                self.real_events[idx]
+            } else {
+                last_event
+            };
+            output.push(sample);
+        }
+        self.real_events.clear();
+        output
+    }
+}
+
+struct KritaStabilizer {
+    queue: std::collections::VecDeque<StrokeSample>,
+    last_painted: Option<StrokeSample>,
+    sampler: StabilizedSampler,
+    strength: f32,
+}
+
+impl KritaStabilizer {
+    fn new() -> Self {
+        Self {
+            queue: std::collections::VecDeque::new(),
+            last_painted: None,
+            sampler: StabilizedSampler::new(),
+            strength: 0.0,
+        }
+    }
+
+    fn reset(&mut self) {
+        self.queue.clear();
+        self.last_painted = None;
+        self.sampler.clear();
+    }
+
+    fn begin(&mut self, first: StrokeSample, strength: f32) {
+        self.queue.clear();
+        let sample_size = stabilizer_sample_size(strength);
+        for _ in 0..sample_size {
+            self.queue.push_back(first);
+        }
+        self.last_painted = Some(first);
+        self.sampler.clear();
+        self.sampler.add_event(first);
+        self.strength = strength;
+    }
+
+    fn process(
+        &mut self,
+        sample: StrokeSample,
+        is_down: bool,
+        is_up: bool,
+    ) -> Vec<StrokeSample> {
+        let strength = self.strength;
+        if strength <= 0.0001 {
+            if is_down {
+                self.reset();
+            }
+            return vec![sample];
+        }
+
+        if is_down || self.queue.is_empty() {
+            self.begin(sample, strength);
+        } else {
+            self.sampler.add_event(sample);
+        }
+
+        let mut output: Vec<StrokeSample> = Vec::new();
+        let sampled = self.sampler.range(sample.timestamp_us);
+        for sampled_info in sampled {
+            let can_paint = if let Some(prev) = self.last_painted {
+                let delay = stabilizer_delay_distance(strength);
+                let dx = sampled_info.pos.x - prev.pos.x;
+                let dy = sampled_info.pos.y - prev.pos.y;
+                (dx * dx + dy * dy).sqrt() > delay
+            } else {
+                true
+            };
+
+            if can_paint {
+                let stabilized = stabilizer_average(&self.queue, sampled_info);
+                self.last_painted = Some(stabilized);
+                output.push(stabilized);
+
+                if self.queue.pop_front().is_some() {
+                    self.queue.push_back(sampled_info);
+                }
+            } else if let Some(prev) = self.last_painted {
+                for item in self.queue.iter_mut() {
+                    item.pos = prev.pos;
+                    item.pressure = prev.pressure;
+                }
+            }
+        }
+
+        if output.is_empty() && is_down {
+            self.last_painted = Some(sample);
+            output.push(sample);
+        }
+
+        if is_up {
+            let finishing_samples = self.queue.len();
+            if finishing_samples > 0 {
+                self.sampler.add_finishing_event(finishing_samples);
+                let finish = self.sampler.range(sample.timestamp_us);
+                for sampled_info in finish {
+                    let stabilized = stabilizer_average(&self.queue, sampled_info);
+                    self.last_painted = Some(stabilized);
+                    output.push(stabilized);
+                    if self.queue.pop_front().is_some() {
+                        self.queue.push_back(sampled_info);
+                    }
+                }
+            }
+        }
+
+        output
+    }
+}
+
+fn stabilizer_sample_size(strength: f32) -> usize {
+    let s = if strength.is_finite() {
+        strength.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let value = 3.0 + s * 47.0;
+    value.round().clamp(3.0, 64.0) as usize
+}
+
+fn stabilizer_delay_distance(strength: f32) -> f32 {
+    let s = if strength.is_finite() {
+        strength.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    (STABILIZER_DISTANCE_MAX * s).max(0.0)
+}
+
+fn stabilizer_average(
+    queue: &std::collections::VecDeque<StrokeSample>,
+    sampled: StrokeSample,
+) -> StrokeSample {
+    if queue.len() <= 1 {
+        return sampled;
+    }
+
+    let mut result = sampled;
+    let mut i = 2.0f32;
+    for item in queue.iter().skip(1) {
+        let k = (i - 1.0) / i;
+        result.pos.x = result.pos.x * k + item.pos.x * (1.0 / i);
+        result.pos.y = result.pos.y * k + item.pos.y * (1.0 / i);
+        if STABILIZER_SMOOTH_PRESSURE {
+            result.pressure = result.pressure * k + item.pressure * (1.0 / i);
+        }
+        i += 1.0;
+    }
+    result
+}
+
 pub(crate) struct StrokeResampler {
     last_emitted: Option<Point2D>,
     last_pressure: f32,
@@ -131,6 +412,14 @@ pub(crate) struct StrokeResampler {
     streamline_active: bool,
     streamline_strength: f32,
     resample_scale: f32,
+    smooth_history: Vec<StrokeSample>,
+    smooth_distance_history: Vec<f32>,
+    smooth_have_tangent: bool,
+    smooth_prev_tangent: Point2D,
+    smooth_older: Option<StrokeSample>,
+    smooth_previous: Option<StrokeSample>,
+    smooth_last_raw: Option<StrokeSample>,
+    stabilizer: KritaStabilizer,
 }
 
 impl StrokeResampler {
@@ -144,6 +433,14 @@ impl StrokeResampler {
             streamline_active: false,
             streamline_strength: 0.0,
             resample_scale: 1.0,
+            smooth_history: Vec::new(),
+            smooth_distance_history: Vec::new(),
+            smooth_have_tangent: false,
+            smooth_prev_tangent: Point2D { x: 0.0, y: 0.0 },
+            smooth_older: None,
+            smooth_previous: None,
+            smooth_last_raw: None,
+            stabilizer: KritaStabilizer::new(),
         }
     }
 
@@ -208,6 +505,321 @@ impl StrokeResampler {
         }
     }
 
+    fn reset_for_new_stroke(&mut self) {
+        self.last_emitted = None;
+        self.last_pressure = 1.0;
+        self.smooth_history.clear();
+        self.smooth_distance_history.clear();
+        self.smooth_have_tangent = false;
+        self.smooth_prev_tangent = Point2D { x: 0.0, y: 0.0 };
+        self.smooth_older = None;
+        self.smooth_previous = None;
+        self.smooth_last_raw = None;
+        self.stabilizer.reset();
+    }
+
+    fn emit_point(&mut self, point: Point2D, pressure: f32, emitted: &mut Vec<(Point2D, f32)>) {
+        if let Some(last) = self.last_emitted {
+            let dx = point.x - last.x;
+            let dy = point.y - last.y;
+            if dx * dx + dy * dy <= 1.0e-6 && (pressure - self.last_pressure).abs() <= 1.0e-4
+            {
+                return;
+            }
+        }
+        emitted.push((point, pressure));
+        self.last_emitted = Some(point);
+        self.last_pressure = pressure;
+    }
+
+    fn emit_line_segment(
+        &mut self,
+        start: StrokeSample,
+        end: StrokeSample,
+        include_end: bool,
+        brush_settings: &EngineBrushSettings,
+        emitted: &mut Vec<(Point2D, f32)>,
+    ) {
+        if let Some(last) = self.last_emitted {
+            if point_distance(last, start.pos) > 1.0e-3 {
+                self.emit_point(start.pos, start.pressure, emitted);
+            }
+        } else {
+            self.emit_point(start.pos, start.pressure, emitted);
+        }
+
+        let prev = start.pos;
+        let dx = end.pos.x - prev.x;
+        let dy = end.pos.y - prev.y;
+        let dist = (dx * dx + dy * dy).sqrt();
+        if !dist.is_finite() || dist <= 0.0001 {
+            if include_end {
+                self.emit_point(end.pos, end.pressure, emitted);
+            }
+            return;
+        }
+
+        let radius_prev = brush_settings.radius_from_pressure(start.pressure);
+        let radius_next = brush_settings.radius_from_pressure(end.pressure);
+        let mut step = resample_step_from_radius(
+            (radius_prev + radius_next) * 0.5,
+            brush_settings.spacing,
+            self.resample_scale,
+        );
+        step = cap_resample_step_for_segment(dist, step);
+
+        let dir_x = dx / dist;
+        let dir_y = dy / dist;
+        let mut traveled = 0.0f32;
+
+        while traveled + step <= dist {
+            traveled += step;
+            let t = (traveled / dist).clamp(0.0, 1.0);
+            let interp_pressure = start.pressure + (end.pressure - start.pressure) * t;
+            let sample = Point2D {
+                x: prev.x + dir_x * traveled,
+                y: prev.y + dir_y * traveled,
+            };
+            self.emit_point(sample, interp_pressure, emitted);
+        }
+
+        if include_end {
+            self.emit_point(end.pos, end.pressure, emitted);
+        }
+    }
+
+    fn emit_bezier_segment(
+        &mut self,
+        p0: StrokeSample,
+        p1: StrokeSample,
+        tangent1: Point2D,
+        tangent2: Point2D,
+        brush_settings: &EngineBrushSettings,
+        emitted: &mut Vec<(Point2D, f32)>,
+    ) {
+        let (c1, c2) = bezier_controls_from_tangents(p0.pos, p1.pos, tangent1, tangent2);
+        if let Some(last) = self.last_emitted {
+            if point_distance(last, p0.pos) > 1.0e-3 {
+                self.emit_point(p0.pos, p0.pressure, emitted);
+            }
+        } else {
+            self.emit_point(p0.pos, p0.pressure, emitted);
+        }
+
+        let radius = brush_settings
+            .radius_from_pressure((p0.pressure + p1.pressure) * 0.5)
+            .max(0.01);
+        let mut step =
+            resample_step_from_radius(radius, brush_settings.spacing, self.resample_scale);
+        let length = cubic_length_approx(p0.pos, c1, c2, p1.pos);
+        step = cap_resample_step_for_segment(length, step);
+        if !length.is_finite() || length <= 0.0001 {
+            self.emit_point(p1.pos, p1.pressure, emitted);
+            return;
+        }
+
+        let segments = ((length / step).ceil() as usize).clamp(1, MAX_SEGMENT_SAMPLES);
+        for i in 1..=segments {
+            let t = (i as f32) / (segments as f32);
+            let pos = cubic_point(p0.pos, c1, c2, p1.pos, t);
+            let pres = p0.pressure + (p1.pressure - p0.pressure) * t;
+            self.emit_point(pos, pres, emitted);
+        }
+    }
+
+    fn smooth_weighted(
+        &mut self,
+        sample: StrokeSample,
+        strength: f32,
+    ) -> StrokeSample {
+        let mut current = sample;
+        let prev_pos = if let Some(last) = self.smooth_history.last() {
+            last.pos
+        } else if let Some(prev) = self.smooth_previous {
+            prev.pos
+        } else {
+            sample.pos
+        };
+        let current_distance = point_distance(current.pos, prev_pos);
+        self.smooth_distance_history.push(current_distance);
+        self.smooth_history.push(current);
+
+        if self.smooth_history.len() > MAX_SMOOTH_HISTORY {
+            self.smooth_history.remove(0);
+            if !self.smooth_distance_history.is_empty() {
+                self.smooth_distance_history.remove(0);
+            }
+        }
+
+        if self.smooth_history.len() > 3 && strength > 0.0001 {
+            let speed = if let Some(last_raw) = self.smooth_last_raw {
+                let dt_ms =
+                    (sample.timestamp_us.saturating_sub(last_raw.timestamp_us) as f32) / 1000.0;
+                if dt_ms > 0.0 {
+                    let dist = point_distance(sample.pos, last_raw.pos);
+                    dist / dt_ms
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            };
+            let speed01 = (speed / (speed + SPEED_NORMALIZE_REF)).clamp(0.0, 1.0);
+            let max_dist = STABILIZER_DISTANCE_MAX * strength;
+            let min_dist = max_dist * 0.6;
+            let smooth_dist = (1.0 - speed01) * max_dist + speed01 * min_dist;
+            let sigma = smooth_dist / 3.0;
+            if sigma > 0.0001 {
+                let gaussian_weight = 1.0 / ((2.0 * std::f32::consts::PI).sqrt() * sigma);
+                let gaussian_weight2 = sigma * sigma;
+                let mut distance_sum = 0.0f32;
+                let mut scale_sum = 0.0f32;
+                let mut x = 0.0f32;
+                let mut y = 0.0f32;
+                let mut pressure_sum = 0.0f32;
+                let mut base_rate = 0.0f32;
+
+                for i in (0..self.smooth_history.len()).rev() {
+                    let mut rate = 0.0f32;
+                    let next_info = self.smooth_history[i];
+                    let mut distance = *self
+                        .smooth_distance_history
+                        .get(i)
+                        .unwrap_or(&0.0);
+
+                    if i + 1 < self.smooth_history.len() {
+                        let pressure_grad =
+                            next_info.pressure - self.smooth_history[i + 1].pressure;
+                        if pressure_grad > 0.0 {
+                            let tail = 40.0 * SMOOTH_TAIL_AGGRESSIVENESS;
+                            distance +=
+                                pressure_grad * tail * (1.0 - next_info.pressure) * 3.0 * sigma;
+                        }
+                    }
+
+                    if gaussian_weight2 > 0.0 {
+                        distance_sum += distance;
+                        rate = gaussian_weight
+                            * (-distance_sum * distance_sum / (2.0 * gaussian_weight2)).exp();
+                    }
+
+                    if self.smooth_history.len() - i == 1 {
+                        base_rate = rate;
+                    } else if base_rate > 0.0 && base_rate / rate > 100.0 {
+                        break;
+                    }
+
+                    scale_sum += rate;
+                    x += rate * next_info.pos.x;
+                    y += rate * next_info.pos.y;
+                    if SMOOTH_PRESSURE {
+                        pressure_sum += rate * next_info.pressure;
+                    }
+                }
+
+                if scale_sum > 0.0 {
+                    x /= scale_sum;
+                    y /= scale_sum;
+                    current.pos = Point2D { x, y };
+                    if SMOOTH_PRESSURE {
+                        current.pressure = pressure_sum / scale_sum;
+                    }
+                    if let Some(last) = self.smooth_history.last_mut() {
+                        last.pos = current.pos;
+                        if SMOOTH_PRESSURE {
+                            last.pressure = current.pressure;
+                        }
+                    }
+                }
+            }
+        }
+
+        self.smooth_last_raw = Some(sample);
+        current
+    }
+
+    fn process_smoothing_sample(
+        &mut self,
+        sample: StrokeSample,
+        mode: SmoothingMode,
+        brush_settings: &EngineBrushSettings,
+        emitted: &mut Vec<(Point2D, f32)>,
+    ) {
+        let mut current = sample;
+        if mode == SmoothingMode::Weighted {
+            current = self.smooth_weighted(sample, brush_settings.stabilizer_strength);
+        }
+
+        if self.smooth_previous.is_none() {
+            self.emit_point(current.pos, current.pressure, emitted);
+            self.smooth_previous = Some(current);
+            return;
+        }
+
+        let prev = self.smooth_previous.unwrap();
+
+        if !self.smooth_have_tangent {
+            self.smooth_prev_tangent = tangent_between(prev, current);
+            self.smooth_have_tangent = true;
+            self.smooth_older = Some(prev);
+            self.smooth_previous = Some(current);
+            return;
+        }
+
+        let Some(older) = self.smooth_older else {
+            self.smooth_previous = Some(current);
+            return;
+        };
+
+        let new_tangent = tangent_between(older, current);
+        if tangent_is_zero(new_tangent) || tangent_is_zero(self.smooth_prev_tangent) {
+            self.emit_line_segment(prev, current, true, brush_settings, emitted);
+        } else {
+            self.emit_bezier_segment(
+                older,
+                prev,
+                self.smooth_prev_tangent,
+                new_tangent,
+                brush_settings,
+                emitted,
+            );
+        }
+
+        self.smooth_prev_tangent = new_tangent;
+        self.smooth_older = Some(prev);
+        self.smooth_previous = Some(current);
+    }
+
+    fn finish_smoothing(
+        &mut self,
+        brush_settings: &EngineBrushSettings,
+        emitted: &mut Vec<(Point2D, f32)>,
+    ) {
+        if !self.smooth_have_tangent {
+            return;
+        }
+        let Some(prev) = self.smooth_previous else {
+            return;
+        };
+        let Some(older) = self.smooth_older else {
+            return;
+        };
+        let new_tangent = tangent_between(older, prev);
+        if tangent_is_zero(new_tangent) || tangent_is_zero(self.smooth_prev_tangent) {
+            self.emit_line_segment(older, prev, true, brush_settings, emitted);
+        } else {
+            self.emit_bezier_segment(
+                older,
+                prev,
+                self.smooth_prev_tangent,
+                new_tangent,
+                brush_settings,
+                emitted,
+            );
+        }
+        self.smooth_have_tangent = false;
+    }
+
     fn consume_points_internal(
         &mut self,
         brush_settings: &EngineBrushSettings,
@@ -233,6 +845,9 @@ impl StrokeResampler {
         let mut down_count: usize = 0;
         let mut up_count: usize = 0;
 
+        let mode = brush_settings.smoothing_mode();
+        self.stabilizer.strength = brush_settings.stabilizer_strength;
+
         for p in points {
             let x = if p.x.is_finite() { p.x } else { 0.0 };
             let y = if p.y.is_finite() { p.y } else { 0.0 };
@@ -241,73 +856,53 @@ impl StrokeResampler {
             } else {
                 0.0
             };
-
             let is_down = (p.flags & FLAG_DOWN) != 0;
             let is_up = (p.flags & FLAG_UP) != 0;
             if is_down {
                 down_count += 1;
+                self.reset_for_new_stroke();
+                self.begin_streamline(brush_settings.streamline_strength);
             }
             if is_up {
                 up_count += 1;
             }
-            if is_down {
-                self.begin_streamline(brush_settings.streamline_strength);
-            }
 
-            let current = Point2D { x, y };
-            if is_down || self.last_emitted.is_none() {
-                self.last_emitted = Some(current);
-                self.last_pressure = pressure;
-                emitted.push((current, pressure));
-                continue;
-            }
-
-            let Some(prev) = self.last_emitted else {
-                continue;
+            let sample = StrokeSample {
+                pos: Point2D { x, y },
+                pressure,
+                timestamp_us: p.timestamp_us,
             };
 
-            let dx = current.x - prev.x;
-            let dy = current.y - prev.y;
-            let dist = (dx * dx + dy * dy).sqrt();
-            if !dist.is_finite() || dist <= 0.0001 {
-                if is_up {
-                    emitted.push((current, pressure));
-                    self.last_emitted = Some(current);
-                    self.last_pressure = pressure;
+            match mode {
+                SmoothingMode::Stabilizer => {
+                    let stabilized = self.stabilizer.process(sample, is_down, is_up);
+                    for stab in stabilized {
+                        if let Some(prev) = self.smooth_previous {
+                            self.emit_line_segment(prev, stab, true, brush_settings, &mut emitted);
+                        } else {
+                            self.emit_point(stab.pos, stab.pressure, &mut emitted);
+                        }
+                        self.smooth_previous = Some(stab);
+                    }
                 }
-                continue;
-            }
-
-            let radius_prev = brush_settings.radius_from_pressure(self.last_pressure);
-            let radius_next = brush_settings.radius_from_pressure(pressure);
-            let mut step = resample_step_from_radius(
-                (radius_prev + radius_next) * 0.5,
-                brush_settings.spacing,
-                self.resample_scale,
-            );
-            step = cap_resample_step_for_segment(dist, step);
-
-            let dir_x = dx / dist;
-            let dir_y = dy / dist;
-            let mut traveled = 0.0f32;
-
-            while traveled + step <= dist {
-                traveled += step;
-                let t = (traveled / dist).clamp(0.0, 1.0);
-                let interp_pressure = self.last_pressure + (pressure - self.last_pressure) * t;
-                let sample = Point2D {
-                    x: prev.x + dir_x * traveled,
-                    y: prev.y + dir_y * traveled,
-                };
-                emitted.push((sample, interp_pressure));
-                self.last_emitted = Some(sample);
-                self.last_pressure = interp_pressure;
-            }
-
-            if is_up {
-                emitted.push((current, pressure));
-                self.last_emitted = Some(current);
-                self.last_pressure = pressure;
+                SmoothingMode::Weighted | SmoothingMode::Simple => {
+                    self.process_smoothing_sample(sample, mode, brush_settings, &mut emitted);
+                    if is_up {
+                        self.finish_smoothing(brush_settings, &mut emitted);
+                    }
+                }
+                SmoothingMode::None => {
+                    if is_down || self.last_emitted.is_none() {
+                        self.emit_point(sample.pos, sample.pressure, &mut emitted);
+                        continue;
+                    }
+                    let start = StrokeSample {
+                        pos: self.last_emitted.unwrap(),
+                        pressure: self.last_pressure,
+                        timestamp_us: sample.timestamp_us,
+                    };
+                    self.emit_line_segment(start, sample, is_up, brush_settings, &mut emitted);
+                }
             }
         }
 
@@ -328,7 +923,7 @@ impl StrokeResampler {
             emitted
         };
 
-        let emitted = if emitted.len() > 2 {
+        let emitted = if mode == SmoothingMode::None && emitted.len() > 2 {
             fit_and_resample_points(emitted)
         } else {
             emitted
@@ -1066,6 +1661,196 @@ fn point_distance(a: Point2D, b: Point2D) -> f32 {
     let dx = a.x - b.x;
     let dy = a.y - b.y;
     (dx * dx + dy * dy).sqrt()
+}
+
+fn tangent_between(a: StrokeSample, b: StrokeSample) -> Point2D {
+    let dt_ms = (b.timestamp_us.saturating_sub(a.timestamp_us) as f32) / 1000.0;
+    let denom = dt_ms.max(1.0);
+    Point2D {
+        x: (b.pos.x - a.pos.x) / denom,
+        y: (b.pos.y - a.pos.y) / denom,
+    }
+}
+
+fn tangent_is_zero(t: Point2D) -> bool {
+    if !t.x.is_finite() || !t.y.is_finite() {
+        return true;
+    }
+    t.x.abs() <= 1.0e-6 && t.y.abs() <= 1.0e-6
+}
+
+fn cubic_point(p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D, t: f32) -> Point2D {
+    let t = if t.is_finite() { t.clamp(0.0, 1.0) } else { 0.0 };
+    let u = 1.0 - t;
+    let tt = t * t;
+    let uu = u * u;
+    let uuu = uu * u;
+    let ttt = tt * t;
+    let x = uuu * p0.x + 3.0 * uu * t * p1.x + 3.0 * u * tt * p2.x + ttt * p3.x;
+    let y = uuu * p0.y + 3.0 * uu * t * p1.y + 3.0 * u * tt * p2.y + ttt * p3.y;
+    Point2D { x, y }
+}
+
+fn cubic_length_approx(p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D) -> f32 {
+    let steps = 8usize;
+    let mut length = 0.0f32;
+    let mut prev = p0;
+    for i in 1..=steps {
+        let t = i as f32 / steps as f32;
+        let curr = cubic_point(p0, p1, p2, p3, t);
+        length += point_distance(prev, curr);
+        prev = curr;
+    }
+    length
+}
+
+fn bezier_controls_from_tangents(
+    p0: Point2D,
+    p3: Point2D,
+    t1: Point2D,
+    t2: Point2D,
+) -> (Point2D, Point2D) {
+    let max_sane = 1.0e6;
+    let control_dir1 = Point2D {
+        x: p0.x + t1.x,
+        y: p0.y + t1.y,
+    };
+    let control_dir2 = Point2D {
+        x: p3.x - t2.x,
+        y: p3.y - t2.y,
+    };
+
+    let mut control_target1;
+    let mut control_target2;
+
+    if let Some(intersection) =
+        line_intersection_bounded(control_dir1, control_dir2, p0, p3)
+    {
+        let control_length = point_distance(p0, p3) * 0.5;
+        control_target1 = point_on_line(p0, control_dir1, control_length);
+        control_target2 = point_on_line(p3, control_dir2, control_length);
+    } else {
+        let intersection = line_intersection(p0, control_dir1, p3, control_dir2)
+            .filter(|p| (p.x.abs() + p.y.abs()) <= max_sane)
+            .unwrap_or(Point2D {
+                x: (p0.x + p3.x) * 0.5,
+                y: (p0.y + p3.y) * 0.5,
+            });
+        control_target1 = intersection;
+        control_target2 = intersection;
+    }
+
+    let mut coeff = 0.8f32;
+    let mut v1 = (t1.x * t1.x + t1.y * t1.y).sqrt();
+    let mut v2 = (t2.x * t2.x + t2.y * t2.y).sqrt();
+    if v1 <= 0.0 {
+        v1 = 1.0e-6;
+    }
+    if v2 <= 0.0 {
+        v2 = 1.0e-6;
+    }
+    let mut similarity = (v1 / v2).min(v2 / v1);
+    if similarity < 0.5 {
+        similarity = 0.5;
+    }
+    coeff *= 1.0 - (similarity - 0.8).max(0.0);
+
+    let control1;
+    let control2;
+    if v1 > v2 {
+        control1 = Point2D {
+            x: p0.x * (1.0 - coeff) + control_target1.x * coeff,
+            y: p0.y * (1.0 - coeff) + control_target1.y * coeff,
+        };
+        coeff *= similarity;
+        control2 = Point2D {
+            x: p3.x * (1.0 - coeff) + control_target2.x * coeff,
+            y: p3.y * (1.0 - coeff) + control_target2.y * coeff,
+        };
+    } else {
+        control2 = Point2D {
+            x: p3.x * (1.0 - coeff) + control_target2.x * coeff,
+            y: p3.y * (1.0 - coeff) + control_target2.y * coeff,
+        };
+        coeff *= similarity;
+        control1 = Point2D {
+            x: p0.x * (1.0 - coeff) + control_target1.x * coeff,
+            y: p0.y * (1.0 - coeff) + control_target1.y * coeff,
+        };
+    }
+
+    (control1, control2)
+}
+
+fn line_intersection(a1: Point2D, a2: Point2D, b1: Point2D, b2: Point2D) -> Option<Point2D> {
+    let r = Point2D {
+        x: a2.x - a1.x,
+        y: a2.y - a1.y,
+    };
+    let s = Point2D {
+        x: b2.x - b1.x,
+        y: b2.y - b1.y,
+    };
+    let denom = r.x * s.y - r.y * s.x;
+    if denom.abs() <= 1.0e-6 {
+        return None;
+    }
+    let u = Point2D {
+        x: b1.x - a1.x,
+        y: b1.y - a1.y,
+    };
+    let t = (u.x * s.y - u.y * s.x) / denom;
+    Some(Point2D {
+        x: a1.x + t * r.x,
+        y: a1.y + t * r.y,
+    })
+}
+
+fn line_intersection_bounded(
+    a1: Point2D,
+    a2: Point2D,
+    b1: Point2D,
+    b2: Point2D,
+) -> Option<Point2D> {
+    let r = Point2D {
+        x: a2.x - a1.x,
+        y: a2.y - a1.y,
+    };
+    let s = Point2D {
+        x: b2.x - b1.x,
+        y: b2.y - b1.y,
+    };
+    let denom = r.x * s.y - r.y * s.x;
+    if denom.abs() <= 1.0e-6 {
+        return None;
+    }
+    let u = Point2D {
+        x: b1.x - a1.x,
+        y: b1.y - a1.y,
+    };
+    let t = (u.x * s.y - u.y * s.x) / denom;
+    let v = (u.x * r.y - u.y * r.x) / denom;
+    if t < 0.0 || t > 1.0 || v < 0.0 || v > 1.0 {
+        return None;
+    }
+    Some(Point2D {
+        x: a1.x + t * r.x,
+        y: a1.y + t * r.y,
+    })
+}
+
+fn point_on_line(start: Point2D, end: Point2D, length: f32) -> Point2D {
+    let dx = end.x - start.x;
+    let dy = end.y - start.y;
+    let dist = (dx * dx + dy * dy).sqrt();
+    if dist <= 1.0e-6 {
+        return start;
+    }
+    let t = length / dist;
+    Point2D {
+        x: start.x + dx * t,
+        y: start.y + dy * t,
+    }
 }
 
 fn stroke_direction_angle(points: &[Point2D], index: usize) -> f32 {

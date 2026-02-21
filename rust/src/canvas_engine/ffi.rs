@@ -544,6 +544,8 @@ pub extern "C" fn engine_set_brush(
     hollow_ratio: f32,
     hollow_erase_occluded: u8,
     streamline_strength: f32,
+    smoothing_mode: u32,
+    stabilizer_strength: f32,
 ) {
     let Some(entry) = lookup_engine(handle) else {
         return;
@@ -584,6 +586,8 @@ pub extern "C" fn engine_set_brush(
         hollow_ratio,
         hollow_erase_occluded: hollow_erase_occluded != 0,
         streamline_strength,
+        smoothing_mode,
+        stabilizer_strength,
     });
 }
 
@@ -610,6 +614,8 @@ pub extern "C" fn engine_set_brush(
     _hollow_ratio: f32,
     _hollow_erase_occluded: u8,
     _streamline_strength: f32,
+    _smoothing_mode: u32,
+    _stabilizer_strength: f32,
 ) {
 }
 

@@ -42,6 +42,8 @@ class CanvasEngineFfi {
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,
     double streamlineStrength = 0.0,
+    int smoothingMode = 1,
+    double stabilizerStrength = 0.0,
   }) {}
 
   void beginSpray({required int handle}) {}

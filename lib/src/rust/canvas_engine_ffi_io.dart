@@ -334,6 +334,8 @@ typedef _EngineSetBrushNative =
       ffi.Float hollowRatio,
       ffi.Uint8 hollowEraseOccludedParts,
       ffi.Float streamlineStrength,
+      ffi.Uint32 smoothingMode,
+      ffi.Float stabilizerStrength,
     );
 typedef _EngineSetBrushDart =
     void Function(
@@ -357,6 +359,8 @@ typedef _EngineSetBrushDart =
       double hollowRatio,
       int hollowEraseOccludedParts,
       double streamlineStrength,
+      int smoothingMode,
+      double stabilizerStrength,
     );
 
 typedef _EngineSprayBeginNative = ffi.Void Function(ffi.Uint64 handle);
@@ -1312,6 +1316,8 @@ class CanvasEngineFfi {
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,
     double streamlineStrength = 0.0,
+    int smoothingMode = 1,
+    double stabilizerStrength = 0.0,
   }) {
     final fn = _setBrush;
     if (!isSupported || fn == null || handle == 0) {
@@ -1361,6 +1367,18 @@ class CanvasEngineFfi {
       streamline = 0.0;
     }
     streamline = streamline.clamp(0.0, 1.0);
+    int smoothing = smoothingMode;
+    if (smoothing < 0) {
+      smoothing = 0;
+    }
+    if (smoothing > 3) {
+      smoothing = 3;
+    }
+    double stabilizer = stabilizerStrength;
+    if (!stabilizer.isFinite) {
+      stabilizer = 0.0;
+    }
+    stabilizer = stabilizer.clamp(0.0, 1.0);
     fn(
       handle,
       colorArgb,
@@ -1382,6 +1400,8 @@ class CanvasEngineFfi {
       ratio,
       hollowEraseOccludedParts ? 1 : 0,
       streamline,
+      smoothing,
+      stabilizer,
     );
   }
 
