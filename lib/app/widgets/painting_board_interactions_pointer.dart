@@ -89,7 +89,7 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
         final bool useBackendCanvas =
             _backend.isSupported && _brushShapeSupportsBackend;
         if (!useBackendCanvas) {
-          if (!_canStartBitmapStroke(pointerInsideBoard: pointerInsideBoard)) {
+          if (!_canStartBitmapStroke()) {
             return;
           }
           if (!isPointInsideSelection(boardLocal)) {
@@ -145,7 +145,7 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
           await _startStroke(boardLocal, event.timeStamp, event);
           return;
         }
-        if (!_canStartBackendStroke(pointerInsideBoard: pointerInsideBoard)) {
+        if (!_canStartBackendStroke()) {
           _showBackendCanvasMessage('画布后端尚未准备好。');
           return;
         }

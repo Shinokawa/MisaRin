@@ -27,10 +27,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     return false;
   }
 
-  bool _canStartBackendStroke({required bool pointerInsideBoard}) {
-    if (!pointerInsideBoard) {
-      return false;
-    }
+  bool _canStartBackendStroke() {
     if (!_backend.supportsStrokeStream) {
       return false;
     }
@@ -45,10 +42,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     return true;
   }
 
-  bool _canStartBitmapStroke({required bool pointerInsideBoard}) {
-    if (!pointerInsideBoard) {
-      return false;
-    }
+  bool _canStartBitmapStroke() {
     if (_layerTransformModeActive ||
         _isLayerFreeTransformActive ||
         _controller.isActiveLayerTransforming) {
