@@ -54,6 +54,16 @@ class File implements FileSystemEntity {
     return this;
   }
 
+  Future<File> rename(String newPath) async {
+    debugPrint('File.rename is not supported on web: $path -> $newPath');
+    return File(newPath);
+  }
+
+  Future<File> copy(String newPath) async {
+    debugPrint('File.copy is not supported on web: $path -> $newPath');
+    return File(newPath);
+  }
+
   Future<void> delete() async {
     debugPrint('File.delete is not supported on web: $path');
   }
