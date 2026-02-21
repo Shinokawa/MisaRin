@@ -14,71 +14,48 @@
 
 ## 简体中文
 
-Misa Rin 是一款基于 Rust 开发的桌面数字绘画与像素创作软件。界面基于 Fluent UI，渲染后端为 WGPU，实现了秒级启动与媲美原生应用的流畅体验。
+Misa Rin 是一款基于 Rust (WGPU) 与 Flutter 开发的高性能数字绘画与像素创作软件。其核心架构采用 **Rust CPU 光栅化 + WGPU 渲染管线** 的混合模式，既保证了笔刷运算的像素级精度，又实现了秒级启动与极致流畅的交互体验。
 
-无论是速写、像素草图、UI 设计还是工业级赛璐璐平涂，都可以在一个统一的、无限边界的画布里完成。
+无论是像素画、赛璐璐风格插画，还是工业级二值化生产，都可以在这个统一的、无限边界的画布中高效完成。
 
-> 注意：项目仍处于早期开发阶段 (Alpha)，请勿将其用于关键生产项目。
+> **注意**：本项目目前处于早期开发阶段 (Alpha)，功能尚在快速迭代中，请避免在关键生产环境中使用。
 
----
+### 核心特性
 
-## 核心亮点
+*   **混合渲染架构**
+    笔刷引擎由 Rust 在 CPU 端进行高精度光栅化，支持亚像素级抗锯齿与完美的像素对齐；画布合成与显示则由 WGPU 接管，充分利用现代 GPU 性能。
+*   **专为鼠标绘图优化**
+    内置速度-压力映射模型与 **Streamline (流线型)** 平滑算法。即便使用鼠标，也能通过“自动尖锐 (Auto Sharp Taper)”功能画出带有自然压感与锐利笔锋的线条。
+*   **工业级赛璐璐工作流**
+    致敬并改良了日本动画工业（PaintMan/Retas）的高效二值化生产流程。支持全程无抗锯齿（Aliased）作画，配合“色线吞并”与“非破坏性二值化”技术，大幅提升填色与分层效率。
 
-- **包体说明**：包含 Rust 编译产物，包体体积较大，具体大小因平台与构建方式而异。
-- **鼠标党福音**：内置 **速度-压力映射模型** 与 **自动尖锐出峰** 算法，配合带压感的贝塞尔曲线工具，无需数位板也能画出带有完美笔锋的线稿。
-- **跨平台同构**：基于 Flutter 与 CanvasKit，在 Windows、macOS、Linux 与 Web 上提供完全一致的性能与交互体验。
+### 功能详情
 
-## 绘画与创作
+**专业笔刷引擎**
+*   **多形态笔尖**：原生支持圆形、三角形、正方形及五角星笔尖。
+*   **动态控制**：支持随机旋转 (Jitter)、随运笔方向旋转 (Smooth Rotation) 及散布 (Scatter) 效果。
+*   **特殊效果**：支持空心笔刷 (Hollow) 模式，可调节空心比例并自动去除重叠部分，快速绘制线稿。
+*   **像素完美**：提供“像素对齐 (Snap to Pixel)”模式，专为像素画创作设计。
 
-- **专业笔刷引擎**：
-    - **多形状笔尖**：原生支持圆形、三角形、正方形、五角星笔尖，满足像素画与硬边概括需求。
-    - **随机旋转（印章）**：方形/三角形/五角星印章支持随机旋转，让散点与装饰笔触更自然。
-    - **物理开关**：支持一键“转换为擦除”模式，保留当前笔刷纹理进行擦除；支持独立开关“数位笔压”与“模拟笔压”。
-    - **矢量作画**：可选开启矢量预览，提供绝对流畅的笔触反馈；抬笔后支持 StreamLine 平滑重算，并以补间动画回弹到更顺的结果。
-    - **空心描边/空心笔刷**：支持空心比例与“吃掉重叠部分”，快速画出干净的描边与线稿效果。
-    - **透视辅助**：支持 1/2/3 点透视线与透视笔，绘制时可按透视方向吸附。
-- **选区与编辑**：提供“选区笔”，像画笔一样涂抹创建选区，可与现有选区叠加。
-- **强大的文本工具**：支持 **横排/竖排** 文本输入，可自由调节字体（支持预览与收藏）、字号、行距、字间距，并支持 **文字描边 (Stroke)**，完美适应漫画嵌字与海报设计。
-- **专注画布**：自研分块渲染 (Chunk-based Rendering) 引擎，支持无限尺寸画布、无限撤销/重做与多文档标签页管理。
+**图像处理与辅助**
+*   **非破坏性编辑**：内置 HSB、亮度/对比度、色彩范围（减色/分色）等实时调整工具。
+*   **线稿提取**：专业的扫描件处理工具，支持去背（白底转透明）、RGB 通道线稿提取及漏色修补。
+*   **智能辅助**：内置 1/2/3 点透视辅助线，笔刷可自动吸附透视方向。
+*   **高清导出**：独家二次边缘柔化算法，支持将二值化作品导出为平滑的高清插画。
 
-## Retas 风格二值化工作流 (Industrial Workflow)
+**文本与排版**
+*   **专业排版**：支持横排与竖排文本输入，完美适配漫画嵌字需求。
+*   **样式控制**：可自由调节字体（支持预览与收藏）、字号、行距及字间距。
+*   **特效支持**：支持文字描边 (Stroke)，提升海报设计与标题的表现力。
 
-Misa Rin 致敬并重现了日本动画工业（PaintMan/Retas）的高效二值化生产流程，专为赛璐璐风格与像素艺术家打造：
+**工作区**
+*   **3D 参考**：内置 Steve/Alex 模型查看器，支持导入自定义 Bedrock 模型，可实时烘焙贴图与预览阴影。
+*   **无限画布**：基于分块渲染 (Chunk-based Rendering) 技术，支持无限尺寸画布与无限制撤销/重做。
 
-1.  **非破坏性二值化**：支持全程使用锯齿（Aliased）线条作画与填色，彻底告别“油漆桶白边”与繁琐的容差调整。
-2.  **色线吞并 (Color Trace Enclosure)**：面板内置红/绿/蓝/黑专用色线按钮，油漆桶填色时自动吞并色线（色トレス/Color Trace），实现工业级的高速分色。
-3.  **后期边缘柔化渲染**：独家的 **二次算法边缘柔化** 功能，允许在导出时将二值化画面一键渲染为平滑且保留线条密度的高清插画。
+### 获取与体验
 
-## 图像处理与滤镜
-
-内置轻量级图像处理管线，无需导出即可完成后期调整：
-- **基础调整**：色相/饱和度 (HSB)、亮度/对比度、黑白、二值化、颜色反转。
-- **线稿处理**：扫描纸绘（纸白转透明，提取黑/红/绿/蓝线条，可调黑/白点与中间调）、去除漏色。
-- **形态学工具**：线条收窄、填色拉伸。
-- **颜色处理**：色彩范围（减色/分色效果，支持实时预览）。
-- **特效滤镜**：高斯模糊 (Gaussian Blur)。
-- **渲染控制**：可调节等级的边缘柔化 (Anti-aliasing) 滤镜。
-
-## 视图与辅助
-
-- **视图旋转**：旋转工具可自由旋转画布视图并一键复位（不影响实际像素）。
-- **专注辅助**：像素网格、镜像预览、黑白预览。
-- **画布变换**：支持画布旋转 90°/180°、图像大小与画布大小调整、图层自由变换（持续优化缩放锚点与画布大小锚点可读性）。
-- **交互细节**：优化图层重命名交互与文本选择样式等细节体验。
-- **3D 参考模型**：内置 Steve/Alex 模型查看器，支持导入自定义 Bedrock 模型；支持多角度观察、实时贴图烘焙（Bake）与 Z-Buffer 阴影预览，辅助皮肤绘制与光影参考。
-
-## 导入与导出
-
-- **文件格式**：支持保存为 `.rin`；导入/导出 PSD（保留图层结构）。
-- **导出**：PNG（倍率与导出前边缘柔化）、SVG（自动矢量化，最大颜色数/路径简化可调）。
-- **素材与色彩**：支持拖拽/剪贴板导入图片；从画布取色生成调色盘与渐变调色盘，并支持导入/导出调色盘；支持参考图像面板。
-
-## 获取与体验
-
-- **桌面版 (推荐)**：前往 [Releases](https://github.com/MCDFsteve/MisaRin/releases) 下载最新安装包。
-    - *适用于生产环境，支持多线程处理与本地文件管理。*
-- **网页版**：访问 https://misarin.aimes-soft.com
-    - *适用于即时体验与轻量摸鱼，无需安装。*
+*   **桌面版 (推荐)**：前往 [Releases](https://github.com/MCDFsteve/MisaRin/releases) 下载最新安装包。适用于生产环境，支持多线程处理与本地文件管理。
+*   **网页版**：访问 https://misarin.aimes-soft.com 可即时体验。
 
 ## 快速上手
 
@@ -115,71 +92,48 @@ Misa Rin 致力于探索 Flutter 在高性能图形领域的极限。
 
 ## 繁體中文
 
-Misa Rin 是一款基於 Rust 開發的桌面數位繪畫與像素創作軟體。介面基於 Fluent UI，渲染後端為 WGPU，實現秒級啟動與媲美原生應用的流暢體驗。
+Misa Rin 是一款基於 Rust (WGPU) 與 Flutter 開發的高效能數位繪畫與像素創作軟體。其核心架構採用 **Rust CPU 光柵化 + WGPU 渲染管線** 的混合模式，既保證了筆刷運算的像素級精度，又實現了秒級啟動與極致流暢的互動體驗。
 
-無論是速寫、像素草圖、UI 設計還是工業級賽璐璐平塗，都可以在一個統一的、無限邊界的畫布裡完成。
+無論是像素畫、賽璐璐風格插畫，還是工業級二值化生產，都可以在這個統一的、無限邊界的畫布中高效完成。
 
-> 注意：專案仍處於早期開發階段 (Alpha)，請勿將其用於關鍵生產專案。
+> **注意**：專案仍處於早期開發階段 (Alpha)，功能尚在快速迭代中，請避免在關鍵生產環境中使用。
 
----
+### 核心特性
 
-## 核心亮點
+*   **混合渲染架構**
+    筆刷引擎由 Rust 在 CPU 端進行高精度光柵化，支援亞像素級抗鋸齒與完美的像素對齊；畫布合成與顯示則由 WGPU 接管，充分利用現代 GPU 效能。
+*   **專為滑鼠繪圖優化**
+    內建速度-壓力映射模型與 **Streamline (流線型)** 平滑演算法。即便使用滑鼠，也能透過「自動尖銳 (Auto Sharp Taper)」功能畫出帶有自然壓感與銳利筆鋒的線條。
+*   **工業級賽璐璐工作流**
+    致敬並改良了日本動畫工業（PaintMan/Retas）的高效二值化生產流程。支援全程無抗鋸齒（Aliased）作畫，配合「色線吞併」與「非破壞性二值化」技術，大幅提升填色與分層效率。
 
-- **包體說明**：包含 Rust 編譯產物，包體體積較大，實際大小會因平台與建置方式而異。
-- **滑鼠族福音**：內建 **速度-壓力映射模型** 與 **自動尖銳出峰** 演算法，配合帶壓感的貝茲曲線工具，無需繪圖板也能畫出帶有完美筆鋒的線稿。
-- **跨平台同構**：基於 Flutter 與 CanvasKit，在 Windows、macOS、Linux 與 Web 上提供完全一致的性能與互動體驗。
+### 功能詳情
 
-## 繪畫與創作
+**專業筆刷引擎**
+*   **多形態筆尖**：原生支援圓形、三角形、正方形及五角星筆尖。
+*   **動態控制**：支援隨機旋轉 (Jitter)、隨運筆方向旋轉 (Smooth Rotation) 及散布 (Scatter) 效果。
+*   **特殊效果**：支援空心筆刷 (Hollow) 模式，可調節空心比例並自動去除重疊部分，快速繪製線稿。
+*   **像素完美**：提供「像素對齊 (Snap to Pixel)」模式，專為像素畫創作設計。
 
-- **專業筆刷引擎**：
-    - **多形狀筆尖**：原生支援圓形、三角形、正方形、五角星筆尖，滿足像素畫與硬邊概括需求。
-    - **隨機旋轉（印章）**：方形/三角形/五角星印章支援隨機旋轉，讓散點與裝飾筆觸更自然。
-    - **物理開關**：支援一鍵「轉換為擦除」模式，保留目前筆刷紋理進行擦除；支援獨立開關「數位筆壓」與「模擬筆壓」。
-    - **向量作畫**：可選啟用向量預覽，提供極致流暢的筆觸回饋；抬筆後支援 StreamLine 平滑重算，並以補間動畫回彈到更順的結果。
-    - **空心描邊/空心筆刷**：支援空心比例與「吃掉重疊部分」，快速畫出乾淨的描邊與線稿效果。
-    - **透視輔助**：支援 1/2/3 點透視線與透視筆，繪製時可按透視方向吸附。
-- **選區與編輯**：提供「選區筆」，像畫筆一樣塗抹建立選區，可與現有選區疊加。
-- **強大的文字工具**：支援 **橫排/直排** 文字輸入，可自由調整字體（支援預覽與收藏）、字號、行距、字間距，並支援 **文字描邊 (Stroke)**，完美適應漫畫嵌字與海報設計。
-- **專注畫布**：自研分塊渲染 (Chunk-based Rendering) 引擎，支援無限尺寸畫布、無限撤銷/重做與多文件分頁管理。
+**文字與排版**
+*   **專業排版**：支援橫排與直排文字輸入，完美適配漫畫嵌字需求。
+*   **樣式控制**：可自由調節字體（支援預覽與收藏）、字號、行距及字間距。
+*   **特效支援**：支援文字描邊 (Stroke)，提升海報設計與標題的表現力。
 
-## Retas 風格二值化工作流 (Industrial Workflow)
+**影像處理與輔助**
+*   **非破壞性編輯**：內建 HSB、亮度/對比度、色彩範圍（減色/分色）等即時調整工具。
+*   **線稿處理**：專業的掃描件處理工具，支援去背（白底轉透明）、RGB 通道線稿提取及漏色修補。
+*   **智慧輔助**：內建 1/2/3 點透視輔助線，筆刷可自動吸附透視方向。
+*   **高清匯出**：獨家二次邊緣柔化演算法，支援將二值化作品匯出為平滑的高清插畫。
 
-Misa Rin 致敬並重現了日本動畫工業（PaintMan/Retas）的高效二值化生產流程，專為賽璐璐風格與像素藝術家打造：
+**工作區**
+*   **3D 參考**：內建 Steve/Alex 模型檢視器，支援匯入自訂 Bedrock 模型，可即時烘焙貼圖與預覽陰影。
+*   **無限畫布**：基於分塊渲染 (Chunk-based Rendering) 技術，支援無限尺寸畫布與無限制撤銷/重做。
 
-1.  **非破壞性二值化**：支援全程使用鋸齒（Aliased）線條作畫與填色，徹底告別「油漆桶白邊」與繁瑣的容差調整。
-2.  **色線吞併 (Color Trace Enclosure)**：面板內建紅/綠/藍/黑專用色線按鈕，油漆桶填色時自動吞併色線（色トレス/Color Trace），實現工業級的高速分色。
-3.  **後期邊緣柔化渲染**：獨家的 **二次演算法邊緣柔化** 功能，允許在匯出時將二值化畫面一鍵渲染為平滑且保留線條密度的高清插畫。
+### 取得與體驗
 
-## 影像處理與濾鏡
-
-內建輕量級影像處理管線，無需匯出即可完成後期調整：
-- **基礎調整**：色相/飽和度 (HSB)、亮度/對比度、黑白、二值化、顏色反轉。
-- **線稿處理**：掃描紙繪（紙白轉透明，提取黑/紅/綠/藍線條，可調黑/白點與中間調）、去除漏色。
-- **形態學工具**：線條收窄、填色拉伸。
-- **顏色處理**：色彩範圍（減色/分色效果，支援即時預覽）。
-- **特效濾鏡**：高斯模糊 (Gaussian Blur)。
-- **渲染控制**：可調整等級的邊緣柔化 (Anti-aliasing) 濾鏡。
-
-## 視圖與輔助
-
-- **視圖旋轉**：旋轉工具可自由旋轉畫布視圖並一鍵復位（不影響實際像素）。
-- **專注輔助**：像素網格、鏡像預覽、黑白預覽。
-- **畫布變換**：支援畫布旋轉 90°/180°、影像大小與畫布大小調整、圖層自由變換（持續優化縮放錨點與畫布大小錨點可讀性）。
-- **互動細節**：優化圖層重命名互動與文字選取樣式等細節體驗。
-- **3D 參考模型**：內建 Steve/Alex 模型檢視器，支援匯入自訂 Bedrock 模型；支援多角度觀察、即時貼圖烘焙（Bake）與 Z-Buffer 陰影預覽，輔助皮膚繪製與光影參考。
-
-## 匯入與匯出
-
-- **檔案格式**：支援儲存為 `.rin`；匯入/匯出 PSD（保留圖層結構）。
-- **匯出**：PNG（倍率與匯出前邊緣柔化）、SVG（自動向量化，最大顏色數/路徑簡化可調）。
-- **素材與色彩**：支援拖曳/剪貼簿匯入圖片；從畫布取色生成調色盤與漸層調色盤，並支援匯入/匯出調色盤；支援參考圖像面板。
-
-## 取得與體驗
-
-- **桌面版（推薦）**：前往 [Releases](https://github.com/MCDFsteve/MisaRin/releases) 下載最新安裝包。
-    - *適用於生產環境，支援多執行緒處理與本機檔案管理。*
-- **網頁版**：訪問 https://misarin.aimes-soft.com
-    - *適用於即時體驗與輕量摸魚，無需安裝。*
+*   **桌面版 (推薦)**：前往 [Releases](https://github.com/MCDFsteve/MisaRin/releases) 下載最新安裝包。適用於生產環境，支援多執行緒處理與本機檔案管理。
+*   **網頁版**：訪問 https://misarin.aimes-soft.com 可即時體驗。
 
 ## 快速上手
 
@@ -216,71 +170,48 @@ Misa Rin 致力於探索 Flutter 在高效能圖形領域的極限。
 
 ## English
 
-Misa Rin is a Rust-built desktop digital painting and pixel creation app. With a Fluent UI-inspired interface and a WGPU backend, it starts instantly and feels as smooth as a native app.
+Misa Rin is a high-performance digital painting and pixel art software built with Rust (WGPU) and Flutter. Its core architecture employs a hybrid mode of **Rust CPU Rasterization + WGPU Render Pipeline**, ensuring pixel-perfect precision for brush operations while achieving instant startup and an ultra-smooth interactive experience.
 
-Whether you're doing quick sketches, pixel drafts, UI design, or industrial-grade cel-style flat coloring, everything happens on a unified, infinite canvas.
+Whether it's pixel art, cel-style illustration, or industrial-grade binary production, everything can be efficiently completed on this unified, infinite canvas.
 
-> Note: This project is still in early development (Alpha). Do not use it for critical production work.
+> **Note**: This project is still in early development (Alpha). Features are iterating rapidly; please avoid using it in critical production environments.
 
----
+### Core Features
 
-## Core Highlights
+*   **Hybrid Rendering Architecture**
+    The brush engine performs high-precision rasterization on the CPU via Rust, supporting sub-pixel anti-aliasing and perfect pixel alignment; canvas composition and display are handled by WGPU, fully utilizing modern GPU performance.
+*   **Optimized for Mouse Drawing**
+    Built-in speed-pressure mapping model and **Streamline** smoothing algorithm. Even with a mouse, you can draw lines with natural pressure sensitivity and sharp tips using the "Auto Sharp Taper" feature.
+*   **Industrial Cel-Shading Workflow**
+    Pays tribute to and improves upon the efficient binary production workflow of the Japanese animation industry (PaintMan/Retas). Supports full-process aliased drawing, combined with "Color Trace Enclosure" and "Non-destructive Binarization" technologies, significantly boosting coloring and layering efficiency.
 
-- **Package size note**: Includes Rust binaries; size varies by platform/build.
-- **Mouse-first**: Speed-to-pressure mapping + an automatic sharp-tip algorithm; paired with a pressure-enabled Bezier tool, you can draw tapered lineart even without a tablet.
-- **Cross-platform parity**: Flutter + CanvasKit deliver consistent performance and interaction on Windows, macOS, Linux, and Web.
+### Feature Details
 
-## Drawing & Creation
+**Professional Brush Engine**
+*   **Multi-shape Tips**: Natively supports circle, triangle, square, and star tips.
+*   **Dynamic Control**: Supports random rotation (Jitter), rotation following stroke direction (Smooth Rotation), and Scatter effects.
+*   **Special Effects**: Supports Hollow brush mode, with adjustable hollow ratio and automatic removal of overlapping parts for quick line art drawing.
+*   **Pixel Perfect**: Provides "Snap to Pixel" mode, designed specifically for pixel art creation.
 
-- **Professional brush engine**:
-    - **Multiple tip shapes**: circle, triangle, square, star.
-    - **Random rotation (stamps)**: random rotation for square/triangle/star stamps for more natural scatter and decorative strokes.
-    - **Physical toggles**: one-click “convert to eraser” while keeping brush texture; independent toggles for pen pressure and simulated pressure.
-    - **Vector drawing**: optional vector preview for ultra-smooth feedback; on pen-up, StreamLine re-smooths the preview stroke and animates back to a cleaner result.
-    - **Hollow stroke / hollow brush**: adjustable hollow ratio and “eat overlaps” for clean outlines and lineart.
-    - **Perspective helpers**: 1/2/3-point perspective lines and a perspective brush with directional snapping.
-- **Selection & editing**: “Selection Brush” lets you paint selections like a brush and add to existing selections.
-- **Powerful text tool**: horizontal/vertical text, font (with preview & favorites)/size/leading/tracking controls, plus text stroke support.
-- **Focused canvas**: Chunk-based Rendering engine with infinite canvas, unlimited undo/redo, and multi-document tabs.
+**Text & Typography**
+*   **Professional Typesetting**: Supports horizontal and vertical text input, perfectly adapting to comic lettering needs.
+*   **Style Control**: Freely adjust fonts (with preview and favorites), size, leading, and tracking.
+*   **Effects Support**: Supports text stroke, enhancing the expressiveness of poster designs and titles.
 
-## Retas-style Binary Workflow (Industrial Workflow)
+**Image Processing & Helpers**
+*   **Non-destructive Editing**: Built-in real-time adjustment tools like HSB, Brightness/Contrast, and Color Range (Subtractive/Separation).
+*   **Line Art Extraction**: Professional scan processing tools, supporting background removal (white to transparent), RGB channel line extraction, and bleed repair.
+*   **Smart Helpers**: Built-in 1/2/3-point perspective guides, with brush automatic snapping to perspective directions.
+*   **HD Export**: Exclusive secondary edge-softening algorithm, supporting the export of binary artwork as smooth, high-definition illustrations.
 
-Misa Rin pays tribute to the Japanese animation pipeline (PaintMan/Retas) and recreates an efficient binary-color workflow for cel-style and pixel artists:
+**Workspace**
+*   **3D Reference**: Built-in Steve/Alex model viewer, supports importing custom Bedrock models, with real-time texture baking and shadow preview.
+*   **Infinite Canvas**: Based on Chunk-based Rendering technology, supporting infinite canvas size and unlimited undo/redo.
 
-1.  **Non-destructive binarization**: draw and fill with aliased lines end-to-end, avoiding “bucket halos” and tolerance tweaking.
-2.  **Color Trace Enclosure**: dedicated red/green/blue/black trace-line buttons; bucket fill automatically encloses trace lines (色トレス/Color Trace) for industrial-speed color separation.
-3.  **Post edge-softening render**: a unique second-pass edge-softening algorithm to render binary artwork into smooth, high-resolution illustrations while preserving line density.
+### Get & Try
 
-## Image Processing & Filters
-
-A lightweight image processing pipeline is built in, so you can adjust without exporting:
-- **Basic adjustments**: HSB, brightness/contrast, grayscale, binarization, invert.
-- **Lineart tools**: scan cleanup (paper white to transparent, extract black/red/green/blue lines, black/white points & midtones), de-bleed.
-- **Morphology**: line thinning, fill expansion.
-- **Color**: color range (subtractive / color separation effects, real-time preview).
-- **Effects**: Gaussian Blur.
-- **Render control**: adjustable anti-aliasing filter.
-
-## Views & Helpers
-
-- **View rotation**: freely rotate the canvas view and reset (does not change actual pixels).
-- **Focus aids**: pixel grid, mirror preview, B/W preview.
-- **Canvas transforms**: rotate 90°/180°, image/canvas resize, layer free transform (with ongoing polish for scaling anchors and canvas-size anchors).
-- **Interaction polish**: improved layer renaming, text selection styling, and other UX details.
-- **3D Reference Model**: Built-in Steve/Alex model viewer with custom Bedrock model import; supports multi-angle viewing, real-time texture baking, and Z-Buffer shadow preview to assist with skin texturing and lighting.
-
-## Import & Export
-
-- **Formats**: save as `.rin`; import/export PSD (preserves layer structure).
-- **Export**: PNG (scale + pre-export edge softening), SVG (auto-vectorization with configurable max colors / path simplification).
-- **Assets & color**: drag & drop / clipboard image import; pick colors from canvas to build palettes & gradient palettes (with import/export); reference image panel.
-
-## Get & Try
-
-- **Desktop (recommended)**: download the latest builds from [Releases](https://github.com/MCDFsteve/MisaRin/releases).
-    - *For production use, with multithreaded processing and local file management.*
-- **Web**: https://misarin.aimes-soft.com
-    - *Great for quick trials—no installation required.*
+*   **Desktop (Recommended)**: Download the latest installer from [Releases](https://github.com/MCDFsteve/MisaRin/releases). Suitable for production environments, supports multi-threaded processing and local file management.
+*   **Web**: Visit https://misarin.aimes-soft.com for an instant experience.
 
 ## Quick Start
 
@@ -317,71 +248,48 @@ Released under the **MIT License** — feel free to download, modify, and share.
 
 ## 한국어
 
-Misa Rin은 Rust 기반 데스크톱 디지털 드로잉·픽셀 아트 제작 소프트웨어입니다. Fluent UI 기반 UI와 WGPU 백엔드를 통해, 빠른 실행과 네이티브급 부드러움을 제공합니다.
+Misa Rin은 Rust(WGPU)와 Flutter로 개발된 고성능 디지털 드로잉 및 픽셀 아트 제작 소프트웨어입니다. 핵심 아키텍처는 **Rust CPU 래스터화 + WGPU 렌더 파이프라인**의 하이브리드 모드를 채택하여, 브러시 연산의 픽셀 단위 정밀도를 보장하면서도 즉각적인 시작과 극도로 부드러운 상호작용 경험을 실현했습니다.
 
-스케치, 픽셀 스케치, UI 디자인, 산업용 셀룰로이드 평면 채색까지—모든 작업을 하나의 무한 캔버스에서 완성할 수 있습니다.
+픽셀 아트, 셀 스타일 일러스트레이션, 또는 산업용 이진화 작업까지, 이 통일된 무한 캔버스에서 효율적으로 완성할 수 있습니다.
 
-> 안내: 본 프로젝트는 아직 초기 개발 단계(Alpha)입니다. 중요한 프로덕션 용도로 사용하지 마세요.
+> **주의**: 본 프로젝트는 아직 초기 개발 단계(Alpha)이며, 기능이 빠르게 반복되고 있으므로 중요한 프로덕션 환경에서의 사용은 피해주십시오.
 
----
+### 핵심 기능
 
-## 핵심 하이라이트
+*   **하이브리드 렌더링 아키텍처**
+    브러시 엔진은 Rust를 통해 CPU에서 고정밀 래스터화를 수행하여 서브 픽셀 앤티앨리어싱과 완벽한 픽셀 정렬을 지원하며, 캔버스 합성과 디스플레이는 WGPU가 담당하여 최신 GPU 성능을 최대한 활용합니다.
+*   **마우스 드로잉 최적화**
+    속도-압력 매핑 모델과 **Streamline(유선형)** 스무딩 알고리즘이 내장되어 있습니다. 마우스를 사용하더라도 "자동 샤프 테이퍼(Auto Sharp Taper)" 기능을 통해 자연스러운 필압과 날카로운 펜촉 효과를 낼 수 있습니다.
+*   **산업용 셀 스타일 워크플로**
+    일본 애니메이션 산업(PaintMan/Retas)의 효율적인 이진화 생산 공정을 오마주하고 개량했습니다. 전 과정 앨리어싱(Aliased) 작화를 지원하며, "색선 포섭(Color Trace Enclosure)" 및 "비파괴적 이진화" 기술과 결합하여 채색 및 레이어 작업 효율을 대폭 향상시켰습니다.
 
-- **패키지 크기 안내**: Rust 바이너리를 포함하며, 플랫폼/빌드 방식에 따라 크기가 달라집니다.
-- **마우스 친화**: 속도-압력 매핑 + 자동 샤프 팁 알고리즘, 그리고 압력을 지원하는 베지어 도구로 태블릿 없이도 자연스러운 필압 선을 그릴 수 있습니다.
-- **크로스플랫폼 동일 경험**: Flutter + CanvasKit 기반으로 Windows/macOS/Linux/Web에서 일관된 성능과 UX를 제공합니다.
+### 기능 상세
 
-## 드로잉 & 제작
+**전문 브러시 엔진**
+*   **다양한 팁 형태**: 원형, 삼각형, 사각형 및 별 모양 팁을 기본 지원합니다.
+*   **동적 제어**: 랜덤 회전(Jitter), 획 방향에 따른 회전(Smooth Rotation) 및 산포(Scatter) 효과를 지원합니다.
+*   **특수 효과**: 중공(Hollow) 브러시 모드를 지원하여, 중공 비율 조절 및 겹친 부분 자동 제거가 가능해 빠른 선화 작업이 가능합니다.
+*   **픽셀 퍼펙트**: 픽셀 아트 창작을 위해 설계된 "픽셀 정렬(Snap to Pixel)" 모드를 제공합니다.
 
-- **전문 브러시 엔진**:
-    - **다양한 팁 형태**: 원/삼각/사각/별(오각별) 팁을 기본 지원합니다.
-    - **랜덤 회전(스탬프)**: 사각/삼각/별 스탬프를 랜덤 회전해 더 자연스러운 산포·장식 스트로크를 만들 수 있습니다.
-    - **토글 스위치**: 한 번에 “지우개로 전환”(텍스처 유지); 펜 압력/가상 압력 개별 토글.
-    - **벡터 드로잉**: 벡터 미리보기 옵션으로 매우 부드러운 피드백 제공; 펜을 떼면 StreamLine이 스트로크를 스무딩 재계산하고 트윈 애니메이션으로 더 매끄러운 결과로 되돌립니다.
-    - **홀로우(윤곽) 스트로크/브러시**: 홀로우 비율과 “겹침 부분 제거”로 깔끔한 라인아트를 빠르게.
-    - **원근 보조**: 1/2/3점 원근선 및 원근 브러시, 방향 스냅.
-- **선택 영역 & 편집**: “선택 영역 브러시”로 브러시처럼 칠해서 선택 영역을 만들고 기존 선택에 더할 수 있습니다.
-- **강력한 텍스트 도구**: 가로/세로 텍스트, 폰트(미리보기 및 즐겨찾기 포함)/크기/행간/자간 조절, 텍스트 스트로크(Stroke) 지원.
-- **집중 캔버스**: Chunk-based Rendering 엔진, 무한 캔버스, 무제한 실행 취소/다시 실행, 다중 문서 탭.
+**텍스트 & 타이포그래피**
+*   **전문 조판**: 가로 및 세로 텍스트 입력을 지원하여 만화 식자 작업에 완벽하게 대응합니다.
+*   **스타일 제어**: 글꼴(미리보기 및 즐겨찾기 지원), 크기, 행간 및 자간을 자유롭게 조절할 수 있습니다.
+*   **효과 지원**: 텍스트 외곽선(Stroke)을 지원하여 포스터 디자인과 타이틀의 표현력을 높입니다.
 
-## Retas 스타일 이진화 워크플로 (Industrial Workflow)
+**이미지 처리 & 보조**
+*   **비파괴적 편집**: HSB, 밝기/대비, 색상 범위(감산/분색) 등 실시간 조정 도구가 내장되어 있습니다.
+*   **선화 추출**: 전문 스캔 처리 도구로 배경 제거(흰색을 투명으로), RGB 채널 선화 추출 및 번짐 보정을 지원합니다.
+*   **스마트 보조**: 1/2/3점 투시 보조선이 내장되어 있으며, 브러시가 투시 방향에 자동으로 스냅됩니다.
+*   **HD 내보내기**: 독자적인 2차 가장자리 부드럽게(Edge-softening) 알고리즘으로, 이진화된 작품을 매끄러운 고화질 일러스트로 내보낼 수 있습니다.
 
-Misa Rin은 일본 애니메이션 제작 파이프라인(PaintMan/Retas)의 효율적인 이진화 생산 공정을 오마주/재현하여, 셀룰로이드 스타일과 픽셀 아티스트를 위해 설계되었습니다:
+**작업 공간**
+*   **3D 참조**: Steve/Alex 모델 뷰어가 내장되어 있으며, 사용자 정의 Bedrock 모델 가져오기를 지원하고 실시간 텍스처 베이킹 및 그림자 미리보기가 가능합니다.
+*   **무한 캔버스**: 청크 기반 렌더링(Chunk-based Rendering) 기술을 기반으로 무한 캔버스 크기와 무제한 실행 취소/다시 실행을 지원합니다.
 
-1.  **비파괴적 이진화**: Aliased 라인으로 처음부터 끝까지 그리기/채색이 가능해, “버킷 흰 테두리”와 번거로운 허용 오차 조정을 줄입니다.
-2.  **Color Trace Enclosure**: 전용 R/G/B/Black 색선 버튼을 제공하며, 버킷 채색 시 색선을 자동으로 포함(色トレス/Color Trace)하여 고속 분색을 구현합니다.
-3.  **후처리 에지 소프트닝 렌더**: 독자적인 2차 에지 소프트닝 알고리즘으로, 이진화된 결과를 선 밀도를 유지한 채 매끄러운 고해상도 일러스트로 렌더링합니다.
+### 다운로드 & 체험
 
-## 이미지 처리 & 필터
-
-가벼운 이미지 처리 파이프라인을 내장하여, 내보내기 없이도 후반 보정을 할 수 있습니다:
-- **기본 조정**: HSB, 밝기/대비, 흑백, 이진화, 색상 반전.
-- **라인아트 도구**: 스캔 정리(종이 흰색→투명, 검정/빨강/초록/파랑 선 추출, 흑/백 포인트 & 중간톤), 번짐 제거.
-- **형태학 도구**: 선 얇게, 채색 확장.
-- **색상 처리**: 색상 범위(감산/분색 효과, 실시간 미리보기).
-- **효과**: 가우시안 블러(Gaussian Blur).
-- **렌더 제어**: 단계 조절 가능한 안티앨리어싱(Anti-aliasing) 필터.
-
-## 뷰 & 보조 기능
-
-- **뷰 회전**: 캔버스 뷰를 자유롭게 회전하고 원클릭으로 복귀(실제 픽셀에는 영향 없음).
-- **집중 보조**: 픽셀 그리드, 미러 프리뷰, 흑백 프리뷰.
-- **캔버스 변환**: 90°/180° 회전, 이미지/캔버스 크기 조정, 레이어 자유 변환(스케일 앵커/캔버스 크기 앵커 가독성 지속 개선).
-- **UX 디테일**: 레이어 이름 변경, 텍스트 선택 스타일 등 상호작용 디테일 개선.
-- **3D 참조 모델**: Steve/Alex 모델 뷰어 내장 및 사용자 정의 Bedrock 모델 가져오기 지원; 다각도 보기, 실시간 텍스처 베이킹(Bake) 및 Z-Buffer 그림자 미리보기를 지원하여 스킨 텍스처링과 조명 참고를 돕습니다.
-
-## 가져오기 & 내보내기
-
-- **파일 형식**: `.rin` 저장 지원; PSD 가져오기/내보내기(레이어 구조 보존).
-- **내보내기**: PNG(배율 + 내보내기 전 에지 소프트닝), SVG(자동 벡터화, 최대 색상 수/경로 단순화 조절).
-- **소재 & 색상**: 드래그&드롭/클립보드 이미지 가져오기; 캔버스에서 색을 추출해 팔레트/그라데이션 팔레트 생성(가져오기/내보내기 지원); 레퍼런스 이미지 패널.
-
-## 다운로드 & 체험
-
-- **데스크톱(추천)**: [Releases](https://github.com/MCDFsteve/MisaRin/releases)에서 최신 빌드를 다운로드하세요.
-    - *프로덕션 사용에 적합하며, 멀티스레드 처리 및 로컬 파일 관리를 지원합니다.*
-- **웹 버전**: https://misarin.aimes-soft.com
-    - *설치 없이 빠르게 체험할 수 있습니다.*
+*   **데스크톱(추천)**: [Releases](https://github.com/MCDFsteve/MisaRin/releases)에서 최신 설치 패키지를 다운로드하세요. 프로덕션 환경에 적합하며 멀티스레드 처리 및 로컬 파일 관리를 지원합니다.
+*   **웹 버전**: https://misarin.aimes-soft.com을 방문하여 즉시 체험해 보세요.
 
 ## 빠른 시작
 
@@ -419,71 +327,48 @@ Misa Rin은 고성능 그래픽 영역에서 Flutter의 한계를 탐구합니�
 
 ## 日本語
 
-Misa Rin は Rust で開発されたデスクトップ向けのデジタルペイント／ピクセル制作ソフトです。Fluent UI ベースの UI と WGPU バックエンドにより、秒起動とネイティブ級の滑らかさを実現します。
+Misa Rin は Rust (WGPU) と Flutter で開発された高性能なデジタルペイント／ピクセル制作ソフトです。中核となるアーキテクチャは **Rust CPU ラスタライズ + WGPU レンダリングパイプライン** のハイブリッドモードを採用し、ブラシ演算のピクセル単位の精度を保証しつつ、瞬時の起動と極めて滑らかなインタラクションを実現しました。
 
-ラフスケッチ、ピクセル下絵、UI デザイン、工業レベルのセル風ベタ塗りまで、すべてを 1 つの無限キャンバスで完結できます。
+ピクセルアート、アニメ塗りイラスト、あるいは工業レベルの二値化制作まで、すべてを 1 つの統一された無限キャンバスで効率よく完結できます。
 
-> 注意：本プロジェクトはまだ初期開発段階（Alpha）です。重要なプロダクション用途での利用は避けてください。
+> **注意**：本プロジェクトはまだ初期開発段階（Alpha）であり、機能が急速に反復されています。重要なプロダクション環境での使用は避けてください。
 
----
+### コア機能
 
-## コアハイライト
+*   **ハイブリッドレンダリングアーキテクチャ**
+    ブラシエンジンは Rust を介して CPU 上で高精度なラスタライズを行い、サブピクセルのアンチエイリアスと完璧なピクセルアライメントをサポートします。キャンバスの合成と表示は WGPU が担当し、最新の GPU 性能を最大限に活用します。
+*   **マウス描画への最適化**
+    速度-筆圧マッピングモデルと **Streamline（流線型）** スムージングアルゴリズムを内蔵しています。マウスを使用しても、「自動入り抜き（Auto Sharp Taper）」機能により、自然な筆圧感と鋭いペン先を持つ線を描くことができます。
+*   **工業級アニメ塗りワークフロー**
+    日本のアニメーション産業（PaintMan/Retas）の効率的な二値化生産フローをオマージュし、改良しました。全工程でのアンチエイリアスなし（Aliased）作画をサポートし、「色トレス線閉鎖（Color Trace Enclosure）」や「非破壊二値化」技術と組み合わせることで、彩色とレイヤー分けの効率を大幅に向上させました。
 
-- **パッケージサイズについて**：Rust バイナリを含み、プラットフォームやビルド方式でサイズが変わります。
-- **マウスでも描ける**：速度→筆圧マッピングと自動鋭角化アルゴリズム。筆圧対応ベジエツールと組み合わせ、タブレットなしでも綺麗な入り抜き線を描けます。
-- **クロスプラットフォーム同等体験**：Flutter + CanvasKit により Windows/macOS/Linux/Web で一貫した性能と操作感。
+### 機能詳細
 
-## 描画 & 制作
+**プロフェッショナルブラシエンジン**
+*   **多形状のペン先**：円、三角、四角、星型のペン先をネイティブサポート。
+*   **動的制御**：ランダム回転（Jitter）、筆の進行方向追従回転（Smooth Rotation）、散布（Scatter）効果をサポート。
+*   **特殊効果**：中抜き（Hollow）ブラシモードをサポート。中抜き率の調整や、重なり部分の自動除去が可能で、線画を素早く作成できます。
+*   **ピクセルパーフェクト**：ピクセルアート制作のために設計された「ピクセル吸着（Snap to Pixel）」モードを提供します。
 
-- **プロ向けブラシエンジン**：
-    - **複数の筆先形状**：円／三角／四角／星（五角星）を標準サポート。
-    - **ランダム回転（スタンプ）**：四角/三角/星のスタンプはランダム回転に対応し、散布や装飾ストロークを自然に。
-    - **物理スイッチ**：ワンクリックで「消しゴムへ変換」（テクスチャ保持）。筆圧／疑似筆圧を個別に切替可能。
-    - **ベクター描画**：ベクタープレビューで極めて滑らかなフィードバック。ペンを離すと StreamLine がスムージング再計算し、補間アニメでより綺麗な結果へ戻します。
-    - **中抜きストローク/中抜きブラシ**：中抜き率と「重なりを食べる」でクリーンなアウトラインを素早く作成。
-    - **パース補助**：1/2/3 点透視線とパースブラシ。方向にスナップ可能。
-- **選択範囲 & 編集**：「選択範囲ブラシ」でブラシのように塗って選択範囲を作成し、既存選択に加算できます。
-- **強力なテキストツール**：横書き/縦書き、フォント（プレビュー・お気に入り対応）/サイズ/行間/字間、文字フチ（Stroke）に対応。
-- **集中キャンバス**：Chunk-based Rendering エンジンにより無限キャンバス、無制限の Undo/Redo、複数ドキュメントのタブ管理。
+**テキスト & タイポグラフィ**
+*   **プロ向け組版**：横書きおよび縦書きのテキスト入力に対応し、漫画の写植ニーズに完全対応します。
+*   **スタイル制御**：フォント（プレビューと「お気に入り」対応）、サイズ、行間、字間を自由に調整できます。
+*   **エフェクト対応**：テキストの縁取り（Stroke）をサポートし、ポスターデザインやタイトルの表現力を高めます。
 
-## Retas 風二値化ワークフロー (Industrial Workflow)
+**画像処理 & 補助**
+*   **非破壊編集**：HSB、明るさ/コントラスト、色域選択（減色/分色）などのリアルタイム調整ツールを内蔵。
+*   **線画抽出**：プロ仕様のスキャン処理ツール。背景除去（白を透明に）、RGB チャンネルごとの線画抽出、塗り残し補正をサポート。
+*   **スマート補助**：1/2/3 点透視補助線を内蔵し、ブラシが透視方向に自動的にスナップします。
+*   **HD エクスポート**：独自の二次エッジ柔化（Edge-softening）アルゴリズムにより、二値化された作品を滑らかな高解像度イラストとして書き出せます。
 
-Misa Rin は日本アニメ制作（PaintMan/Retas）の効率的な二値化生産フローをオマージュ／再現し、セル風・ピクセル制作向けに最適化しています：
+**ワークスペース**
+*   **3D リファレンス**：Steve/Alex モデルビューワーを内蔵。カスタム Bedrock モデルのインポートに対応し、リアルタイムのテクスチャベイクと陰影プレビューが可能です。
+*   **無限キャンバス**：チャンクベースレンダリング（Chunk-based Rendering）技術に基づき、無限のキャンバスサイズと無制限の取り消し/やり直しをサポートします。
 
-1.  **非破壊二値化**：Aliased 線で描画・塗りを完結でき、バケツの白フチや面倒な許容差調整を回避。
-2.  **色線吞併 (Color Trace Enclosure)**：赤/緑/青/黒の専用色線ボタン。バケツ塗り時に色線（色トレス/Color Trace）を自動で含め、高速な分色を実現。
-3.  **後処理エッジ柔化レンダリング**：独自の 2 段階エッジ柔化アルゴリズムで、線密度を保ちつつ滑らかな高解像度イラストへレンダリング可能。
+### ダウンロード & 体験
 
-## 画像処理 & フィルター
-
-軽量な画像処理パイプラインを内蔵し、書き出し不要で調整できます：
-- **基本調整**：HSB、明るさ/コントラスト、白黒、二値化、反転。
-- **線画処理**：スキャン補正（紙白→透明、黒/赤/緑/青線抽出、黒/白点と中間調調整）、色漏れ除去。
-- **形態学ツール**：線の細化、塗りの拡張。
-- **色処理**：色域（減色/分色効果、リアルタイムプレビュー）。
-- **効果**：ガウスぼかし (Gaussian Blur)。
-- **レンダ制御**：段階調整可能なアンチエイリアス (Anti-aliasing) フィルター。
-
-## 表示 & 補助
-
-- **ビュー回転**：キャンバス表示を自由回転しワンクリックで復帰（実ピクセルは不変）。
-- **集中補助**：ピクセルグリッド、ミラープレビュー、白黒プレビュー。
-- **キャンバス変換**：90°/180° 回転、画像/キャンバスサイズ変更、レイヤー自由変形（スケールアンカーやキャンバスサイズアンカーの可読性を継続改善）。
-- **操作の磨き込み**：レイヤー名変更やテキスト選択の見た目など、細部 UX を改善。
-- **3D 参照モデル**: Steve/Alex モデルビューワーを内蔵し、カスタム Bedrock モデルのインポートに対応。多角的な観察、リアルタイムテクスチャ焼き込み（Bake）、Z-Buffer 陰影プレビューにより、スキン制作やライティングの参考に最適。
-
-## インポート & エクスポート
-
-- **形式**：`.rin` 保存、PSD のインポート/エクスポート（レイヤー構造保持）。
-- **書き出し**：PNG（倍率 + 事前エッジ柔化）、SVG（自動ベクター化。最大色数/パス簡略化を調整可能）。
-- **素材 & 色**：ドラッグ&ドロップ/クリップボードで画像を取り込み。キャンバスから色を取得してパレット/グラデーションパレットを生成（入出力対応）。参照画像パネル。
-
-## 入手 & 体験
-
-- **デスクトップ版（推奨）**：[Releases](https://github.com/MCDFsteve/MisaRin/releases) から最新版をダウンロード。
-    - *マルチスレッド処理とローカルファイル管理に対応し、実運用にも適しています。*
-- **Web 版**：https://misarin.aimes-soft.com
-    - *インストール不要で気軽に試せます。*
+*   **デスクトップ版（推奨）**：[Releases](https://github.com/MCDFsteve/MisaRin/releases) から最新のインストーラーをダウンロードしてください。プロダクション環境に適しており、マルチスレッド処理とローカルファイル管理をサポートします。
+*   **Web 版**：https://misarin.aimes-soft.com にアクセスして、すぐに体験できます。
 
 ## クイックスタート
 
