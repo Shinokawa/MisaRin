@@ -151,6 +151,7 @@ Future<void> _saveAppPreferences() async {
     (autoSaveCleanupThresholdMb >> 8) & 0xff,
     eraserWidth & 0xff,
     (eraserWidth >> 8) & 0xff,
+    prefs.touchDrawingEnabled ? 1 : 0,
   ]);
   await _writePreferencesPayload(payload);
 }

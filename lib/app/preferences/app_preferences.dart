@@ -57,6 +57,7 @@ class AppPreferences {
     this.bucketFillGap = _defaultBucketFillGap,
     this.magicWandTolerance = _defaultMagicWandTolerance,
     this.brushToolsEraserMode = _defaultBrushToolsEraserMode,
+    this.touchDrawingEnabled = _defaultTouchDrawingEnabled,
     this.showFpsOverlay = _defaultShowFpsOverlay,
     this.pixelGridVisible = _defaultPixelGridVisible,
     this.autoSaveCleanupThresholdMb = _defaultAutoSaveCleanupThresholdMb,
@@ -110,6 +111,7 @@ class AppPreferences {
   static const int defaultBucketFillGap = _defaultBucketFillGap;
   static const int defaultMagicWandTolerance = _defaultMagicWandTolerance;
   static const bool defaultBrushToolsEraserMode = _defaultBrushToolsEraserMode;
+  static const bool defaultTouchDrawingEnabled = _defaultTouchDrawingEnabled;
   static const bool defaultShapeToolFillEnabled = _defaultShapeToolFillEnabled;
   static const int defaultBucketAntialiasLevel = _defaultBucketAntialiasLevel;
   static const bool defaultShowFpsOverlay = _defaultShowFpsOverlay;
@@ -168,6 +170,7 @@ class AppPreferences {
   int bucketFillGap;
   int magicWandTolerance;
   bool brushToolsEraserMode;
+  bool touchDrawingEnabled;
   int bucketAntialiasLevel;
   bool showFpsOverlay;
   bool pixelGridVisible;

@@ -30,6 +30,14 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   bool _viewBlackWhiteOverlay = false;
   bool _viewMirrorOverlay = false;
   double _scaleGestureInitialScale = 1.0;
+  double _scaleGestureInitialRotation = 0.0;
+  Offset? _scaleGestureAnchorBoardLocal;
+  int _scaleGestureStartEpochMs = 0;
+  int _scaleGestureMaxPointerCount = 0;
+  double _scaleGestureAccumulatedFocalDistance = 0.0;
+  double _scaleGestureMaxScaleDelta = 0.0;
+  double _scaleGestureMaxRotationDelta = 0.0;
+  int _twoFingerLastTapEpochMs = 0;
   double _penStrokeWidth = _defaultPenStrokeWidth;
   double _sprayStrokeWidth = _defaultSprayStrokeWidth;
   double _eraserStrokeWidth = _defaultEraserStrokeWidth;
@@ -38,7 +46,9 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       AppPreferences.defaultStrokeStabilizerStrength;
   double _streamlineStrength = AppPreferences.defaultStreamlineStrength;
   bool _simulatePenPressure = false;
+  bool _touchDrawingEnabled = AppPreferences.defaultTouchDrawingEnabled;
   int _penAntialiasLevel = AppPreferences.defaultPenAntialiasLevel;
+    CanvasTool _applePencilLastNonEraserTool = CanvasTool.pen;
   int _bucketAntialiasLevel = AppPreferences.defaultBucketAntialiasLevel;
   bool _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
   double _stylusCurve = AppPreferences.defaultStylusCurve;
@@ -133,6 +143,9 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   Offset? _toolCursorPosition;
   Offset? _lastWorkspacePointer;
   Offset? _penCursorWorkspacePosition;
+  final Set<int> _activeStylusPointers = <int>{};
+  int _lastStylusContactEpochMs = 0;
+  StreamSubscription<void>? _pencilDoubleTapSubscription;
   Duration? _lastPenSampleTimestamp;
   bool _activeStrokeUsesStylus = false;
   double? _activeStylusPressureMin;

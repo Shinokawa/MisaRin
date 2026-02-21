@@ -88,6 +88,7 @@ class PaintingBoardState extends _PaintingBoardBase
     _bucketFillGap = prefs.bucketFillGap;
     _magicWandTolerance = prefs.magicWandTolerance;
     _brushToolsEraserMode = prefs.brushToolsEraserMode;
+    _touchDrawingEnabled = prefs.touchDrawingEnabled;
     _shapeFillEnabled = prefs.shapeToolFillEnabled;
     _layerAdjustCropOutside = prefs.layerAdjustCropOutside;
     _penStrokeSliderRange = prefs.penStrokeSliderRange;
@@ -167,6 +168,12 @@ class PaintingBoardState extends _PaintingBoardBase
     _syncRasterizeMenuAvailability();
     _syncMenuAvailability();
     _notifyViewInfoChanged();
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      _pencilDoubleTapSubscription =
+          TabletInputBridge.instance.pencilDoubleTapEvents.listen((_) {
+            _handleApplePencilDoubleTap();
+          });
+    }
     BackendCanvasTimeline.mark(
       'paintingBoard: initState '
       'size=${widget.settings.width.round()}x${widget.settings.height.round()}',
@@ -220,6 +227,8 @@ class PaintingBoardState extends _PaintingBoardBase
     _restoreBackendLayerAfterVectorPreview();
     _backendLayerSnapshots.clear();
     _backendLayerSnapshotHandle = null;
+    _pencilDoubleTapSubscription?.cancel();
+    _pencilDoubleTapSubscription = null;
     super.dispose();
   }
 

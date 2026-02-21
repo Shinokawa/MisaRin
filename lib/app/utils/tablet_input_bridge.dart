@@ -11,23 +11,33 @@ class TabletInputBridge {
   static final TabletInputBridge instance = TabletInputBridge._();
 
   final MethodChannel _channel = const MethodChannel('misarin/tablet_input');
+    final StreamController<void> _pencilDoubleTapController =
+      StreamController<void>.broadcast();
   bool _initialized = false;
   final Map<int, _TabletSample> _samples = <int, _TabletSample>{};
 
   bool get _supportMacOS => !kIsWeb && Platform.isMacOS;
+    bool get _supportApplePencilTapChannel =>
+      !kIsWeb && (Platform.isMacOS || Platform.isIOS);
+
+    Stream<void> get pencilDoubleTapEvents => _pencilDoubleTapController.stream;
 
   void ensureInitialized() {
     if (_initialized) {
       return;
     }
     _initialized = true;
-    if (!_supportMacOS) {
+    if (!_supportApplePencilTapChannel) {
       return;
     }
     _channel.setMethodCallHandler(_handleMethodCall);
   }
 
   Future<void> _handleMethodCall(MethodCall call) async {
+    if (call.method == 'pencilDoubleTap') {
+      _pencilDoubleTapController.add(null);
+      return;
+    }
     if (call.method != 'tabletEvent') {
       return;
     }

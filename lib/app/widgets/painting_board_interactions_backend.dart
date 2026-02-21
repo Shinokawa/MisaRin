@@ -6,7 +6,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       return true;
     }
     if (event.kind == PointerDeviceKind.touch) {
-      return true;
+      return _touchDrawingEnabled;
     }
     if (event.kind == PointerDeviceKind.mouse) {
       return (event.buttons & kPrimaryMouseButton) != 0;

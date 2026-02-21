@@ -11,8 +11,40 @@ double _strokeStampSpacing(double radius, double spacing) {
   if (kIsWeb) {
     s *= _kWebStampSpacingBoost;
   }
-  s = s.clamp(0.02, 2.5);
-  return math.max(r * 2.0 * s, 0.1);
+  s = s.clamp(0.01, 2.5);
+  return math.max(r * 2.0 * s, 0.05);
+}
+
+double _strokeAdaptiveSpacingForSegment(
+  double baseSpacing,
+  Offset start,
+  Offset end,
+  double startRadius,
+  double endRadius,
+) {
+  final double clampedBase =
+      (baseSpacing.isFinite ? baseSpacing : 0.15).clamp(0.01, 2.5);
+  final double length = (end - start).distance;
+  if (!length.isFinite || length <= 0.0001) {
+    return clampedBase;
+  }
+  final double maxRadius = math.max(
+    math.max(startRadius.abs(), endRadius.abs()),
+    0.25,
+  );
+  final double nominalCoverage = maxRadius * 2.0;
+  if (!nominalCoverage.isFinite || nominalCoverage <= 0.0001) {
+    return clampedBase;
+  }
+  final double jumpRatio = length / nominalCoverage;
+  if (!jumpRatio.isFinite || jumpRatio <= 0.9) {
+    return clampedBase;
+  }
+  final double reduction = 1.0 / math.pow(jumpRatio.clamp(1.0, 12.0), 1.15);
+  final double reduced = (clampedBase * reduction).clamp(0.015, clampedBase);
+  final double capT = ((jumpRatio - 1.8) / 6.0).clamp(0.0, 1.0);
+  final double speedCap = ui.lerpDouble(clampedBase, 0.03, capT) ?? reduced;
+  return math.min(reduced, speedCap).clamp(0.015, clampedBase);
 }
 
 Rect _strokeDirtyRectForVariableLine(
@@ -176,7 +208,7 @@ void _strokeBegin(
   controller._currentStrokeEraseOccludedParts =
       resolvedHollow && eraseOccludedParts;
   final double spacingValue = spacing.isFinite ? spacing : 0.15;
-  controller._currentStrokeSpacing = spacingValue.clamp(0.02, 2.5);
+  controller._currentStrokeSpacing = spacingValue.clamp(0.01, 2.5);
   final double hardnessValue = hardness.isFinite ? hardness : 0.8;
   controller._currentStrokeSoftness = (1.0 - hardnessValue.clamp(0.0, 1.0))
       .clamp(0.0, 1.0);
@@ -367,7 +399,13 @@ void _strokeEnd(BitmapCanvasController controller) {
             smoothRotation: controller._currentStrokeSmoothRotationEnabled,
             rotationSeed: controller._currentStrokeRotationSeed,
             rotationJitter: controller._currentStrokeRotationJitter,
-            spacing: controller._currentStrokeSpacing,
+            spacing: _strokeAdaptiveSpacingForSegment(
+              controller._currentStrokeSpacing,
+              lastPoint,
+              end,
+              lastRadius,
+              endRadius,
+            ),
             scatter: controller._currentStrokeScatter,
             softness: controller._currentStrokeSoftness,
             snapToPixel: controller._currentStrokeSnapToPixel,
@@ -600,19 +638,29 @@ bool _strokeApplyStreamline(BitmapCanvasController controller) {
   }
 
   for (int i = 1; i < count; i++) {
+    final Offset segmentStart = controller._currentStrokePoints[i - 1];
+    final Offset segmentEnd = controller._currentStrokePoints[i];
+    final double segmentStartRadius = controller._currentStrokeRadii[i - 1];
+    final double segmentEndRadius = controller._currentStrokeRadii[i];
     controller._deferredStrokeCommands.add(
       PaintingDrawCommand.stampSegment(
-        start: controller._currentStrokePoints[i - 1],
-        end: controller._currentStrokePoints[i],
-        startRadius: controller._currentStrokeRadii[i - 1],
-        endRadius: controller._currentStrokeRadii[i],
+        start: segmentStart,
+        end: segmentEnd,
+        startRadius: segmentStartRadius,
+        endRadius: segmentEndRadius,
         colorValue: controller._currentStrokeColor.value,
         shapeIndex: controller._currentBrushShape.index,
         randomRotation: controller._currentStrokeRandomRotationEnabled,
         smoothRotation: controller._currentStrokeSmoothRotationEnabled,
         rotationSeed: controller._currentStrokeRotationSeed,
         rotationJitter: controller._currentStrokeRotationJitter,
-        spacing: controller._currentStrokeSpacing,
+        spacing: _strokeAdaptiveSpacingForSegment(
+          controller._currentStrokeSpacing,
+          segmentStart,
+          segmentEnd,
+          segmentStartRadius,
+          segmentEndRadius,
+        ),
         scatter: controller._currentStrokeScatter,
         softness: controller._currentStrokeSoftness,
         snapToPixel: controller._currentStrokeSnapToPixel,
@@ -767,6 +815,13 @@ void _strokeStampSegment(
   required double endRadius,
   required bool includeStart,
 }) {
+  final double spacing = _strokeAdaptiveSpacingForSegment(
+    controller._currentStrokeSpacing,
+    start,
+    end,
+    startRadius,
+    endRadius,
+  );
   controller._deferredStrokeCommands.add(
     PaintingDrawCommand.stampSegment(
       start: start,
@@ -779,7 +834,7 @@ void _strokeStampSegment(
       smoothRotation: controller._currentStrokeSmoothRotationEnabled,
       rotationSeed: controller._currentStrokeRotationSeed,
       rotationJitter: controller._currentStrokeRotationJitter,
-      spacing: controller._currentStrokeSpacing,
+      spacing: spacing,
       scatter: controller._currentStrokeScatter,
       softness: controller._currentStrokeSoftness,
       snapToPixel: controller._currentStrokeSnapToPixel,

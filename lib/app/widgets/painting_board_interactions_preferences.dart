@@ -109,6 +109,16 @@ extension _PaintingBoardInteractionPreferencesExtension on _PaintingBoardInterac
     _applyStylusSettingsToController();
   }
 
+  void _updateTouchDrawingEnabled(bool value) {
+    if (_touchDrawingEnabled == value) {
+      return;
+    }
+    setState(() => _touchDrawingEnabled = value);
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.touchDrawingEnabled = value;
+    unawaited(AppPreferences.save());
+  }
+
   void _updateBucketAntialiasLevel(int value) {
     final int clamped = value.clamp(0, 9);
     if (_bucketAntialiasLevel == clamped) {

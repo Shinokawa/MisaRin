@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart' show Localizations;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -45,6 +47,8 @@ class ToolSettingsCard extends StatefulWidget {
     required this.onStreamlineChanged,
     required this.stylusPressureEnabled,
     required this.onStylusPressureEnabledChanged,
+    required this.touchDrawingEnabled,
+    required this.onTouchDrawingEnabledChanged,
     required this.simulatePenPressure,
     required this.onSimulatePenPressureChanged,
     required this.penPressureProfile,
@@ -126,6 +130,8 @@ class ToolSettingsCard extends StatefulWidget {
   final ValueChanged<double> onStreamlineChanged;
   final bool stylusPressureEnabled;
   final ValueChanged<bool> onStylusPressureEnabledChanged;
+  final bool touchDrawingEnabled;
+  final ValueChanged<bool> onTouchDrawingEnabledChanged;
   final bool simulatePenPressure;
   final ValueChanged<bool> onSimulatePenPressureChanged;
   final StrokePressureProfile penPressureProfile;
@@ -202,6 +208,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       <TextInputFormatter>[
         FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
       ];
+  int? _pointerSliderActivePointer;
 
   double get _sliderMin => widget.penStrokeSliderRange.min;
   double get _sliderMax => widget.penStrokeSliderRange.max;
@@ -479,7 +486,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     final l10n = context.l10n;
     final double degrees = widget.canvasRotation * 180.0 / math.pi;
     final int roundedDegrees = degrees.round();
-    final Slider slider = Slider(
+    final Widget slider = _buildPointerFriendlySlider(
       value: degrees.clamp(-180.0, 180.0),
       min: -180.0,
       max: 180.0,
@@ -566,6 +573,15 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           detail: l10n.stylusPressureDesc,
           value: widget.stylusPressureEnabled,
           onChanged: widget.onStylusPressureEnabledChanged,
+        ),
+      );
+      wrapChildren.add(
+        _buildToggleSwitchRow(
+          theme,
+          label: '${l10n.pointerKindTouch} Draw',
+          detail: 'When off, finger touch cannot draw. Stylus can still draw.',
+          value: widget.touchDrawingEnabled,
+          onChanged: widget.onTouchDrawingEnabledChanged,
         ),
       );
       wrapChildren.add(
@@ -1184,7 +1200,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     final String display = formatter == null
         ? value.toStringAsFixed(1)
         : formatter(value);
-    final Slider slider = Slider(
+    final Widget slider = _buildPointerFriendlySlider(
       min: min,
       max: max,
       value: value.clamp(min, max),
@@ -1374,7 +1390,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     int max = 255,
   }) {
     final double sliderValue = value.clamp(0, max).toDouble();
-    final Slider slider = Slider(
+    final Widget slider = _buildPointerFriendlySlider(
       value: sliderValue,
       min: 0,
       max: max.toDouble(),
@@ -1456,6 +1472,89 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     return _formatValue(value);
   }
 
+  bool _isPencilLikePointer(PointerEvent event) {
+    if (event.kind == PointerDeviceKind.stylus ||
+        event.kind == PointerDeviceKind.invertedStylus) {
+      return true;
+    }
+    return defaultTargetPlatform == TargetPlatform.iOS &&
+        event.kind == PointerDeviceKind.mouse &&
+        event.buttons == 0;
+  }
+
+  Widget _buildPointerFriendlySlider({
+    required double value,
+    required double min,
+    required double max,
+    int? divisions,
+    required ValueChanged<double> onChanged,
+  }) {
+    final Slider slider = Slider(
+      value: value.clamp(min, max),
+      min: min,
+      max: max,
+      divisions: divisions,
+      onChanged: onChanged,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double width = constraints.maxWidth;
+
+        double snapToDivisions(double raw) {
+          if (divisions == null || divisions <= 0) {
+            return raw;
+          }
+          final double step = (max - min) / divisions;
+          if (step <= 0 || !step.isFinite) {
+            return raw;
+          }
+          final int idx = ((raw - min) / step).round();
+          return (min + idx * step).clamp(min, max);
+        }
+
+        void updateFrom(Offset local) {
+          if (width <= 0 || !width.isFinite) {
+            return;
+          }
+          final double t = (local.dx / width).clamp(0.0, 1.0);
+          final double raw = min + (max - min) * t;
+          onChanged(snapToDivisions(raw));
+        }
+
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (event) {
+            if (!_isPencilLikePointer(event)) {
+              return;
+            }
+            _pointerSliderActivePointer = event.pointer;
+            updateFrom(event.localPosition);
+          },
+          onPointerMove: (event) {
+            if (_pointerSliderActivePointer != event.pointer) {
+              return;
+            }
+            if (!_isPencilLikePointer(event)) {
+              return;
+            }
+            updateFrom(event.localPosition);
+          },
+          onPointerUp: (event) {
+            if (_pointerSliderActivePointer == event.pointer) {
+              _pointerSliderActivePointer = null;
+            }
+          },
+          onPointerCancel: (event) {
+            if (_pointerSliderActivePointer == event.pointer) {
+              _pointerSliderActivePointer = null;
+            }
+          },
+          child: slider,
+        );
+      },
+    );
+  }
+
   Widget _buildBrushSizeRow(FluentThemeData theme) {
     final l10n = context.l10n;
     final double brushSize = _clampBrushValue(_activeBrushValue);
@@ -1471,7 +1570,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         : _formatValue(brushSize);
     final String labelText = _isSprayTool ? l10n.spraySize : l10n.brushSize;
     final String detailText = _isSprayTool ? l10n.spraySizeDesc : l10n.brushSizeDesc;
-    final Slider slider = Slider(
+    final Widget slider = _buildPointerFriendlySlider(
       value: sliderValue,
       min: _activeSliderMin,
       max: _activeSliderMax,
@@ -1612,7 +1711,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     required String detail,
   }) {
     final l10n = context.l10n;
-    final Slider slider = Slider(
+    final Widget slider = _buildPointerFriendlySlider(
       value: value.toDouble(),
       min: 0,
       max: 9,
@@ -1668,7 +1767,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
     final double sliderValue = level.toDouble();
     final String label = level == 0 ? l10n.off : l10n.levelLabel(level);
-    final Slider slider = Slider(
+    final Widget slider = _buildPointerFriendlySlider(
       value: sliderValue,
       min: 0,
       max: widget.strokeStabilizerMaxLevel.toDouble(),
@@ -1725,7 +1824,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
     final double sliderValue = level.toDouble();
     final String label = level == 0 ? l10n.off : l10n.levelLabel(level);
-    final Slider slider = Slider(
+    final Widget slider = _buildPointerFriendlySlider(
       value: sliderValue,
       min: 0,
       max: widget.strokeStabilizerMaxLevel.toDouble(),
