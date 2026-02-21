@@ -923,12 +923,6 @@ impl StrokeResampler {
             emitted
         };
 
-        let emitted = if mode == SmoothingMode::None && emitted.len() > 2 {
-            fit_and_resample_points(emitted)
-        } else {
-            emitted
-        };
-
         self.record_streamline_points(&emitted);
 
         if emitted.is_empty() {
@@ -1529,14 +1523,6 @@ fn downsample_emitted(points: &[(Point2D, f32)], target_count: usize) -> Vec<(Po
         output.push(points[idx]);
     }
     output
-}
-
-fn fit_and_resample_points(points: Vec<(Point2D, f32)>) -> Vec<(Point2D, f32)> {
-    let target_count = points.len();
-    if target_count < 3 {
-        return points;
-    }
-    adaptive_resample_spline(&points, target_count)
 }
 
 pub(crate) fn apply_streamline(

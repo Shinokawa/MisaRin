@@ -22,7 +22,7 @@ const double _defaultStylusCurve = 0.85;
 const bool _defaultAutoSharpPeakEnabled = false;
 const PenStrokeSliderRange _defaultPenStrokeSliderRange =
     PenStrokeSliderRange.compact;
-const double _defaultStrokeStabilizerStrength = 10.0 / 30.0;
+const double _defaultStrokeStabilizerStrength = 0.0;
 const double _defaultStreamlineStrength = 0.0;
 const BrushShape _defaultBrushShape = BrushShape.circle;
 const bool _defaultBrushRandomRotationEnabled = false;

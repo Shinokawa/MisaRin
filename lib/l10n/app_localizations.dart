@@ -1952,6 +1952,12 @@ abstract class AppLocalizations {
   /// **'Stylus Pressure'**
   String get stylusPressure;
 
+  /// No description provided for @touchDrawing.
+  ///
+  /// In en, this message translates to:
+  /// **'Touch Drawing'**
+  String get touchDrawing;
+
   /// No description provided for @simulatedPressure.
   ///
   /// In en, this message translates to:
@@ -2509,6 +2515,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Allows stylus pressure to affect brush size/opacity. Turn off to ignore hardware pressure.'**
   String get stylusPressureDesc;
+
+  /// No description provided for @touchDrawingDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'When off, finger touch cannot draw. Stylus can still draw.'**
+  String get touchDrawingDesc;
 
   /// No description provided for @simulatedPressureDesc.
   ///

@@ -90,6 +90,72 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   void _handlePointerSignal(PointerSignalEvent event);
   KeyEventResult _handleWorkspaceKeyEvent(FocusNode node, KeyEvent event);
 
+  void _applyBackendBrushOverride(
+    int handle, {
+    bool? snapToPixelOverride,
+    bool? usePressureOverride,
+    double? streamlineStrengthOverride,
+    int? smoothingModeOverride,
+    double? stabilizerStrengthOverride,
+  }) {
+    if (!_backend.isReady) {
+      return;
+    }
+    double radius = (_activeTool == CanvasTool.eraser
+        ? _eraserStrokeWidth
+        : _penStrokeWidth) / 2;
+    final Size engineSize = _backendCanvasEngineSize ?? _canvasSize;
+    if (engineSize != _canvasSize &&
+        _canvasSize.width > 0 &&
+        _canvasSize.height > 0) {
+      final double sx = engineSize.width / _canvasSize.width;
+      final double sy = engineSize.height / _canvasSize.height;
+      final double scale = (sx.isFinite && sy.isFinite)
+          ? ((sx + sy) / 2.0)
+          : 1.0;
+      if (scale.isFinite && scale > 0) {
+        radius *= scale;
+      }
+    }
+    final bool erase = _isBrushEraserEnabled;
+    final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
+    final double stabilizer = (stabilizerStrengthOverride ??
+            _strokeStabilizerStrength)
+        .clamp(0.0, 1.0);
+    final double streamline = (streamlineStrengthOverride ?? _streamlineStrength)
+        .clamp(0.0, 1.0);
+    final int smoothingMode =
+        smoothingModeOverride ?? (stabilizer > 0.0001 ? 3 : 1);
+    final bool usePressure = usePressureOverride ??
+        (_stylusPressureEnabled ||
+            _simulatePenPressure ||
+            _autoSharpPeakEnabled);
+    CanvasBackendFacade.instance.setBrush(
+      handle: handle,
+      colorArgb: strokeColor.value,
+      baseRadius: radius,
+      usePressure: usePressure,
+      erase: erase,
+      antialiasLevel: _penAntialiasLevel,
+      brushShape: _brushShape.index,
+      randomRotation: _brushRandomRotationEnabled,
+      smoothRotation: _brushSmoothRotationEnabled,
+      rotationSeed: _brushRandomRotationPreviewSeed,
+      spacing: _brushSpacing,
+      hardness: _brushHardness,
+      flow: _brushFlow,
+      scatter: _brushScatter,
+      rotationJitter: _brushRotationJitter,
+      snapToPixel: snapToPixelOverride ?? _brushSnapToPixel,
+      hollow: _hollowStrokeEnabled,
+      hollowRatio: _hollowStrokeRatio,
+      hollowEraseOccludedParts: _hollowStrokeEraseOccludedParts,
+      streamlineStrength: streamline,
+      smoothingMode: smoothingMode,
+      stabilizerStrength: stabilizer,
+    );
+  }
+
   void _updatePenPressureSimulation(bool value);
   void _updatePenPressureProfile(StrokePressureProfile profile);
   void _updatePenAntialiasLevel(int value);

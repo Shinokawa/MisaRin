@@ -578,8 +578,8 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       wrapChildren.add(
         _buildToggleSwitchRow(
           theme,
-          label: '${l10n.pointerKindTouch} Draw',
-          detail: 'When off, finger touch cannot draw. Stylus can still draw.',
+          label: l10n.touchDrawing,
+          detail: l10n.touchDrawingDesc,
           value: widget.touchDrawingEnabled,
           onChanged: widget.onTouchDrawingEnabledChanged,
         ),

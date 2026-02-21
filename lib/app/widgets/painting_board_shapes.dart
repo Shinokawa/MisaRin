@@ -132,14 +132,31 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       if (_shapeRasterPreviewSnapshot != null) {
         _clearShapePreviewOverlay();
       }
-      final List<Offset> effectivePoints = _simulatePenPressure
-          ? _densifyStrokePolyline(strokePoints)
-          : strokePoints;
+      // Keep segments short to avoid sparse stamps on long edges.
+      final double maxSegmentLength =
+          math.min(6.0, math.max(2.0, _penStrokeWidth * 0.5));
+      final List<Offset> effectivePoints = _densifyStrokePolyline(
+        strokePoints,
+        maxSegmentLength: maxSegmentLength,
+      );
+      final int? handle = _backendCanvasEngineHandle;
+      if (handle != null) {
+        // Disable smoothing/streamline for crisp geometric shapes.
+        _applyBackendBrushOverride(
+          handle,
+          streamlineStrengthOverride: 0.0,
+          smoothingModeOverride: 0,
+          stabilizerStrengthOverride: 0.0,
+        );
+      }
       final bool backendOk = _drawBackendStrokeFromPoints(
         points: effectivePoints,
         initialTimestampMillis: 0.0,
         simulatePressure: _simulatePenPressure,
       );
+      if (handle != null) {
+        _applyBackendBrushOverride(handle);
+      }
       if (backendOk) {
         _disposeShapeRasterPreview(
           restoreLayer: false,

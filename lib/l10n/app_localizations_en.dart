@@ -1028,6 +1028,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get stylusPressure => 'Stylus Pressure';
 
   @override
+  String get touchDrawing => 'Touch Drawing';
+
+  @override
   String get simulatedPressure => 'Simulated Pressure';
 
   @override
@@ -1327,6 +1330,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get stylusPressureDesc =>
       'Allows stylus pressure to affect brush size/opacity. Turn off to ignore hardware pressure.';
+
+  @override
+  String get touchDrawingDesc =>
+      'When off, finger touch cannot draw. Stylus can still draw.';
 
   @override
   String get simulatedPressureDesc =>

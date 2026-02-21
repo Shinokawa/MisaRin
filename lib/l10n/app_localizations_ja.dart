@@ -1007,6 +1007,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get stylusPressure => '筆圧感知';
 
   @override
+  String get touchDrawing => 'タッチ描画';
+
+  @override
   String get simulatedPressure => '擬似筆圧';
 
   @override
@@ -1292,6 +1295,9 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get stylusPressureDesc =>
       '筆圧によるブラシサイズ/不透明度の変化を許可します。オフにするとハードウェアの筆圧を無視します。';
+
+  @override
+  String get touchDrawingDesc => 'オフにすると指で描画できません。スタイラスは引き続き描画できます。';
 
   @override
   String get simulatedPressureDesc => '筆圧デバイスがない場合に、マウスの速度に基づいて筆圧をシミュレートします。';

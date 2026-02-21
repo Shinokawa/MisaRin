@@ -1011,6 +1011,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get stylusPressure => '필압 감지';
 
   @override
+  String get touchDrawing => '터치 드로잉';
+
+  @override
   String get simulatedPressure => '모의 필압';
 
   @override
@@ -1299,6 +1302,9 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get stylusPressureDesc =>
       '필압에 따른 브러시 크기/불투명도 변화를 허용합니다. 끄면 하드웨어 필압을 무시합니다.';
+
+  @override
+  String get touchDrawingDesc => '끄면 손가락 터치로는 그릴 수 없으며, 스타일러스는 계속 그릴 수 있습니다.';
 
   @override
   String get simulatedPressureDesc => '필압 장치가 없는 경우 마우스 속도를 기반으로 필압을 시뮬레이션합니다.';

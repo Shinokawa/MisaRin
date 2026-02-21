@@ -1001,6 +1001,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get stylusPressure => '数位笔笔压';
 
   @override
+  String get touchDrawing => '触摸绘制';
+
+  @override
   String get simulatedPressure => '模拟笔压';
 
   @override
@@ -1281,6 +1284,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get stylusPressureDesc => '让数位笔的压力实时影响笔刷粗细或透明度，关闭后忽略硬件笔压。';
+
+  @override
+  String get touchDrawingDesc => '关闭后手指触摸无法绘制，数位笔仍可绘制。';
 
   @override
   String get simulatedPressureDesc => '在没有压感设备时根据鼠标速度模拟笔压变化，开启后也能画出有粗细变化的线条。';
@@ -3680,6 +3686,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get eraseOccludedParts => '擦除被遮擋部分';
 
   @override
+  String get touchDrawing => '觸控繪製';
+
+  @override
   String get brushPreset => '筆刷預設';
 
   @override
@@ -3787,6 +3796,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get randomRotationDesc => '開啟後，正方形/三角形/五角星筆刷會在筆觸的每個印章上隨機旋轉。';
+
+  @override
+  String get touchDrawingDesc => '關閉後無法用手指觸控繪製，數位筆仍可繪製。';
 
   @override
   String get swallowBlueColorLineDesc => '色塊填充時只吞併藍色線。';
