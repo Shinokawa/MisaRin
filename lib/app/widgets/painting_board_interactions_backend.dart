@@ -525,6 +525,27 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     }
   }
 
+  void _recordBackendStrokeLatency() {
+    StrokeLatencyMonitor.instance.recordStrokeStart();
+    _backendLatencyPending = true;
+    _scheduleBackendLatencyFrame();
+  }
+
+  void _scheduleBackendLatencyFrame() {
+    if (!_backendLatencyPending || _backendLatencyFrameScheduled) {
+      return;
+    }
+    _backendLatencyFrameScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _backendLatencyFrameScheduled = false;
+      if (!_backendLatencyPending) {
+        return;
+      }
+      StrokeLatencyMonitor.instance.recordFramePresented();
+      _backendLatencyPending = false;
+    });
+  }
+
   void _beginBackendStroke(PointerDownEvent event) {
     if (!_isBackendDrawingPointer(event)) {
       return;
@@ -558,6 +579,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
         _backendUseStylusPressure || _backendSimulatePressure || _autoSharpPeakEnabled;
     _backendPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
     _backendActivePointer = event.pointer;
+    _recordBackendStrokeLatency();
     _enqueueBackendPoint(event, _kBackendPointFlagDown, isInitialSample: true);
     _markDirty();
   }
@@ -806,6 +828,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     _backendStrokeStartIndex = 0;
 
     try {
+      _recordBackendStrokeLatency();
       _appendBackendPoint(
         enginePos: startEngine,
         pressure: pressure,
