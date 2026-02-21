@@ -327,6 +327,7 @@ class BackendCanvasSurface extends StatefulWidget {
     this.usePressure = true,
     this.stylusCurve = 1.0,
     this.streamlineStrength = 0.0,
+    this.strokeStabilizerStrength = 0.0,
     this.onStrokeBegin,
     this.onEngineInfoChanged,
   });
@@ -387,6 +388,7 @@ class BackendCanvasSurface extends StatefulWidget {
   final bool usePressure;
   final double stylusCurve;
   final double streamlineStrength;
+  final double strokeStabilizerStrength;
   final VoidCallback? onStrokeBegin;
   final void Function(
     int? handle,
@@ -473,7 +475,10 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
         (oldWidget.hollowStrokeRatio - widget.hollowStrokeRatio).abs() > 1e-6 ||
         oldWidget.hollowStrokeEraseOccludedParts !=
             widget.hollowStrokeEraseOccludedParts ||
-        (oldWidget.streamlineStrength - widget.streamlineStrength).abs() > 1e-6;
+        (oldWidget.streamlineStrength - widget.streamlineStrength).abs() > 1e-6 ||
+        (oldWidget.strokeStabilizerStrength - widget.strokeStabilizerStrength)
+                .abs() >
+            1e-6;
     if (brushChanged && _activeDrawingPointer == null) {
       final int? handle = _engineHandle;
       if (handle != null) {
@@ -701,6 +706,9 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
         radius *= scale;
       }
     }
+    final double stabilizer =
+        widget.strokeStabilizerStrength.clamp(0.0, 1.0);
+    final int smoothingMode = stabilizer > 0.0001 ? 3 : 1;
     CanvasBackendFacade.instance.setBrush(
       handle: handle,
       colorArgb: widget.brushColorArgb,
@@ -722,6 +730,8 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
       hollowRatio: widget.hollowStrokeRatio,
       hollowEraseOccludedParts: widget.hollowStrokeEraseOccludedParts,
       streamlineStrength: widget.streamlineStrength,
+      smoothingMode: smoothingMode,
+      stabilizerStrength: stabilizer,
     );
   }
 

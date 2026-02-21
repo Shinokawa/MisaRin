@@ -38,6 +38,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
     this.usePressure = true,
     this.stylusCurve = 1.0,
     this.streamlineStrength = 0.0,
+    this.strokeStabilizerStrength = 0.0,
     this.onStrokeBegin,
     this.onEngineInfoChanged,
   });
@@ -69,6 +70,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
   final bool usePressure;
   final double stylusCurve;
   final double streamlineStrength;
+  final double strokeStabilizerStrength;
   final VoidCallback? onStrokeBegin;
   final void Function(
     int? handle,
@@ -107,6 +109,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
         usePressure: usePressure,
         stylusCurve: stylusCurve,
         streamlineStrength: streamlineStrength,
+        strokeStabilizerStrength: strokeStabilizerStrength,
         onStrokeBegin: onStrokeBegin,
         onEngineInfoChanged: onEngineInfoChanged,
       );

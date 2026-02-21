@@ -27,10 +27,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     return false;
   }
 
-  bool _canStartBackendStroke({required bool pointerInsideBoard}) {
-    if (!pointerInsideBoard) {
-      return false;
-    }
+  bool _canStartBackendStroke() {
     if (!_backend.supportsStrokeStream) {
       return false;
     }
@@ -45,10 +42,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     return true;
   }
 
-  bool _canStartBitmapStroke({required bool pointerInsideBoard}) {
-    if (!pointerInsideBoard) {
-      return false;
-    }
+  bool _canStartBitmapStroke() {
     if (_layerTransformModeActive ||
         _isLayerFreeTransformActive ||
         _controller.isActiveLayerTransforming) {
@@ -177,6 +171,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       isInitialSample: isInitialSample,
       anchor: _lastStrokeBoardPosition,
       clampToCanvas: false,
+      applyStabilizer: false,
     );
     _lastStrokeBoardPosition = sanitized;
     return sanitized;
@@ -524,6 +519,27 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     }
   }
 
+  void _recordBackendStrokeLatency() {
+    StrokeLatencyMonitor.instance.recordStrokeStart();
+    _backendLatencyPending = true;
+    _scheduleBackendLatencyFrame();
+  }
+
+  void _scheduleBackendLatencyFrame() {
+    if (!_backendLatencyPending || _backendLatencyFrameScheduled) {
+      return;
+    }
+    _backendLatencyFrameScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _backendLatencyFrameScheduled = false;
+      if (!_backendLatencyPending) {
+        return;
+      }
+      StrokeLatencyMonitor.instance.recordFramePresented();
+      _backendLatencyPending = false;
+    });
+  }
+
   void _beginBackendStroke(PointerDownEvent event) {
     if (!_isBackendDrawingPointer(event)) {
       return;
@@ -557,6 +573,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
         _backendUseStylusPressure || _backendSimulatePressure || _autoSharpPeakEnabled;
     _backendPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
     _backendActivePointer = event.pointer;
+    _recordBackendStrokeLatency();
     _enqueueBackendPoint(event, _kBackendPointFlagDown, isInitialSample: true);
     _markDirty();
   }
@@ -736,6 +753,9 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     }
     final bool erase = _isBrushEraserEnabled;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
+    final double stabilizer =
+        _strokeStabilizerStrength.clamp(0.0, 1.0);
+    final int smoothingMode = stabilizer > 0.0001 ? 3 : 1;
     CanvasBackendFacade.instance.setBrush(
       handle: handle,
       colorArgb: strokeColor.value,
@@ -758,6 +778,8 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       hollowRatio: _hollowStrokeRatio,
       hollowEraseOccludedParts: _hollowStrokeEraseOccludedParts,
       streamlineStrength: _streamlineStrength,
+      smoothingMode: smoothingMode,
+      stabilizerStrength: stabilizer,
     );
   }
 
@@ -800,6 +822,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     _backendStrokeStartIndex = 0;
 
     try {
+      _recordBackendStrokeLatency();
       _appendBackendPoint(
         enginePos: startEngine,
         pressure: pressure,

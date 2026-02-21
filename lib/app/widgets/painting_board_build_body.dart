@@ -573,6 +573,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 stylusCurve: _stylusCurve,
                                                 streamlineStrength:
                                                     _streamlineStrength,
+                                                strokeStabilizerStrength:
+                                                    _strokeStabilizerStrength,
                                                 onStrokeBegin: _markDirty,
                                                 onEngineInfoChanged:
                                                     _handleBackendCanvasEngineInfoChanged,

@@ -76,6 +76,8 @@ class CanvasEngineFfi {
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,
     double streamlineStrength = 0.0,
+    int smoothingMode = 1,
+    double stabilizerStrength = 0.0,
   }) {
     if (!isSupported) {
       return;
@@ -101,6 +103,8 @@ class CanvasEngineFfi {
       hollowRatio: hollowRatio,
       hollowEraseOccludedParts: hollowEraseOccludedParts,
       streamlineStrength: streamlineStrength,
+      smoothingMode: smoothingMode,
+      stabilizerStrength: stabilizerStrength,
     );
   }
 
@@ -576,6 +580,8 @@ class CanvasBackendFacade {
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,
     double streamlineStrength = 0.0,
+    int smoothingMode = 1,
+    double stabilizerStrength = 0.0,
   }) {
     _ffi.setBrush(
       handle: handle,
@@ -598,6 +604,8 @@ class CanvasBackendFacade {
       hollowRatio: hollowRatio,
       hollowEraseOccludedParts: hollowEraseOccludedParts,
       streamlineStrength: streamlineStrength,
+      smoothingMode: smoothingMode,
+      stabilizerStrength: stabilizerStrength,
     );
   }
 

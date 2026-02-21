@@ -303,6 +303,8 @@ mixin _PaintingBoardInteractionMixin
   Offset? _backendStrokeStartPoint;
   double _backendStrokeStartPressure = 1.0;
   int _backendStrokeStartIndex = 0;
+  bool _backendLatencyPending = false;
+  bool _backendLatencyFrameScheduled = false;
 
   final List<_CpuStrokeEvent> _cpuStrokeQueue = <_CpuStrokeEvent>[];
   bool _cpuStrokeFlushScheduled = false;

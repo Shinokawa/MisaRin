@@ -545,13 +545,14 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     bool isInitialSample = false,
     Offset? anchor,
     bool clampToCanvas = true,
+    bool applyStabilizer = true,
   }) {
     final Offset clamped = clampToCanvas ? _clampToCanvas(position) : position;
     final bool supportsStrokeStabilizer =
         _effectiveActiveTool == CanvasTool.pen ||
         _effectiveActiveTool == CanvasTool.eraser ||
         _effectiveActiveTool == CanvasTool.perspectivePen;
-    if (!supportsStrokeStabilizer) {
+    if (!supportsStrokeStabilizer || !applyStabilizer) {
       if (isInitialSample) {
         _strokeStabilizer.reset();
       }
