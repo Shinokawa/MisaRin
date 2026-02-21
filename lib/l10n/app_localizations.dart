@@ -167,7 +167,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeOpenProjectDesc.
   ///
   /// In en, this message translates to:
-  /// **'Load a .rin / .psd or image file from disk'**
+  /// **'Load a .rin / .psd / .sai2 or image file from disk'**
   String get homeOpenProjectDesc;
 
   /// No description provided for @homeRecentProjects.
@@ -247,6 +247,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unable to read PSD file contents.'**
   String get cannotReadPsdContent;
+
+  /// No description provided for @cannotReadSai2Content.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to read SAI2 file contents.'**
+  String get cannotReadSai2Content;
 
   /// No description provided for @cannotReadProjectFileContent.
   ///
@@ -3506,6 +3512,12 @@ abstract class AppLocalizations {
   /// **'Save as PSD'**
   String get saveAsPsd;
 
+  /// No description provided for @saveAsSai2.
+  ///
+  /// In en, this message translates to:
+  /// **'Save as SAI2'**
+  String get saveAsSai2;
+
   /// No description provided for @saveAsRin.
   ///
   /// In en, this message translates to:
@@ -3704,6 +3716,12 @@ abstract class AppLocalizations {
   /// **'PSD exported to {path}'**
   String psdExported(Object path);
 
+  /// No description provided for @sai2Exported.
+  ///
+  /// In en, this message translates to:
+  /// **'SAI2 exported to {path}'**
+  String sai2Exported(Object path);
+
   /// No description provided for @projectDownloaded.
   ///
   /// In en, this message translates to:
@@ -3716,11 +3734,23 @@ abstract class AppLocalizations {
   /// **'PSD downloaded: {fileName}'**
   String psdDownloaded(Object fileName);
 
+  /// No description provided for @sai2Downloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'SAI2 downloaded: {fileName}'**
+  String sai2Downloaded(Object fileName);
+
   /// No description provided for @exportAsPsdTooltip.
   ///
   /// In en, this message translates to:
   /// **'Export as PSD'**
   String get exportAsPsdTooltip;
+
+  /// No description provided for @exportAsSai2Tooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Export as SAI2'**
+  String get exportAsSai2Tooltip;
 
   /// No description provided for @canvasNotReadyExport.
   ///

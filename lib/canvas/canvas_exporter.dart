@@ -9,6 +9,36 @@ import 'canvas_layer.dart';
 import 'canvas_settings.dart';
 
 class CanvasExporter {
+  Future<Uint8List> exportToRgba({
+    required CanvasSettings settings,
+    required List<CanvasLayerData> layers,
+    bool applyEdgeSoftening = false,
+    int edgeSofteningLevel = 2,
+  }) async {
+    final int width = settings.width.round();
+    final int height = settings.height.round();
+    if (width <= 0 || height <= 0) {
+      throw ArgumentError('画布尺寸必须大于 0');
+    }
+
+    final BitmapSurface composite = _compositeLayers(
+      width: width,
+      height: height,
+      layers: layers,
+    );
+
+    if (applyEdgeSoftening) {
+      _applyEdgeSofteningToPixels(
+        composite.pixels,
+        width,
+        height,
+        edgeSofteningLevel,
+      );
+    }
+
+    return _surfaceToRgba(composite);
+  }
+
   Future<Uint8List> exportToPng({
     required CanvasSettings settings,
     required List<CanvasLayerData> layers,

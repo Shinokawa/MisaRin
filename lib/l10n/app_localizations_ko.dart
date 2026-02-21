@@ -47,7 +47,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get homeOpenProject => '프로젝트 열기';
 
   @override
-  String get homeOpenProjectDesc => '디스크에서 .rin / .psd 또는 이미지 파일 불러오기';
+  String get homeOpenProjectDesc => '디스크에서 .rin / .psd / .sai2 또는 이미지 파일 불러오기';
 
   @override
   String get homeRecentProjects => '최근 열기';
@@ -91,6 +91,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get cannotReadPsdContent => 'PSD 파일 내용을 읽을 수 없습니다.';
+
+  @override
+  String get cannotReadSai2Content => 'SAI2 파일 내용을 읽을 수 없습니다.';
 
   @override
   String get cannotReadProjectFileContent => '프로젝트 파일 내용을 읽을 수 없습니다.';
@@ -1837,6 +1840,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get saveAsPsd => 'PSD로 저장';
 
   @override
+  String get saveAsSai2 => 'SAI2로 저장';
+
+  @override
   String get saveAsRin => 'RIN으로 저장';
 
   @override
@@ -1948,6 +1954,11 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String sai2Exported(Object path) {
+    return 'SAI2를 $path에 내보냈습니다';
+  }
+
+  @override
   String projectDownloaded(Object fileName) {
     return '프로젝트를 다운로드했습니다: $fileName';
   }
@@ -1958,7 +1969,15 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String sai2Downloaded(Object fileName) {
+    return 'SAI2를 다운로드했습니다: $fileName';
+  }
+
+  @override
   String get exportAsPsdTooltip => 'PSD로 내보내기';
+
+  @override
+  String get exportAsSai2Tooltip => 'SAI2로 내보내기';
 
   @override
   String get canvasNotReadyExport => '캔버스가 준비되지 않아 내보낼 수 없습니다.';

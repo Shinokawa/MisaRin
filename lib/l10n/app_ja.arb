@@ -18,7 +18,7 @@
   "homeNewProject": "新規プロジェクト",
   "homeNewProjectDesc": "空のキャンバスから新しいアイデアを始める",
   "homeOpenProject": "プロジェクトを開く",
-  "homeOpenProjectDesc": "ディスクから .rin / .psd または画像ファイルを読み込む",
+  "homeOpenProjectDesc": "ディスクから .rin / .psd / .sai2 または画像ファイルを読み込む",
   "homeRecentProjects": "最近開いた",
   "homeRecentProjectsDesc": "自動保存したプロジェクトをすばやく復元",
   "homeProjectManager": "プロジェクト管理",
@@ -43,6 +43,7 @@
     }
   },
   "cannotReadPsdContent": "PSD ファイルの内容を読み取れません。",
+  "cannotReadSai2Content": "SAI2 ファイルの内容を読み取れません。",
   "cannotReadProjectFileContent": "プロジェクトファイルの内容を読み取れません。",
   "openedProjectInfo": "プロジェクトを開きました: {name}",
   "@openedProjectInfo": {
@@ -846,6 +847,7 @@
 
   "selectSaveFormat": "保存するファイル形式を選択してください。",
   "saveAsPsd": "PSD として保存",
+  "saveAsSai2": "SAI2 として保存",
   "saveAsRin": "RIN として保存",
   "dontSave": "保存しない",
   "save": "保存",
@@ -911,6 +913,12 @@
       "path": {}
     }
   },
+  "sai2Exported": "SAI2 を {path} に書き出しました",
+  "@sai2Exported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
   "projectDownloaded": "プロジェクトをダウンロードしました: {fileName}",
   "@projectDownloaded": {
     "placeholders": {
@@ -923,7 +931,14 @@
       "fileName": {}
     }
   },
+  "sai2Downloaded": "SAI2 をダウンロードしました: {fileName}",
+  "@sai2Downloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
   "exportAsPsdTooltip": "PSD として書き出し",
+  "exportAsSai2Tooltip": "SAI2 として書き出し",
   "canvasNotReadyExport": "キャンバスの準備ができていないため書き出しできません。",
   "exportFileTitle": "{extension} ファイルを書き出し",
   "@exportFileTitle": {

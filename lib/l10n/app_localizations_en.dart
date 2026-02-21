@@ -51,7 +51,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get homeOpenProjectDesc =>
-      'Load a .rin / .psd or image file from disk';
+      'Load a .rin / .psd / .sai2 or image file from disk';
 
   @override
   String get homeRecentProjects => 'Recent';
@@ -96,6 +96,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cannotReadPsdContent => 'Unable to read PSD file contents.';
+
+  @override
+  String get cannotReadSai2Content => 'Unable to read SAI2 file contents.';
 
   @override
   String get cannotReadProjectFileContent =>
@@ -1901,6 +1904,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get saveAsPsd => 'Save as PSD';
 
   @override
+  String get saveAsSai2 => 'Save as SAI2';
+
+  @override
   String get saveAsRin => 'Save as RIN';
 
   @override
@@ -2012,6 +2018,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String sai2Exported(Object path) {
+    return 'SAI2 exported to $path';
+  }
+
+  @override
   String projectDownloaded(Object fileName) {
     return 'Project downloaded: $fileName';
   }
@@ -2022,7 +2033,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String sai2Downloaded(Object fileName) {
+    return 'SAI2 downloaded: $fileName';
+  }
+
+  @override
   String get exportAsPsdTooltip => 'Export as PSD';
+
+  @override
+  String get exportAsSai2Tooltip => 'Export as SAI2';
 
   @override
   String get canvasNotReadyExport => 'Canvas is not ready to export.';

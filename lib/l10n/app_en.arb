@@ -18,7 +18,7 @@
   "homeNewProject": "New Project",
   "homeNewProjectDesc": "Start a new idea from a blank canvas",
   "homeOpenProject": "Open Project",
-  "homeOpenProjectDesc": "Load a .rin / .psd or image file from disk",
+  "homeOpenProjectDesc": "Load a .rin / .psd / .sai2 or image file from disk",
   "homeRecentProjects": "Recent",
   "homeRecentProjectsDesc": "Quickly restore autosaved projects",
   "homeProjectManager": "Project Manager",
@@ -43,6 +43,7 @@
     }
   },
   "cannotReadPsdContent": "Unable to read PSD file contents.",
+  "cannotReadSai2Content": "Unable to read SAI2 file contents.",
   "cannotReadProjectFileContent": "Unable to read project file contents.",
   "openedProjectInfo": "Opened project: {name}",
   "@openedProjectInfo": {
@@ -846,6 +847,7 @@
 
   "selectSaveFormat": "Please select a file format to save.",
   "saveAsPsd": "Save as PSD",
+  "saveAsSai2": "Save as SAI2",
   "saveAsRin": "Save as RIN",
   "dontSave": "Don't Save",
   "save": "Save",
@@ -911,6 +913,12 @@
       "path": {}
     }
   },
+  "sai2Exported": "SAI2 exported to {path}",
+  "@sai2Exported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
   "projectDownloaded": "Project downloaded: {fileName}",
   "@projectDownloaded": {
     "placeholders": {
@@ -923,7 +931,14 @@
       "fileName": {}
     }
   },
+  "sai2Downloaded": "SAI2 downloaded: {fileName}",
+  "@sai2Downloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
   "exportAsPsdTooltip": "Export as PSD",
+  "exportAsSai2Tooltip": "Export as SAI2",
   "canvasNotReadyExport": "Canvas is not ready to export.",
   "exportFileTitle": "Export {extension} File",
   "@exportFileTitle": {

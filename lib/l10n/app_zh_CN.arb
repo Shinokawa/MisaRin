@@ -18,7 +18,7 @@
   "homeNewProject": "新建项目",
   "homeNewProjectDesc": "从空白画布开启新的创意",
   "homeOpenProject": "打开项目",
-  "homeOpenProjectDesc": "从磁盘加载 .rin / .psd 或图片文件",
+  "homeOpenProjectDesc": "从磁盘加载 .rin / .psd / .sai2 或图片文件",
   "homeRecentProjects": "最近打开",
   "homeRecentProjectsDesc": "快速恢复自动保存的项目",
   "homeProjectManager": "项目管理",
@@ -43,6 +43,7 @@
     }
   },
   "cannotReadPsdContent": "无法读取 PSD 文件内容。",
+  "cannotReadSai2Content": "无法读取 SAI2 文件内容。",
   "cannotReadProjectFileContent": "无法读取项目文件内容。",
   "openedProjectInfo": "已打开项目：{name}",
   "@openedProjectInfo": {
@@ -311,9 +312,16 @@
   },
   "canvasNotReadySave": "画布未准备好，无法保存。",
   "saveProjectAs": "项目另存为",
+  "saveAsSai2": "保存为 SAI2",
   "webSaveDesc": "下载项目文件到您的设备。",
   "psdExported": "PSD 已导出到 {path}",
   "@psdExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "sai2Exported": "SAI2 已导出到 {path}",
+  "@sai2Exported": {
     "placeholders": {
       "path": {}
     }
@@ -330,7 +338,14 @@
       "fileName": {}
     }
   },
+  "sai2Downloaded": "SAI2 已下载：{fileName}",
+  "@sai2Downloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
   "exportAsPsdTooltip": "导出为 PSD",
+  "exportAsSai2Tooltip": "导出为 SAI2",
   "canvasNotReadyExport": "画布未准备好，无法导出。",
   "exportFileTitle": "导出 {extension} 文件",
   "@exportFileTitle": {

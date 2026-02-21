@@ -47,7 +47,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get homeOpenProject => '打开项目';
 
   @override
-  String get homeOpenProjectDesc => '从磁盘加载 .rin / .psd 或图片文件';
+  String get homeOpenProjectDesc => '从磁盘加载 .rin / .psd / .sai2 或图片文件';
 
   @override
   String get homeRecentProjects => '最近打开';
@@ -91,6 +91,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cannotReadPsdContent => '无法读取 PSD 文件内容。';
+
+  @override
+  String get cannotReadSai2Content => '无法读取 SAI2 文件内容。';
 
   @override
   String get cannotReadProjectFileContent => '无法读取项目文件内容。';
@@ -1811,6 +1814,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get saveAsPsd => '保存为 PSD';
 
   @override
+  String get saveAsSai2 => '保存为 SAI2';
+
+  @override
   String get saveAsRin => '保存为 RIN';
 
   @override
@@ -1922,6 +1928,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String sai2Exported(Object path) {
+    return 'SAI2 已导出到 $path';
+  }
+
+  @override
   String projectDownloaded(Object fileName) {
     return 'Project downloaded: $fileName';
   }
@@ -1932,7 +1943,15 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String sai2Downloaded(Object fileName) {
+    return 'SAI2 已下载：$fileName';
+  }
+
+  @override
   String get exportAsPsdTooltip => 'Export as PSD';
+
+  @override
+  String get exportAsSai2Tooltip => '导出为 SAI2';
 
   @override
   String get canvasNotReadyExport => 'Canvas is not ready to export.';
@@ -2178,7 +2197,7 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get homeOpenProject => '打开项目';
 
   @override
-  String get homeOpenProjectDesc => '从磁盘加载 .rin / .psd 或图片文件';
+  String get homeOpenProjectDesc => '从磁盘加载 .rin / .psd / .sai2 或图片文件';
 
   @override
   String get homeRecentProjects => '最近打开';
@@ -2222,6 +2241,9 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get cannotReadPsdContent => '无法读取 PSD 文件内容。';
+
+  @override
+  String get cannotReadSai2Content => '无法读取 SAI2 文件内容。';
 
   @override
   String get cannotReadProjectFileContent => '无法读取项目文件内容。';
@@ -2828,6 +2850,9 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get eraseOccludedPartsDesc => '开启后，同一图层里后画的空心线条会吃掉与其他线条的重合部分。';
 
   @override
+  String get saveAsSai2 => '保存为 SAI2';
+
+  @override
   String get fontFamily => '字体系列';
 
   @override
@@ -2900,6 +2925,11 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   }
 
   @override
+  String sai2Exported(Object path) {
+    return 'SAI2 已导出到 $path';
+  }
+
+  @override
   String projectDownloaded(Object fileName) {
     return '项目已下载：$fileName';
   }
@@ -2910,7 +2940,15 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   }
 
   @override
+  String sai2Downloaded(Object fileName) {
+    return 'SAI2 已下载：$fileName';
+  }
+
+  @override
   String get exportAsPsdTooltip => '导出为 PSD';
+
+  @override
+  String get exportAsSai2Tooltip => '导出为 SAI2';
 
   @override
   String get canvasNotReadyExport => '画布未准备好，无法导出。';
@@ -3153,7 +3191,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get homeOpenProject => '開啟專案';
 
   @override
-  String get homeOpenProjectDesc => '從磁碟載入 .rin / .psd 或影像檔案';
+  String get homeOpenProjectDesc => '從磁碟載入 .rin / .psd / .sai2 或影像檔案';
 
   @override
   String get homeRecentProjects => '最近開啟';
@@ -3197,6 +3235,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get cannotReadPsdContent => '無法讀取 PSD 檔案內容。';
+
+  @override
+  String get cannotReadSai2Content => '無法讀取 SAI2 檔案內容。';
 
   @override
   String get cannotReadProjectFileContent => '無法讀取專案檔案內容。';
@@ -3822,6 +3863,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get scanPaperDrawingNoChanges => '未偵測到可轉換的像素。';
 
   @override
+  String get saveAsSai2 => '另存為 SAI2';
+
+  @override
   String get fontFamily => '字體系列';
 
   @override
@@ -3894,6 +3938,11 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   }
 
   @override
+  String sai2Exported(Object path) {
+    return 'SAI2 已匯出到 $path';
+  }
+
+  @override
   String projectDownloaded(Object fileName) {
     return '專案已下載：$fileName';
   }
@@ -3904,7 +3953,15 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   }
 
   @override
+  String sai2Downloaded(Object fileName) {
+    return 'SAI2 已下載：$fileName';
+  }
+
+  @override
   String get exportAsPsdTooltip => '匯出為 PSD';
+
+  @override
+  String get exportAsSai2Tooltip => '匯出為 SAI2';
 
   @override
   String get canvasNotReadyExport => '畫布未準備好，無法匯出。';

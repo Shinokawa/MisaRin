@@ -181,6 +181,7 @@ class AppMenuActions {
       allowedExtensions: const [
         'rin',
         'psd',
+        'sai2',
         'png',
         'jpg',
         'jpeg',
@@ -216,6 +217,17 @@ class AppMenuActions {
                   );
                 }
                 throw Exception(l10n.cannotReadPsdContent);
+              }
+              if (extension == '.sai2') {
+                if (path != null && !kIsWeb) {
+                  return ProjectRepository.instance.importSai2(path);
+                } else if (bytes != null) {
+                  return ProjectRepository.instance.importSai2FromBytes(
+                    bytes,
+                    fileName: file.name,
+                  );
+                }
+                throw Exception(l10n.cannotReadSai2Content);
               }
               if (extension == '.png' ||
                   extension == '.jpg' ||

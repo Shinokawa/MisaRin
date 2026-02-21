@@ -38,6 +38,7 @@ import '../project/project_binary_codec.dart';
 import '../project/project_document.dart';
 import '../project/project_repository.dart';
 import '../psd/psd_exporter.dart';
+import '../sai2/sai2_exporter.dart';
 import '../toolbars/layouts/painting_toolbar_layout.dart';
 import '../widgets/app_notification.dart';
 import '../widgets/canvas_title_bar.dart';
@@ -682,7 +683,7 @@ class CanvasPageState extends State<CanvasPage> {
         );
         saved = await _repository.saveDocumentAs(updated, normalizedPath);
         successMessage = l10n.projectSaved(normalizedPath);
-      } else {
+      } else if (choice.type == _ExportType.psd) {
         await _repository.exportDocumentAsPsd(
           document: _document.copyWith(
             layers: layers,
@@ -698,6 +699,22 @@ class CanvasPageState extends State<CanvasPage> {
           perspectiveGuide: perspective,
         );
         successMessage = l10n.psdExported(normalizedPath);
+      } else {
+        await _repository.exportDocumentAsSai2(
+          document: _document.copyWith(
+            layers: layers,
+            previewBytes: preview,
+            perspectiveGuide: perspective,
+          ),
+          path: normalizedPath,
+        );
+        saved = _document.copyWith(
+          layers: layers,
+          previewBytes: preview,
+          path: _document.path,
+          perspectiveGuide: perspective,
+        );
+        successMessage = l10n.sai2Exported(normalizedPath);
       }
       if (!mounted) {
         return true;
@@ -752,10 +769,14 @@ class CanvasPageState extends State<CanvasPage> {
         bytes = ProjectBinaryCodec.encode(resolved);
         successMessage = l10n.projectDownloaded(fileName);
         mimeType = 'application/octet-stream';
-      } else {
+      } else if (choice.type == _ExportType.psd) {
         bytes = await const PsdExporter().exportToBytes(resolved);
         successMessage = l10n.psdDownloaded(fileName);
         mimeType = 'image/vnd.adobe.photoshop';
+      } else {
+        bytes = await const Sai2Exporter().exportToBytes(resolved);
+        successMessage = l10n.sai2Downloaded(fileName);
+        mimeType = 'application/octet-stream';
       }
       await WebFileSaver.saveBytes(
         fileName: fileName,
@@ -807,6 +828,15 @@ class CanvasPageState extends State<CanvasPage> {
                   context,
                 ).pop(const _ExportChoice(_ExportType.psd, 'psd')),
                 child: Text(l10n.saveAsPsd),
+              ),
+            ),
+            Tooltip(
+              message: l10n.exportAsSai2Tooltip,
+              child: Button(
+                onPressed: () => Navigator.of(
+                  context,
+                ).pop(const _ExportChoice(_ExportType.sai2, 'sai2')),
+                child: Text(l10n.saveAsSai2),
               ),
             ),
             FilledButton(
@@ -2294,7 +2324,7 @@ class _CanvasStatusOverlay extends StatelessWidget {
   }
 }
 
-enum _ExportType { rin, psd }
+enum _ExportType { rin, psd, sai2 }
 
 class _ExportChoice {
   const _ExportChoice(this.type, this.extension);

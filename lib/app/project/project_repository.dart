@@ -11,6 +11,8 @@ import '../../canvas/canvas_layer.dart';
 import '../../canvas/canvas_settings.dart';
 import '../psd/psd_importer.dart';
 import '../psd/psd_exporter.dart';
+import '../sai2/sai2_importer.dart';
+import '../sai2/sai2_exporter.dart';
 import 'project_binary_codec.dart';
 import 'project_document.dart';
 import 'recent_projects_index.dart';
@@ -411,6 +413,26 @@ class ProjectRepository {
     return importer.importBytes(bytes, displayName: displayName);
   }
 
+  Future<ProjectDocument> importSai2(String path) async {
+    if (kIsWeb) {
+      throw UnsupportedError('Web 暂不支持导入 SAI2 文件。');
+    }
+    await _ensureProjectDirectory();
+    const Sai2Importer importer = Sai2Importer();
+    return importer.importFile(path);
+  }
+
+  Future<ProjectDocument> importSai2FromBytes(
+    Uint8List bytes, {
+    String? fileName,
+  }) async {
+    final String? displayName = fileName == null || fileName.trim().isEmpty
+        ? null
+        : p.basenameWithoutExtension(fileName);
+    const Sai2Importer importer = Sai2Importer();
+    return importer.importBytes(bytes, displayName: displayName);
+  }
+
   Future<void> exportDocumentAsPsd({
     required ProjectDocument document,
     required String path,
@@ -419,6 +441,17 @@ class ProjectRepository {
       throw UnsupportedError('Web 暂不支持导出 PSD 文件。');
     }
     const PsdExporter exporter = PsdExporter();
+    await exporter.export(document, path);
+  }
+
+  Future<void> exportDocumentAsSai2({
+    required ProjectDocument document,
+    required String path,
+  }) async {
+    if (kIsWeb) {
+      throw UnsupportedError('Web 暂不支持导出 SAI2 文件。');
+    }
+    const Sai2Exporter exporter = Sai2Exporter();
     await exporter.export(document, path);
   }
 

@@ -47,7 +47,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get homeOpenProject => 'プロジェクトを開く';
 
   @override
-  String get homeOpenProjectDesc => 'ディスクから .rin / .psd または画像ファイルを読み込む';
+  String get homeOpenProjectDesc => 'ディスクから .rin / .psd / .sai2 または画像ファイルを読み込む';
 
   @override
   String get homeRecentProjects => '最近開いた';
@@ -91,6 +91,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get cannotReadPsdContent => 'PSD ファイルの内容を読み取れません。';
+
+  @override
+  String get cannotReadSai2Content => 'SAI2 ファイルの内容を読み取れません。';
 
   @override
   String get cannotReadProjectFileContent => 'プロジェクトファイルの内容を読み取れません。';
@@ -1826,6 +1829,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get saveAsPsd => 'PSD として保存';
 
   @override
+  String get saveAsSai2 => 'SAI2 として保存';
+
+  @override
   String get saveAsRin => 'RIN として保存';
 
   @override
@@ -1937,6 +1943,11 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String sai2Exported(Object path) {
+    return 'SAI2 を $path に書き出しました';
+  }
+
+  @override
   String projectDownloaded(Object fileName) {
     return 'プロジェクトをダウンロードしました: $fileName';
   }
@@ -1947,7 +1958,15 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String sai2Downloaded(Object fileName) {
+    return 'SAI2 をダウンロードしました: $fileName';
+  }
+
+  @override
   String get exportAsPsdTooltip => 'PSD として書き出し';
+
+  @override
+  String get exportAsSai2Tooltip => 'SAI2 として書き出し';
 
   @override
   String get canvasNotReadyExport => 'キャンバスの準備ができていないため書き出しできません。';

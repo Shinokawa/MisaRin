@@ -21,7 +21,7 @@
   "homeNewProject": "\u65b0\u5efa\u5c08\u6848",
   "homeNewProjectDesc": "\u5f9e\u7a7a\u767d\u756b\u5e03\u958b\u555f\u65b0\u7684\u5275\u610f",
   "homeOpenProject": "\u958b\u555f\u5c08\u6848",
-  "homeOpenProjectDesc": "\u5f9e\u78c1\u789f\u8f09\u5165 .rin / .psd \u6216\u5f71\u50cf\u6a94\u6848",
+  "homeOpenProjectDesc": "\u5f9e\u78c1\u789f\u8f09\u5165 .rin / .psd / .sai2 \u6216\u5f71\u50cf\u6a94\u6848",
   "homeRecentProjects": "\u6700\u8fd1\u958b\u555f",
   "homeRecentProjectsDesc": "\u5feb\u901f\u6062\u5fa9\u81ea\u52d5\u5132\u5b58\u7684\u5c08\u6848",
   "homeProjectManager": "\u5c08\u6848\u7ba1\u7406",
@@ -46,6 +46,7 @@
     }
   },
   "cannotReadPsdContent": "\u7121\u6cd5\u8b80\u53d6 PSD \u6a94\u6848\u5167\u5bb9\u3002",
+  "cannotReadSai2Content": "\u7121\u6cd5\u8b80\u53d6 SAI2 \u6a94\u6848\u5167\u5bb9\u3002",
   "cannotReadProjectFileContent": "\u7121\u6cd5\u8b80\u53d6\u5c08\u6848\u6a94\u6848\u5167\u5bb9\u3002",
   "openedProjectInfo": "\u5df2\u958b\u555f\u5c08\u6848\uff1a{name}",
   "@openedProjectInfo": {
@@ -305,9 +306,16 @@
   },
   "canvasNotReadySave": "畫布未準備好，無法儲存。",
   "saveProjectAs": "專案另存為",
+  "saveAsSai2": "另存為 SAI2",
   "webSaveDesc": "下載專案檔案到您的裝置。",
   "psdExported": "PSD 已匯出到 {path}",
   "@psdExported": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "sai2Exported": "SAI2 已匯出到 {path}",
+  "@sai2Exported": {
     "placeholders": {
       "path": {}
     }
@@ -324,7 +332,14 @@
       "fileName": {}
     }
   },
+  "sai2Downloaded": "SAI2 已下載：{fileName}",
+  "@sai2Downloaded": {
+    "placeholders": {
+      "fileName": {}
+    }
+  },
   "exportAsPsdTooltip": "匯出為 PSD",
+  "exportAsSai2Tooltip": "匯出為 SAI2",
   "canvasNotReadyExport": "畫布未準備好，無法匯出。",
   "exportFileTitle": "匯出 {extension} 檔案",
   "@exportFileTitle": {
