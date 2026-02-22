@@ -24,8 +24,10 @@ class Sai2Exporter {
     );
     final int width = document.settings.width.round();
     final int height = document.settings.height.round();
+    final List<CanvasLayerData> sourceLayers = document.layers;
     final List<Sai2LayerData> layerData = <Sai2LayerData>[];
-    for (final CanvasLayerData layer in document.layers.reversed) {
+    // SAI2 写入顺序需要“自上而下”（顶层在前）。
+    for (final CanvasLayerData layer in sourceLayers.reversed) {
       layerData.add(
         Sai2LayerData(
           name: layer.name,

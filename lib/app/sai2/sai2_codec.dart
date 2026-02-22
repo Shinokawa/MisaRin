@@ -249,7 +249,7 @@ class Sai2Codec {
     final List<_Chunk> lpixChunks = <_Chunk>[];
     for (int i = 0; i < layers.length; i++) {
       final Sai2LayerData layer = layers[i];
-      final int layerId = layers.length + 1 - i;
+      final int layerId = i + 2;
       final Uint8List layr = _encodeLayerInfo(
         layerId: layerId,
         name: layer.name,
@@ -671,9 +671,13 @@ class Sai2Codec {
           final int pixelEndY =
               math.min(pixelBegY + blockSize, height);
 
-          final int r8 = _scale14To8(r16);
-          final int g8 = _scale14To8(g16);
-          final int b8 = _scale14To8(b16);
+          int r8 = _scale14To8(r16);
+          int g8 = _scale14To8(g16);
+          int b8 = _scale14To8(b16);
+          // lpix 跟 intg 一样是 BGRA，需要交换 R/B 得到 RGBA。
+          final int rbSwap = r8;
+          r8 = b8;
+          b8 = rbSwap;
           final int a8 = header.channelCount == 3
               ? 0xFF
               : _scale14To8(a16);
@@ -828,13 +832,17 @@ class Sai2Codec {
             continue;
           }
 
-          final int r8 = (sumR + count ~/ 2) ~/ count;
-          final int g8 = (sumG + count ~/ 2) ~/ count;
-          final int b8 = (sumB + count ~/ 2) ~/ count;
+          int r8 = (sumR + count ~/ 2) ~/ count;
+          int g8 = (sumG + count ~/ 2) ~/ count;
+          int b8 = (sumB + count ~/ 2) ~/ count;
           final int a8 = hasAlpha
               ? (sumA + count ~/ 2) ~/ count
               : 0xFF;
 
+          // lpix 写入时按 BGRA 顺序存储。
+          final int rbSwap = r8;
+          r8 = b8;
+          b8 = rbSwap;
           tileWriter.writeUint16(_scale8To14(r8));
           tileWriter.writeUint16(_scale8To14(g8));
           tileWriter.writeUint16(_scale8To14(b8));

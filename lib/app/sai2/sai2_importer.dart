@@ -40,7 +40,10 @@ class Sai2Importer {
 
     final List<CanvasLayerData> layers = <CanvasLayerData>[];
     if (decoded.layers.isNotEmpty) {
-      for (final Sai2DecodedLayer layer in decoded.layers.reversed) {
+      final List<Sai2DecodedLayer> decodedLayers = decoded.layers;
+      // SAI2 图层表是“自上而下”（顶层在前），项目内部 layers 使用“自下而上”。
+      // 这里反转以保持叠放顺序一致。
+      for (final Sai2DecodedLayer layer in decodedLayers.reversed) {
         layers.add(
           CanvasLayerData(
             id: generateLayerId(),
