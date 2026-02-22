@@ -40,7 +40,7 @@ class Sai2Importer {
 
     final List<CanvasLayerData> layers = <CanvasLayerData>[];
     if (decoded.layers.isNotEmpty) {
-      for (final Sai2DecodedLayer layer in decoded.layers) {
+      for (final Sai2DecodedLayer layer in decoded.layers.reversed) {
         layers.add(
           CanvasLayerData(
             id: generateLayerId(),
@@ -51,6 +51,7 @@ class Sai2Importer {
             opacity: layer.opacity,
             blendMode: _mapBlendMode(layer.blendMode),
             visible: layer.visible,
+            clippingMask: layer.clippingMask,
             cloneBitmap: false,
           ),
         );

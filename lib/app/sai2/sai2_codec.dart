@@ -11,6 +11,7 @@ class Sai2DecodedLayer {
     required this.opacity,
     required this.blendMode,
     required this.visible,
+    required this.clippingMask,
   });
 
   final int layerId;
@@ -21,6 +22,7 @@ class Sai2DecodedLayer {
   final double opacity;
   final String blendMode;
   final bool visible;
+  final bool clippingMask;
 }
 
 class Sai2DecodedImage {
@@ -44,6 +46,7 @@ class Sai2LayerData {
     required this.opacity,
     required this.blendMode,
     required this.visible,
+    required this.clippingMask,
   });
 
   final String name;
@@ -51,6 +54,7 @@ class Sai2LayerData {
   final double opacity;
   final String blendMode;
   final bool visible;
+  final bool clippingMask;
 }
 
 class Sai2Codec {
@@ -145,6 +149,7 @@ class Sai2Codec {
           opacity: info.opacity,
           blendMode: info.blendMode,
           visible: info.visible,
+          clippingMask: info.clippingMask,
         ),
       );
     }
@@ -186,10 +191,7 @@ class Sai2Codec {
     final _ByteWriter writer = _ByteWriter();
     writer.writeAscii('SAI-CANVAS-TYPE0');
 
-    writer.writeUint8(0);
-    writer.writeUint8(hasAlpha ? 0 : 1);
-    writer.writeUint8(0);
-    writer.writeUint8(0);
+    writer.writeUint32(hasAlpha ? 0x01000100 : 0x00000100);
 
     writer.writeUint32(width);
     writer.writeUint32(height);
@@ -228,15 +230,8 @@ class Sai2Codec {
     int backgroundColorArgb = 0xFFFFFFFF,
     String layerEffect = 'norm',
   }) {
-    bool hasAlpha = _hasAlpha(compositeRgba);
-    if (!hasAlpha) {
-      for (final Sai2LayerData layer in layers) {
-        if (_hasAlpha(layer.rgbaBytes)) {
-          hasAlpha = true;
-          break;
-        }
-      }
-    }
+    final int backgroundAlpha = (backgroundColorArgb >> 24) & 0xFF;
+    final bool hasAlpha = backgroundAlpha < 0xFF;
     final Uint8List dpcm = _encodeDpcm(
       rgbaBytes: compositeRgba,
       width: width,
@@ -254,7 +249,7 @@ class Sai2Codec {
     final List<_Chunk> lpixChunks = <_Chunk>[];
     for (int i = 0; i < layers.length; i++) {
       final Sai2LayerData layer = layers[i];
-      final int layerId = i + 2;
+      final int layerId = layers.length + 1 - i;
       final Uint8List layr = _encodeLayerInfo(
         layerId: layerId,
         name: layer.name,
@@ -262,6 +257,7 @@ class Sai2Codec {
         blendMode: layer.blendMode,
         opacity: layer.opacity,
         visible: layer.visible,
+        clippingMask: layer.clippingMask,
       );
       final Uint8List lpix = _encodeLpixSolidBlocks(
         rgbaBytes: layer.rgbaBytes,
@@ -285,10 +281,7 @@ class Sai2Codec {
     final _ByteWriter writer = _ByteWriter();
     writer.writeAscii('SAI-CANVAS-TYPE0');
 
-    writer.writeUint8(0);
-    writer.writeUint8(hasAlpha ? 0 : 1);
-    writer.writeUint8(0);
-    writer.writeUint8(0);
+    writer.writeUint32(hasAlpha ? 0x01000100 : 0x00000100);
 
     writer.writeUint32(width);
     writer.writeUint32(height);
@@ -563,6 +556,7 @@ class Sai2Codec {
       blendMode: blendMode,
       opacity: (opacityRaw.clamp(0, 100)) / 100.0,
       visible: (flags & 0x00010000) != 0,
+      clippingMask: (flags & 0x01000000) != 0,
       layerType: layerType,
     );
   }
@@ -709,6 +703,7 @@ class Sai2Codec {
     required String blendMode,
     required double opacity,
     required bool visible,
+    required bool clippingMask,
   }) {
     final _ByteWriter writer = _ByteWriter();
     writer.writeAscii('layr', length: 4);
@@ -724,7 +719,11 @@ class Sai2Codec {
     final int opacityValue =
         (opacity * 100).round().clamp(0, 100);
     writer.writeUint32(opacityValue);
-    writer.writeUint32(visible ? 0x00010000 : 0);
+    int flags = visible ? 0x00010000 : 0;
+    if (clippingMask) {
+      flags |= 0x01000000;
+    }
+    writer.writeUint32(flags);
 
     final Uint8List nameBytes = _encodeLayerName(name);
     writer.writeAscii('name', length: 4);
@@ -1239,10 +1238,7 @@ class Sai2Codec {
 
 class Sai2Header {
   Sai2Header({
-    required this.flags0,
-    required this.canvasBackgroundFlags,
-    required this.flags2,
-    required this.flags3,
+    required this.flags,
     required this.width,
     required this.height,
     required this.printingResolution,
@@ -1254,10 +1250,7 @@ class Sai2Header {
 
   static const int byteSize = 64;
 
-  final int flags0;
-  final int canvasBackgroundFlags;
-  final int flags2;
-  final int flags3;
+  final int flags;
   final int width;
   final int height;
   final int printingResolution;
@@ -1266,17 +1259,19 @@ class Sai2Header {
   final int backgroundColor;
   final int layerEffectColor;
 
-  int get channelCount => (canvasBackgroundFlags & 7) == 0 ? 4 : 3;
+  int get channelCount {
+    if (flags == 0) {
+      return 4;
+    }
+    return (flags & 0x01000000) != 0 ? 4 : 3;
+  }
 
   static Sai2Header read(_ByteReader reader) {
     final String ident = reader.readAscii(16);
     if (ident != 'SAI-CANVAS-TYPE0') {
       throw UnsupportedError('不是有效的 SAI2 文件。');
     }
-    final int flags0 = reader.readUint8();
-    final int backgroundFlags = reader.readUint8();
-    final int flags2 = reader.readUint8();
-    final int flags3 = reader.readUint8();
+    final int flags = reader.readUint32();
     final int width = reader.readUint32();
     final int height = reader.readUint32();
     final int printingResolution = reader.readUint32();
@@ -1287,10 +1282,7 @@ class Sai2Header {
     final int backgroundColor = reader.readUint32();
     final int layerEffect = reader.readUint32();
     return Sai2Header(
-      flags0: flags0,
-      canvasBackgroundFlags: backgroundFlags,
-      flags2: flags2,
-      flags3: flags3,
+      flags: flags,
       width: width,
       height: height,
       printingResolution: printingResolution,
@@ -1340,6 +1332,7 @@ class _Sai2LayerInfo {
     required this.blendMode,
     required this.opacity,
     required this.visible,
+    required this.clippingMask,
     required this.layerType,
   });
 
@@ -1349,6 +1342,7 @@ class _Sai2LayerInfo {
   final String blendMode;
   final double opacity;
   final bool visible;
+  final bool clippingMask;
   final String layerType;
 }
 

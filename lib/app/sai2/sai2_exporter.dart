@@ -25,7 +25,7 @@ class Sai2Exporter {
     final int width = document.settings.width.round();
     final int height = document.settings.height.round();
     final List<Sai2LayerData> layerData = <Sai2LayerData>[];
-    for (final CanvasLayerData layer in document.layers) {
+    for (final CanvasLayerData layer in document.layers.reversed) {
       layerData.add(
         Sai2LayerData(
           name: layer.name,
@@ -33,6 +33,7 @@ class Sai2Exporter {
           opacity: layer.opacity,
           blendMode: _blendModeToSai2(layer.blendMode),
           visible: layer.visible,
+          clippingMask: layer.clippingMask,
         ),
       );
     }
