@@ -106,55 +106,136 @@ float _hg(float cosTheta, float g) {
 
 float _saturate(float v) { return clamp(v, 0.0, 1.0); }
 
-float _cloudDensity(vec3 worldPos, float cloudBase, float cloudTop) {
-  if (worldPos.y <= cloudBase || worldPos.y >= cloudTop) {
+float _hash11(float n) {
+  return fract(sin(n) * 43758.5453);
+}
+
+float _fbm3(vec3 p) {
+  mat3 m = mat3(
+    0.00, 0.80, 0.60,
+    -0.80, 0.36, -0.48,
+    -0.60, -0.48, 0.64
+  );
+  float f = 0.0;
+  f += 0.5000 * _noise3(p);
+  p = m * p * 2.02;
+  f += 0.2500 * _noise3(p);
+  p = m * p * 2.03;
+  f += 0.1250 * _noise3(p);
+  return f;
+}
+
+float _clouds(vec3 p, out float cloudHeight, bool fast) {
+  float cloudBase = max(0.0, uCloudHeight);
+  float cloudThickness = max(12.0, uBlockTexelSize);
+  float atmoHeight = p.y;
+  cloudHeight = _saturate((atmoHeight - cloudBase) / max(1e-3, cloudThickness));
+  if (cloudHeight <= 0.0 || cloudHeight >= 1.0) {
     return 0.0;
   }
 
-  float thickness = max(1e-3, cloudTop - cloudBase);
-  float h = _saturate((worldPos.y - cloudBase) / thickness);
-  float heightMask = smoothstep(0.0, 0.12, h) * (1.0 - smoothstep(0.72, 1.0, h));
+  float worldScale = max(uTileWorldSize, 1.0) / 16.0;
+  vec3 wp = p * worldScale;
+  wp += vec3(uSeed * 0.27, uSeed * 0.19, uSeed * 0.23);
 
-  float tile = max(uTileWorldSize, 1.0);
-  vec3 p = worldPos / tile;
-  float t = uTime;
-  p.xz += vec2(t * 0.020, t * 0.008);
-  p += vec3(uSeed * 0.013, uSeed * 0.017, uSeed * 0.011);
+  wp.z += uTime * 10.3;
+  float largeWeather = clamp((_noise2(-0.00005 * wp.zx) - 0.18) * 5.0, 0.0, 2.0);
+  wp.x += uTime * 8.3;
+  float weather = largeWeather *
+      max(0.0, _noise2(0.0002 * wp.zx) - 0.28) / 0.72;
+  weather *= smoothstep(0.0, 0.5, cloudHeight) * smoothstep(1.0, 0.5, cloudHeight);
+  float cloudShape =
+      pow(weather, 0.3 + 1.5 * smoothstep(0.2, 0.5, cloudHeight));
+  if (cloudShape <= 0.0) {
+    return 0.0;
+  }
 
-  vec2 warp = vec2(
-    _noise2(p.xz * 1.60 + vec2(5.2, 1.3)),
-    _noise2(p.xz * 1.60 + vec2(1.7, 8.4))
-  );
-  p.xz += (warp - 0.5) * 1.20;
+  wp.x += uTime * 12.3;
+  float den = max(0.0, cloudShape - 0.7 * _fbm3(wp * 0.01));
+  if (den <= 0.0) {
+    return 0.0;
+  }
 
-  float coverage = _fbm2(p.xz * 1.00 + vec2(12.7, 3.9));
-  coverage = smoothstep(0.25, 0.76, coverage);
+  if (fast) {
+    return largeWeather * 0.2 * min(1.0, 5.0 * den);
+  }
 
-  vec3 sp = p * vec3(1.40, 0.45, 1.40);
-  float base = _noise3(sp + vec3(0.0, 9.1, 0.0));
-  float detail = _noise3(sp * 3.2 + vec3(13.2, 0.0, 7.7));
-  float shape = base * 0.76 + detail * 0.24;
-
-  float threshold = mix(0.72, 0.56, coverage);
-  float d = smoothstep(threshold, threshold + 0.18, shape);
-  d *= heightMask * coverage;
-
-  float wisp = _noise3(sp * 6.0 + vec3(2.1, 1.7, 9.4));
-  d *= smoothstep(0.10, 0.92, wisp);
-  return _saturate(d);
+  wp.y += uTime * 15.2;
+  den = max(0.0, den - 0.2 * _fbm3(wp * 0.05));
+  return largeWeather * 0.2 * min(1.0, 5.0 * den);
 }
 
-float _lightTransmittance(vec3 pos, vec3 sunDir, float cloudBase, float cloudTop) {
-  float thickness = max(1e-3, cloudTop - cloudBase);
-  float stepSize = thickness * 0.24;
-  vec3 p = pos;
-  float sum = 0.0;
-  for (int i = 0; i < 3; i++) {
-    p += sunDir * stepSize;
-    sum += _cloudDensity(p, cloudBase, cloudTop);
+float _numericalMieFit(float costh) {
+  float bestParams[10];
+  bestParams[0] = 9.805233e-06;
+  bestParams[1] = -6.500000e+01;
+  bestParams[2] = -5.500000e+01;
+  bestParams[3] = 8.194068e-01;
+  bestParams[4] = 1.388198e-01;
+  bestParams[5] = -8.370334e+01;
+  bestParams[6] = 7.810083e+00;
+  bestParams[7] = 2.054747e-03;
+  bestParams[8] = 2.600563e-02;
+  bestParams[9] = -4.552125e-12;
+
+  float p1 = costh + bestParams[3];
+  vec4 expValues = exp(vec4(
+    bestParams[1] * costh + bestParams[2],
+    bestParams[5] * p1 * p1,
+    bestParams[6] * costh,
+    bestParams[9] * costh
+  ));
+  vec4 expValWeight = vec4(
+    bestParams[0],
+    bestParams[4],
+    bestParams[7],
+    bestParams[8]
+  );
+  return dot(expValues, expValWeight);
+}
+
+float _lightRay(
+  vec3 p,
+  float phaseFunction,
+  float dC,
+  float mu,
+  vec3 sunDirection,
+  float cloudHeight,
+  float cloudThickness,
+  bool fast
+) {
+  int nbSampleLight = fast ? 7 : 16;
+  float zMaxl = max(24.0, cloudThickness * 2.5);
+  float stepL = zMaxl / float(nbSampleLight);
+
+  float lightRayDen = 0.0;
+  p += sunDirection * stepL * _hash11(dot(p, vec3(12.256, 2.646, 6.356)) + uTime);
+  for (int j = 0; j < 20; j++) {
+    if (j >= nbSampleLight) {
+      break;
+    }
+    float ch;
+    lightRayDen += _clouds(p + sunDirection * float(j) * stepL, ch, fast);
   }
-  float k = 0.92;
-  return exp(-sum * stepSize * k);
+
+  if (fast) {
+    float result =
+        (0.5 * exp(-0.4 * stepL * lightRayDen) +
+            max(0.0, -mu * 0.6 + 0.3) * exp(-0.02 * stepL * lightRayDen)) *
+        phaseFunction;
+    return _saturate(result);
+  }
+
+  float scatterAmount = mix(0.008, 1.0, smoothstep(0.96, 0.0, mu));
+  float beersLaw =
+      exp(-stepL * lightRayDen) +
+      0.5 * scatterAmount * exp(-0.1 * stepL * lightRayDen) +
+      scatterAmount * 0.4 * exp(-0.02 * stepL * lightRayDen);
+  float heightBoost = 0.3 + 5.5 * cloudHeight;
+  float densBoost = pow(min(1.0, dC * 8.5), heightBoost);
+  float result = beersLaw * phaseFunction *
+      mix(0.05 + 1.5 * densBoost, 1.0, clamp(lightRayDen * 0.4, 0.0, 1.0));
+  return _saturate(result);
 }
 
 void main() {
@@ -285,14 +366,26 @@ void main() {
   float mu = clamp(dot(rayDir, sunDir), -1.0, 1.0);
   float phase = _hg(mu, 0.70);
   float phaseForward = _hg(mu, 0.90) * 0.18;
+  float miePhase = clamp(_numericalMieFit(mu) * 0.12, 0.0, 1.0);
+  bool fast = (uResolution.x * uResolution.y) > 900000.0;
 
   for (int i = 0; i < STEPS; i++) {
     vec3 pos = rayDir * (t + float(i) * dt);
-    float d = _cloudDensity(pos, cloudBase, cloudTop) * densityScale;
+    float cloudHeight = 0.0;
+    float d = _clouds(pos, cloudHeight, fast) * densityScale;
     if (d > 0.001) {
       float lightT = 1.0;
       if (shadowStrength > 0.001) {
-        lightT = _lightTransmittance(pos, sunDir, cloudBase, cloudTop);
+        lightT = _lightRay(
+          pos,
+          miePhase,
+          d,
+          mu,
+          sunDir,
+          cloudHeight,
+          thickness,
+          fast
+        );
         lightT = mix(1.0, lightT, shadowStrength);
       }
 
