@@ -734,7 +734,8 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
       return;
     }
     final int? generation = _controller.frame?.generation;
-    if (!force &&
+    final bool forceRefresh = force || _referenceModelTextureDirty;
+    if (!forceRefresh &&
         generation != null &&
         _referenceModelTexture != null &&
         _referenceModelTextureLastAppliedGeneration == generation) {

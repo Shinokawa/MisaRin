@@ -910,6 +910,9 @@ class BitmapCanvasController extends ChangeNotifier
       if (markDirty) {
         _markDirty(layerId: id, pixelsDirty: true);
         _notify();
+      } else {
+        // Keep layer revisions in sync for compositor cache even when we skip notifications.
+        layer.revision += 1;
       }
       return true;
     }

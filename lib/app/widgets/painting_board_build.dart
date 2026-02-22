@@ -220,7 +220,7 @@ mixin _PaintingBoardBuildMixin
               onDragUpdate: (delta) =>
                   _updateReferenceModelCardOffset(entry.id, delta),
               onDragEnd: () {},
-              onRefreshTexture: () => _refreshReferenceModelTexture(),
+              onRefreshTexture: () => _refreshReferenceModelTexture(force: true),
               onSizeChanged: (size) =>
                   _handleReferenceModelCardSizeChanged(entry.id, size),
             ),
