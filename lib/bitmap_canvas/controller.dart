@@ -38,11 +38,15 @@ import '../src/rust/rust_init.dart';
 import 'ffi/cpu_buffer.dart';
 import 'bitmap_canvas.dart';
 import 'bitmap_layer_state.dart';
+import 'layer_surface.dart';
 import 'raster_tile_cache.dart';
 import 'raster_int_rect.dart';
+import 'tiled_surface.dart';
+import 'tiled_selection_mask.dart';
 import 'soft_brush_profile.dart';
 import 'stroke_dynamics.dart';
 import 'stroke_pressure_simulator.dart';
+import 'tile_math.dart';
 
 export 'bitmap_layer_state.dart';
 
@@ -59,6 +63,10 @@ part 'controller_text.dart';
 
 class BitmapCanvasController extends ChangeNotifier
     implements CanvasToolHost, CanvasFacade {
+  static const int _kTiledCompositeMinPixels = 4096 * 4096;
+  static const int _kTiledTileSizeSmall = 256;
+  static const int _kTiledTileSizeMedium = 512;
+  static const int _kTiledTileSizeLarge = 1024;
   BitmapCanvasController({
     required int width,
     required int height,
@@ -70,16 +78,20 @@ class BitmapCanvasController extends ChangeNotifier
   }) : _width = width,
        _height = height,
        _backgroundColor = backgroundColor,
+       _useTiledSurface = _shouldUseTiledSurface(width, height),
        _isMultithreaded =
            CanvasSettings.supportsMultithreadedCanvas &&
-           creationLogic == CanvasCreationLogic.multiThread,
+           creationLogic == CanvasCreationLogic.multiThread &&
+           !_shouldUseTiledSurface(width, height),
        _rasterOutputEnabled = enableRasterOutput,
        _rasterBackend = CanvasRasterBackend(
          width: width,
          height: height,
-         tileSize: kIsWeb ? 1024 : 256,
+         tileSize: _resolveTileSize(width, height),
          backend: backend,
+         useTiledComposite: _shouldUseTiledComposite(width, height),
        ) {
+    _surfaceTileSize = _rasterBackend.tileSize;
     if (creationLogic == CanvasCreationLogic.multiThread && !_isMultithreaded) {
       debugPrint('CanvasPaintingWorker 未启用：当前平台不支持多线程画布，已自动回退到单线程。');
     }
@@ -98,9 +110,33 @@ class BitmapCanvasController extends ChangeNotifier
     }
   }
 
+  static bool _shouldUseTiledComposite(int width, int height) {
+    final int pixels = width * height;
+    return pixels >= _kTiledCompositeMinPixels;
+  }
+
+  static bool _shouldUseTiledSurface(int width, int height) {
+    return _shouldUseTiledComposite(width, height);
+  }
+
+  static int _resolveTileSize(int width, int height) {
+    final int maxDim = math.max(width, height);
+    if (maxDim >= 8192) {
+      return _kTiledTileSizeLarge;
+    }
+    if (maxDim >= 4096) {
+      return _kTiledTileSizeMedium;
+    }
+    if (kIsWeb) {
+      return _kTiledTileSizeMedium;
+    }
+    return _kTiledTileSizeSmall;
+  }
+
   final int _width;
   final int _height;
   Color _backgroundColor;
+  final bool _useTiledSurface;
   final List<BitmapLayerState> _layers = <BitmapLayerState>[];
   int _activeIndex = 0;
   final bool _isMultithreaded;
@@ -232,7 +268,11 @@ class BitmapCanvasController extends ChangeNotifier
   int _commitOverlayNowMs = 0;
   int _commitOverlayFadeVersion = 0;
   Uint8List? _selectionMask;
+  TiledSelectionMask? _selectionMaskTiled;
+  RasterIntRect? _selectionMaskBounds;
+  bool _selectionMaskIsFull = false;
   final CanvasRasterBackend _rasterBackend;
+  late final int _surfaceTileSize;
   final CanvasTextRenderer _textRenderer = CanvasTextRenderer();
   late final RasterTileCache _tileCache;
   CanvasFrame? _currentFrame;
@@ -255,7 +295,8 @@ class BitmapCanvasController extends ChangeNotifier
   final Map<String, _LayerOverflowStore> _layerOverflowStores =
       <String, _LayerOverflowStore>{};
 
-  Uint32List? get _compositePixels => _rasterBackend.compositePixels;
+  Uint32List? get _compositePixels =>
+      _rasterBackend.compositePixelsSnapshot(rebuildIfTiled: true);
 
   String? get _translatingLayerIdForComposite {
     if (_activeLayerTranslationSnapshot != null &&
@@ -372,6 +413,7 @@ class BitmapCanvasController extends ChangeNotifier
   Color get backgroundColor => _backgroundColor;
   int get width => _width;
   int get height => _height;
+  bool get isTiledSurface => _useTiledSurface;
   Uint8List? get selectionMask => _selectionMask;
   bool get isActiveLayerTransforming => _activeLayerTranslationSnapshot != null;
   ui.Image? get activeLayerTransformImage => _activeLayerTransformImage;
@@ -449,6 +491,20 @@ class BitmapCanvasController extends ChangeNotifier
       _strokeConfigureSharpTips(this, enabled: enabled);
 
   void setSelectionMask(Uint8List? mask) => _fillSetSelectionMask(this, mask);
+
+  LayerSurface _createLayerSurface({Color? fillColor}) {
+    if (_useTiledSurface) {
+      return LayerSurface.tiled(
+        width: _width,
+        height: _height,
+        tileSize: _surfaceTileSize,
+        defaultFill: fillColor,
+      );
+    }
+    return LayerSurface.bitmap(
+      BitmapSurface(width: _width, height: _height, fillColor: fillColor),
+    );
+  }
 
   bool _runAntialiasPass(
     Uint32List src,
@@ -776,20 +832,26 @@ class BitmapCanvasController extends ChangeNotifier
       return false;
     }
 
-    final bool ok = RustCpuBrushFfi.instance.drawSpray(
-      pixelsPtr: _activeLayer.surface.pointerAddress,
-      pixelsLen: _activeLayer.surface.pixels.length,
-      width: _width,
-      height: _height,
-      points: points,
-      pointCount: pointCount,
-      colorArgb: color.value,
-      brushShape: brushShape.index,
-      antialiasLevel: antialiasLevel.clamp(0, 9),
-      softness: clampedSoftness,
-      erase: erase,
-      accumulate: accumulate,
-      selectionMask: _selectionMask,
+    final LayerSurface surface = _activeLayer.surface;
+    final bool ok = surface.withBitmapSurface(
+      writeBack: true,
+      action: (BitmapSurface bitmapSurface) {
+        return RustCpuBrushFfi.instance.drawSpray(
+          pixelsPtr: bitmapSurface.pointerAddress,
+          pixelsLen: bitmapSurface.pixels.length,
+          width: _width,
+          height: _height,
+          points: points,
+          pointCount: pointCount,
+          colorArgb: color.value,
+          brushShape: brushShape.index,
+          antialiasLevel: antialiasLevel.clamp(0, 9),
+          softness: clampedSoftness,
+          erase: erase,
+          accumulate: accumulate,
+          selectionMask: _selectionMaskIsFull ? null : _selectionMask,
+        );
+      },
     );
     if (!ok) {
       return false;
@@ -875,7 +937,9 @@ class BitmapCanvasController extends ChangeNotifier
   Uint32List? readLayerPixels(String id) {
     for (final BitmapLayerState layer in _layers) {
       if (layer.id == id) {
-        return Uint32List.fromList(layer.surface.pixels);
+        return layer.surface.readRect(
+          RasterIntRect(0, 0, _width, _height),
+        );
       }
     }
     return null;
@@ -902,11 +966,13 @@ class BitmapCanvasController extends ChangeNotifier
       if (layer.id != id) {
         continue;
       }
-      if (layer.surface.pixels.length != pixels.length) {
+      if (layer.surface.pixelCount != pixels.length) {
         return false;
       }
-      layer.surface.pixels.setAll(0, pixels);
-      layer.surface.markDirty();
+      layer.surface.writeRect(
+        RasterIntRect(0, 0, _width, _height),
+        pixels,
+      );
       if (markDirty) {
         _markDirty(layerId: id, pixelsDirty: true);
         _notify();
@@ -946,7 +1012,7 @@ class BitmapCanvasController extends ChangeNotifier
       return null;
     }
     final BitmapLayerState layer = _layers[index];
-    final BitmapSurface surface = layer.surface;
+    final LayerSurface surface = layer.surface;
 
     if ((snapshot.rawPixels == null &&
             snapshot.bitmap == null &&
@@ -955,7 +1021,6 @@ class BitmapCanvasController extends ChangeNotifier
         snapshot.bitmapHeight == null) {
       final Color fill = snapshot.fillColor ?? const Color(0x00000000);
       _fillSurfaceRegion(surface, target, fill);
-      surface.markDirty();
       if (markDirty) {
         _markDirty(region: target, layerId: layer.id, pixelsDirty: true);
       }
@@ -995,23 +1060,23 @@ class BitmapCanvasController extends ChangeNotifier
       return null;
     }
 
-    final Uint32List destPixels = surface.pixels;
     final int copyWidth = endX - startX;
     final int copyHeight = endY - startY;
     Uint32List? workerPatch = _isMultithreaded
         ? Uint32List(copyWidth * copyHeight)
         : null;
+    final Uint32List patch = Uint32List(copyWidth * copyHeight);
     int workerOffset = 0;
     for (int y = startY; y < endY; y++) {
       final int srcY = y - offsetY;
       if (srcY < 0 || srcY >= srcHeight) {
         continue;
       }
-      final int destOffset = y * _width + startX;
       final int srcOffset = srcY * srcWidth + (startX - offsetX);
-      destPixels.setRange(
-        destOffset,
-        destOffset + copyWidth,
+      final int patchOffset = (y - startY) * copyWidth;
+      patch.setRange(
+        patchOffset,
+        patchOffset + copyWidth,
         srcPixels,
         srcOffset,
       );
@@ -1025,7 +1090,10 @@ class BitmapCanvasController extends ChangeNotifier
         workerOffset += copyWidth;
       }
     }
-    surface.markDirty();
+    surface.writeRect(
+      RasterIntRect(startX, startY, endX, endY),
+      patch,
+    );
     final Rect dirtyRegion = Rect.fromLTRB(
       startX.toDouble(),
       startY.toDouble(),
@@ -1049,7 +1117,7 @@ class BitmapCanvasController extends ChangeNotifier
     return dirtyRegion;
   }
 
-  void _fillSurfaceRegion(BitmapSurface surface, Rect region, Color color) {
+  void _fillSurfaceRegion(LayerSurface surface, Rect region, Color color) {
     final int startX = math.max(0, region.left.floor());
     final int startY = math.max(0, region.top.floor());
     final int endX = math.min(_width, region.right.ceil());
@@ -1058,11 +1126,7 @@ class BitmapCanvasController extends ChangeNotifier
       return;
     }
     final int encoded = BitmapSurface.encodeColor(color);
-    final Uint32List pixels = surface.pixels;
-    for (int y = startY; y < endY; y++) {
-      final int offset = y * _width + startX;
-      pixels.fillRange(offset, offset + (endX - startX), encoded);
-    }
+    surface.fillRect(RasterIntRect(startX, startY, endX, endY), encoded);
   }
 
   void loadLayers(List<CanvasLayerData> layers, Color backgroundColor) =>
@@ -1282,15 +1346,15 @@ class BitmapCanvasController extends ChangeNotifier
 
   BitmapLayerState get _activeLayer => _layers[_activeIndex];
 
-  BitmapSurface get _activeSurface => _activeLayer.surface;
+  LayerSurface get _activeSurface => _activeLayer.surface;
 
-  static bool _isSurfaceEmpty(BitmapSurface surface) =>
+  static bool _isSurfaceEmpty(LayerSurface surface) =>
       _controllerIsSurfaceEmpty(surface);
 
   Color sampleColor(Offset position, {bool sampleAllLayers = true}) =>
       _fillSampleColor(this, position, sampleAllLayers: sampleAllLayers);
 
-  static Uint8List _surfaceToRgba(BitmapSurface surface) =>
+  static Uint8List _surfaceToRgba(LayerSurface surface) =>
       _controllerSurfaceToRgba(surface);
 
   static Uint32List rgbaToPixels(Uint8List rgba, int width, int height) =>
@@ -1301,7 +1365,7 @@ class BitmapCanvasController extends ChangeNotifier
 
   static Rect _unionRects(Rect a, Rect b) => _controllerUnionRects(a, b);
 
-  static Uint8List _surfaceToMaskedRgba(BitmapSurface surface, Uint8List mask) =>
+  static Uint8List _surfaceToMaskedRgba(LayerSurface surface, Uint8List mask) =>
       _controllerSurfaceToMaskedRgba(surface, mask);
 
   static bool _maskHasCoverage(Uint8List mask) =>

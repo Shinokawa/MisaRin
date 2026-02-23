@@ -146,7 +146,10 @@ Future<void> _controllerEnsureWorkerSelectionMaskSynced(
     return;
   }
   final CanvasPaintingWorker worker = controller._ensurePaintingWorker();
-  await worker.updateSelectionMask(controller._selectionMask);
+  final Uint8List? selectionMask = controller._selectionMaskIsFull
+      ? null
+      : controller._selectionMask;
+  await worker.updateSelectionMask(selectionMask);
   controller._paintingWorkerSelectionDirty = false;
 }
 
@@ -231,7 +234,7 @@ void _controllerApplyWorkerPatch(
   if (maxRight <= effectiveLeft || maxBottom <= effectiveTop) {
     return;
   }
-  final BitmapSurface surface = controller._activeSurface;
+  final LayerSurface surface = controller._activeSurface;
   final Uint32List destination = surface.pixels;
   // Keep BitmapSurface.isClean in sync so filters that gate on coverage can run.
   final bool checkCoverage = surface.isClean;
@@ -426,8 +429,15 @@ RasterIntRect _controllerClipRectToSurface(
 ) =>
     controller._rasterBackend.clipRectToSurface(rect);
 
-bool _controllerIsSurfaceEmpty(BitmapSurface surface) {
-  for (final int pixel in surface.pixels) {
+bool _controllerIsSurfaceEmpty(LayerSurface surface) {
+  if (surface.isClean) {
+    return true;
+  }
+  if (surface.isTiled) {
+    return false;
+  }
+  final Uint32List pixels = surface.pixels;
+  for (final int pixel in pixels) {
     if ((pixel >> 24) != 0) {
       return false;
     }
@@ -435,10 +445,11 @@ bool _controllerIsSurfaceEmpty(BitmapSurface surface) {
   return true;
 }
 
-Uint8List _controllerSurfaceToRgba(BitmapSurface surface) {
-  final Uint8List rgba = Uint8List(surface.pixels.length * 4);
-  for (int i = 0; i < surface.pixels.length; i++) {
-    final int argb = surface.pixels[i];
+Uint8List _controllerSurfaceToRgba(LayerSurface surface) {
+  final Uint32List pixels = surface.pixels;
+  final Uint8List rgba = Uint8List(pixels.length * 4);
+  for (int i = 0; i < pixels.length; i++) {
+    final int argb = pixels[i];
     final int offset = i * 4;
     rgba[offset] = (argb >> 16) & 0xff;
     rgba[offset + 1] = (argb >> 8) & 0xff;
@@ -476,7 +487,7 @@ Rect _controllerUnionRects(Rect a, Rect b) {
 }
 
 Uint8List _controllerSurfaceToMaskedRgba(
-  BitmapSurface surface,
+  LayerSurface surface,
   Uint8List mask,
 ) {
   final Uint32List pixels = surface.pixels;
@@ -502,6 +513,45 @@ bool _controllerMaskHasCoverage(Uint8List mask) {
     }
   }
   return false;
+}
+
+RasterIntRect? _controllerMaskBounds(
+  Uint8List mask,
+  int width,
+  int height,
+) {
+  int minX = width;
+  int minY = height;
+  int maxX = -1;
+  int maxY = -1;
+  for (int i = 0; i < mask.length; i++) {
+    if (mask[i] == 0) {
+      continue;
+    }
+    final int x = i % width;
+    final int y = i ~/ width;
+    if (x < minX) {
+      minX = x;
+    }
+    if (x > maxX) {
+      maxX = x;
+    }
+    if (y < minY) {
+      minY = y;
+    }
+    if (y > maxY) {
+      maxY = y;
+    }
+  }
+  if (maxX < minX || maxY < minY) {
+    return null;
+  }
+  final int right = math.min(width, maxX + 1);
+  final int bottom = math.min(height, maxY + 1);
+  if (minX >= right || minY >= bottom) {
+    return null;
+  }
+  return RasterIntRect(minX, minY, right, bottom);
 }
 
 double _controllerClampUnit(double value) {

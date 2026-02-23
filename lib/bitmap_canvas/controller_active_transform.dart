@@ -1,6 +1,9 @@
 part of 'controller.dart';
 
 void _translateActiveLayer(BitmapCanvasController controller, int dx, int dy) {
+  if (controller._activeLayer.surface.isTiled) {
+    return;
+  }
   if (controller._pendingActiveLayerTransformCleanup) {
     return;
   }
@@ -25,6 +28,9 @@ void _translateActiveLayer(BitmapCanvasController controller, int dx, int dy) {
 }
 
 void _commitActiveLayerTranslation(BitmapCanvasController controller) {
+  if (controller._activeLayer.surface.isTiled) {
+    return;
+  }
   if (controller._activeLayerTranslationSnapshot == null ||
       controller._pendingActiveLayerTransformCleanup) {
     return;
@@ -61,6 +67,9 @@ void _commitActiveLayerTranslation(BitmapCanvasController controller) {
 }
 
 void _cancelActiveLayerTranslation(BitmapCanvasController controller) {
+  if (controller._activeLayer.surface.isTiled) {
+    return;
+  }
   if (controller._activeLayerTranslationSnapshot == null) {
     return;
   }
@@ -645,7 +654,7 @@ _LayerTransformSnapshot _buildOverflowTransformSnapshot(
       }
       final bool ok = RustCpuTransformFfi.instance.buildOverflowSnapshot(
         canvasPtr: canvasPtr,
-        canvasLen: layer.surface.pixels.length,
+        canvasLen: layer.surface.pixelCount,
         canvasWidth: controller._width,
         canvasHeight: controller._height,
         snapshotPtr: snapshotBuffer.address,
@@ -680,19 +689,44 @@ _LayerTransformSnapshot _buildOverflowTransformSnapshot(
   final int overlapRight = math.min(controller._width, resolvedMaxX);
   final int overlapTop = math.max(0, resolvedMinY);
   final int overlapBottom = math.min(controller._height, resolvedMaxY);
-  final Uint32List srcPixels = layer.surface.pixels;
-  for (int y = overlapTop; y < overlapBottom; y++) {
-    final int sy = y - resolvedMinY;
-    final int destinationOffset = sy * snapshotWidth;
-    final int startX = overlapLeft - resolvedMinX;
-    final int srcOffset = y * controller._width + overlapLeft;
-    final int length = overlapRight - overlapLeft;
-    pixels.setRange(
-      destinationOffset + startX,
-      destinationOffset + startX + length,
-      srcPixels,
-      srcOffset,
-    );
+  if (overlapLeft < overlapRight && overlapTop < overlapBottom) {
+    if (layer.surface.isTiled) {
+      final RasterIntRect overlapRect = RasterIntRect(
+        overlapLeft,
+        overlapTop,
+        overlapRight,
+        overlapBottom,
+      );
+      final Uint32List overlapPixels = layer.surface.readRect(overlapRect);
+      final int copyWidth = overlapRect.width;
+      for (int row = 0; row < overlapRect.height; row++) {
+        final int dstRow =
+            (overlapRect.top + row - resolvedMinY) * snapshotWidth +
+            (overlapRect.left - resolvedMinX);
+        final int srcRow = row * copyWidth;
+        pixels.setRange(
+          dstRow,
+          dstRow + copyWidth,
+          overlapPixels,
+          srcRow,
+        );
+      }
+    } else {
+      final Uint32List srcPixels = layer.surface.pixels;
+      for (int y = overlapTop; y < overlapBottom; y++) {
+        final int sy = y - resolvedMinY;
+        final int destinationOffset = sy * snapshotWidth;
+        final int startX = overlapLeft - resolvedMinX;
+        final int srcOffset = y * controller._width + overlapLeft;
+        final int length = overlapRight - overlapLeft;
+        pixels.setRange(
+          destinationOffset + startX,
+          destinationOffset + startX + length,
+          srcPixels,
+          srcOffset,
+        );
+      }
+    }
   }
   store.forEachSegment((int rowY, _LayerOverflowSegment segment) {
     final int sy = rowY - resolvedMinY;

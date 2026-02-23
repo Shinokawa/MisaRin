@@ -93,6 +93,12 @@ class _CompositeLayerOpacityOverride implements CanvasCompositeLayer {
   String get id => _base.id;
 
   @override
+  int get width => _base.width;
+
+  @override
+  int get height => _base.height;
+
+  @override
   Uint32List get pixels => _base.pixels;
 
   @override

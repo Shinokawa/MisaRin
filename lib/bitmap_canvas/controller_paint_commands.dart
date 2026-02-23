@@ -258,7 +258,9 @@ void _controllerFlushDeferredStrokeCommands(
         (command.hollowRatio ?? 0.0) > 0.0001;
     final bool eraseOccludedParts = command.eraseOccludedParts ?? false;
 
-    if (hollow && !eraseOccludedParts) {
+    if (!controller._activeLayer.surface.isTiled &&
+        hollow &&
+        !eraseOccludedParts) {
       controller._deferredStrokeCommands.clear();
       controller._currentStrokePoints.clear();
       controller._currentStrokeRadii.clear();
@@ -372,7 +374,9 @@ Future<void> _controllerDrawStrokeOnRustWgpu(
     final int canvasWidth = controller._width;
     final int canvasHeight = controller._height;
     final int aa = antialiasLevel.clamp(0, 9);
-    final Uint8List? mask = controller._selectionMask;
+    final Uint8List? mask = controller._selectionMaskIsFull
+        ? null
+        : controller._selectionMask;
 
     Rect computeDirtyRect() {
       if (points.isEmpty) {
@@ -426,7 +430,7 @@ Future<void> _controllerDrawStrokeOnRustWgpu(
       return;
     }
 
-    final BitmapSurface surface = layer.surface;
+    final BitmapSurface surface = layer.surface.bitmapSurface!;
     final Uint32List destination = surface.pixels;
 
     void drawStrokeOnSurface({
@@ -761,11 +765,38 @@ Uint8List _controllerCopyMaskRegion(
   return patch;
 }
 
+Uint8List _controllerCopyMaskTile(
+  Uint8List mask,
+  int surfaceWidth,
+  int surfaceHeight,
+  RasterIntRect tileRect,
+  int tileSize,
+) {
+  final Uint8List tileMask = Uint8List(tileSize * tileSize);
+  final int left = tileRect.left.clamp(0, surfaceWidth);
+  final int top = tileRect.top.clamp(0, surfaceHeight);
+  final int right = tileRect.right.clamp(0, surfaceWidth);
+  final int bottom = tileRect.bottom.clamp(0, surfaceHeight);
+  if (left >= right || top >= bottom) {
+    return tileMask;
+  }
+  final int copyWidth = right - left;
+  for (int row = top; row < bottom; row++) {
+    final int srcRow = row * surfaceWidth + left;
+    final int dstRow = (row - tileRect.top) * tileSize + (left - tileRect.left);
+    tileMask.setRange(dstRow, dstRow + copyWidth, mask, srcRow);
+  }
+  return tileMask;
+}
+
 bool _controllerApplyPaintingCommandsBatchWeb(
   BitmapCanvasController controller,
   List<PaintingDrawCommand> commands,
 ) {
   if (!kIsWeb || commands.isEmpty) {
+    return false;
+  }
+  if (controller._activeLayer.surface.isTiled) {
     return false;
   }
   Rect? union;
@@ -784,10 +815,13 @@ bool _controllerApplyPaintingCommandsBatchWeb(
     return true;
   }
 
-  final BitmapSurface surface = controller._activeSurface;
+  final BitmapSurface surface =
+      controller._activeLayer.surface.bitmapSurface!;
   final Uint32List patch =
       _controllerCopySurfaceRegion(surface.pixels, controller._width, clipped);
-  final Uint8List? selectionMask = controller._selectionMask;
+  final Uint8List? selectionMask = controller._selectionMaskIsFull
+      ? null
+      : controller._selectionMask;
   final Uint8List? selectionPatch = selectionMask == null
       ? null
       : _controllerCopyMaskRegion(selectionMask, controller._width, clipped);
@@ -976,6 +1010,24 @@ void _controllerCommitDeferredStrokeCommandsAsRaster(
   final BrushShapeRaster? customShape = controller.customBrushShapeRaster;
   final bool useCustomShape = customShape != null;
 
+  if (controller._activeLayer.surface.isTiled) {
+    for (final PaintingDrawCommand command in commands) {
+      final Rect? bounds = controller._dirtyRectForCommand(command);
+      if (bounds == null || bounds.isEmpty) {
+        continue;
+      }
+      controller._applyPaintingCommandsSynchronously(
+        bounds,
+        <PaintingDrawCommand>[command],
+      );
+    }
+    if (!keepStrokeState) {
+      controller._currentStrokePoints.clear();
+      controller._currentStrokeRadii.clear();
+    }
+    return;
+  }
+
   if (!useCustomShape &&
       _controllerApplyPaintingCommandsBatchWeb(controller, commands)) {
     if (!keepStrokeState) {
@@ -1051,6 +1103,13 @@ void _controllerDispatchDirectPaintCommand(
 ) {
   final Rect? bounds = controller._dirtyRectForCommand(command);
   if (bounds == null || bounds.isEmpty) {
+    return;
+  }
+  if (controller._activeLayer.surface.isTiled) {
+    controller._applyPaintingCommandsSynchronously(
+      bounds,
+      <PaintingDrawCommand>[command],
+    );
     return;
   }
   final _RustWgpuStrokeDrawData? stroke = _controllerRustWgpuStrokeFromCommand(
@@ -1223,92 +1282,309 @@ bool _controllerMergeVectorPatchOnMainThread(
     return false;
   }
 
-  final Uint32List destination = controller._activeSurface.pixels;
-  final Uint8List? mask = controller._selectionMask;
-  bool anyChange = false;
+  final LayerSurface surface = controller._activeLayer.surface;
+  final Uint8List? selectionMask = controller._selectionMaskIsFull
+      ? null
+      : controller._selectionMask;
+  final bool selectionIsFull = controller._selectionMaskIsFull;
+  final TiledSelectionMask? tiledMask = controller._selectionMaskTiled;
+  if (surface.isTiled) {
+    final TiledSurface tiled = surface.tiledSurface!;
+    final RasterIntRect patchRect =
+        RasterIntRect(clampedLeft, clampedTop, clampedRight, clampedBottom);
+    final Map<TileKey, Uint8List> cachedTileMasks =
+        (selectionMask == null || selectionIsFull || tiledMask != null)
+        ? const <TileKey, Uint8List>{}
+        : <TileKey, Uint8List>{};
+    bool anyChange = false;
+    final int tileSize = tiled.tileSize;
+    final int startTx = tileIndexForCoord(patchRect.left, tileSize);
+    final int endTx = tileIndexForCoord(patchRect.right - 1, tileSize);
+    final int startTy = tileIndexForCoord(patchRect.top, tileSize);
+    final int endTy = tileIndexForCoord(patchRect.bottom - 1, tileSize);
 
-  for (int y = 0; y < height; y++) {
-    final int surfaceY = top + y;
-    if (surfaceY < 0 || surfaceY >= controller._height) {
-      continue;
+    for (int ty = startTy; ty <= endTy; ty++) {
+      for (int tx = startTx; tx <= endTx; tx++) {
+        final RasterIntRect tileRect = tileBounds(tx, ty, tileSize);
+        final int boundLeft =
+            patchRect.left > tileRect.left ? patchRect.left : tileRect.left;
+        final int boundTop =
+            patchRect.top > tileRect.top ? patchRect.top : tileRect.top;
+        final int boundRight =
+            patchRect.right < tileRect.right ? patchRect.right : tileRect.right;
+        final int boundBottom =
+            patchRect.bottom < tileRect.bottom ? patchRect.bottom : tileRect.bottom;
+        if (boundLeft >= boundRight || boundTop >= boundBottom) {
+          continue;
+        }
+        final RasterIntRect localRect = RasterIntRect(
+          boundLeft - tileRect.left,
+          boundTop - tileRect.top,
+          boundRight - tileRect.left,
+          boundBottom - tileRect.top,
+        );
+
+        Uint8List? tileMask;
+        if (selectionMask == null || selectionIsFull) {
+          tileMask = null;
+        } else if (tiledMask != null) {
+          tileMask = tiledMask.tile(tx, ty);
+          if (tileMask == null) {
+            continue;
+          }
+        } else {
+          final TileKey key = TileKey(tx, ty);
+          tileMask = cachedTileMasks[key] ??=
+              _controllerCopyMaskTile(
+                selectionMask,
+                controller._width,
+                controller._height,
+                tileRect,
+                tileSize,
+              );
+          if (!_controllerMaskHasCoverage(tileMask)) {
+            continue;
+          }
+        }
+
+        BitmapSurface? tileSurface = tiled.getTile(tx, ty);
+        Uint32List? destination = tileSurface?.pixels;
+        bool tileChanged = false;
+        final int localWidth = localRect.width;
+        final int localHeight = localRect.height;
+        final int patchX0 = boundLeft - left;
+
+        for (int row = 0; row < localHeight; row++) {
+          final int surfaceY = boundTop + row;
+          final int patchY = surfaceY - top;
+          if (patchY < 0 || patchY >= height) {
+            continue;
+          }
+          final int rgbaRowOffset = (patchY * width + patchX0) * 4;
+          final int localY = localRect.top + row;
+          int destIndex = localY * tileSize + localRect.left;
+          int maskIndex = destIndex;
+          int rgbaIndex = rgbaRowOffset;
+          for (int col = 0; col < localWidth; col++) {
+            if (rgbaIndex + 3 >= rgbaPixels.length) {
+              break;
+            }
+            if (tileMask != null && tileMask[maskIndex] == 0) {
+              rgbaIndex += 4;
+              destIndex++;
+              maskIndex++;
+              continue;
+            }
+            final int a = rgbaPixels[rgbaIndex + 3];
+            if (a == 0) {
+              rgbaIndex += 4;
+              destIndex++;
+              maskIndex++;
+              continue;
+            }
+
+            if (tileSurface == null) {
+              tileSurface = tiled.ensureTile(tx, ty);
+              destination = tileSurface.pixels;
+            }
+
+            final int r = rgbaPixels[rgbaIndex];
+            final int g = rgbaPixels[rgbaIndex + 1];
+            final int b = rgbaPixels[rgbaIndex + 2];
+            final int dstColor = destination![destIndex];
+            final int dstA = (dstColor >> 24) & 0xff;
+            final int dstR = (dstColor >> 16) & 0xff;
+            final int dstG = (dstColor >> 8) & 0xff;
+            final int dstB = dstColor & 0xff;
+
+            if (erase) {
+              final double alphaFactor = 1.0 - (a / 255.0);
+              final int outA = (dstA * alphaFactor).round();
+              destination[destIndex] =
+                  (outA << 24) | (dstR << 16) | (dstG << 8) | dstB;
+              tileChanged = true;
+              anyChange = true;
+              rgbaIndex += 4;
+              destIndex++;
+              maskIndex++;
+              continue;
+            }
+
+            final int srcR = _controllerUnpremultiplyChannel(r, a);
+            final int srcG = _controllerUnpremultiplyChannel(g, a);
+            final int srcB = _controllerUnpremultiplyChannel(b, a);
+
+            if (eraseOccludedParts) {
+              destination[destIndex] =
+                  (a << 24) |
+                  (srcR.clamp(0, 255) << 16) |
+                  (srcG.clamp(0, 255) << 8) |
+                  srcB.clamp(0, 255);
+              tileChanged = true;
+              anyChange = true;
+              rgbaIndex += 4;
+              destIndex++;
+              maskIndex++;
+              continue;
+            }
+
+            final double srcAlpha = a / 255.0;
+            final double dstAlpha = dstA / 255.0;
+            final double invSrcAlpha = 1.0 - srcAlpha;
+            final double outAlphaDouble = srcAlpha + dstAlpha * invSrcAlpha;
+            if (outAlphaDouble <= 0.001) {
+              rgbaIndex += 4;
+              destIndex++;
+              maskIndex++;
+              continue;
+            }
+            final int outA = (outAlphaDouble * 255.0).round();
+            final double outR =
+                (srcR * srcAlpha + dstR * dstAlpha * invSrcAlpha) /
+                outAlphaDouble;
+            final double outG =
+                (srcG * srcAlpha + dstG * dstAlpha * invSrcAlpha) /
+                outAlphaDouble;
+            final double outB =
+                (srcB * srcAlpha + dstB * dstAlpha * invSrcAlpha) /
+                outAlphaDouble;
+
+            destination[destIndex] =
+                (outA.clamp(0, 255) << 24) |
+                (outR.round().clamp(0, 255) << 16) |
+                (outG.round().clamp(0, 255) << 8) |
+                outB.round().clamp(0, 255);
+            tileChanged = true;
+            anyChange = true;
+            rgbaIndex += 4;
+            destIndex++;
+            maskIndex++;
+          }
+        }
+
+        if (tileChanged && tileSurface != null) {
+          tileSurface.markDirty();
+        }
+      }
     }
-    final int surfaceRowOffset = surfaceY * controller._width;
-    final int rgbaRowOffset = y * width * 4;
 
-    for (int x = 0; x < width; x++) {
-      final int surfaceX = left + x;
-      if (surfaceX < 0 || surfaceX >= controller._width) {
-        continue;
-      }
-      if (mask != null && mask[surfaceRowOffset + surfaceX] == 0) {
-        continue;
-      }
-
-      final int rgbaIndex = rgbaRowOffset + x * 4;
-      if (rgbaIndex + 3 >= rgbaPixels.length) {
-        continue;
-      }
-      final int a = rgbaPixels[rgbaIndex + 3];
-      if (a == 0) {
-        continue;
-      }
-
-      final int r = rgbaPixels[rgbaIndex];
-      final int g = rgbaPixels[rgbaIndex + 1];
-      final int b = rgbaPixels[rgbaIndex + 2];
-      final int destIndex = surfaceRowOffset + surfaceX;
-      final int dstColor = destination[destIndex];
-      final int dstA = (dstColor >> 24) & 0xff;
-      final int dstR = (dstColor >> 16) & 0xff;
-      final int dstG = (dstColor >> 8) & 0xff;
-      final int dstB = dstColor & 0xff;
-
-      if (erase) {
-        final double alphaFactor = 1.0 - (a / 255.0);
-        final int outA = (dstA * alphaFactor).round();
-        destination[destIndex] =
-            (outA << 24) | (dstR << 16) | (dstG << 8) | dstB;
-        anyChange = true;
-        continue;
-      }
-
-      final int srcR = _controllerUnpremultiplyChannel(r, a);
-      final int srcG = _controllerUnpremultiplyChannel(g, a);
-      final int srcB = _controllerUnpremultiplyChannel(b, a);
-
-      if (eraseOccludedParts) {
-        destination[destIndex] =
-            (a << 24) |
-            (srcR.clamp(0, 255) << 16) |
-            (srcG.clamp(0, 255) << 8) |
-            srcB.clamp(0, 255);
-        anyChange = true;
-        continue;
-      }
-
-      final double srcAlpha = a / 255.0;
-      final double dstAlpha = dstA / 255.0;
-      final double invSrcAlpha = 1.0 - srcAlpha;
-      final double outAlphaDouble = srcAlpha + dstAlpha * invSrcAlpha;
-      if (outAlphaDouble <= 0.001) {
-        continue;
-      }
-      final int outA = (outAlphaDouble * 255.0).round();
-      final double outR =
-          (srcR * srcAlpha + dstR * dstAlpha * invSrcAlpha) / outAlphaDouble;
-      final double outG =
-          (srcG * srcAlpha + dstG * dstAlpha * invSrcAlpha) / outAlphaDouble;
-      final double outB =
-          (srcB * srcAlpha + dstB * dstAlpha * invSrcAlpha) / outAlphaDouble;
-
-      destination[destIndex] =
-          (outA.clamp(0, 255) << 24) |
-          (outR.round().clamp(0, 255) << 16) |
-          (outG.round().clamp(0, 255) << 8) |
-          outB.round().clamp(0, 255);
-      anyChange = true;
+    if (!anyChange) {
+      return false;
     }
+    controller._resetWorkerSurfaceSync();
+    final Rect dirtyRegion = Rect.fromLTRB(
+      clampedLeft.toDouble(),
+      clampedTop.toDouble(),
+      clampedRight.toDouble(),
+      clampedBottom.toDouble(),
+    );
+    controller._markDirty(
+      region: dirtyRegion,
+      layerId: controller._activeLayer.id,
+      pixelsDirty: true,
+    );
+    return true;
   }
+
+  final bool anyChange = surface.withBitmapSurface(
+    writeBack: true,
+    action: (BitmapSurface bitmapSurface) {
+      final Uint32List destination = bitmapSurface.pixels;
+      bool changed = false;
+
+      for (int y = 0; y < height; y++) {
+        final int surfaceY = top + y;
+        if (surfaceY < 0 || surfaceY >= controller._height) {
+          continue;
+        }
+        final int surfaceRowOffset = surfaceY * controller._width;
+        final int rgbaRowOffset = y * width * 4;
+
+        for (int x = 0; x < width; x++) {
+          final int surfaceX = left + x;
+          if (surfaceX < 0 || surfaceX >= controller._width) {
+            continue;
+          }
+          if (selectionMask != null &&
+              selectionMask[surfaceRowOffset + surfaceX] == 0) {
+            continue;
+          }
+
+          final int rgbaIndex = rgbaRowOffset + x * 4;
+          if (rgbaIndex + 3 >= rgbaPixels.length) {
+            continue;
+          }
+          final int a = rgbaPixels[rgbaIndex + 3];
+          if (a == 0) {
+            continue;
+          }
+
+          final int r = rgbaPixels[rgbaIndex];
+          final int g = rgbaPixels[rgbaIndex + 1];
+          final int b = rgbaPixels[rgbaIndex + 2];
+          final int destIndex = surfaceRowOffset + surfaceX;
+          final int dstColor = destination[destIndex];
+          final int dstA = (dstColor >> 24) & 0xff;
+          final int dstR = (dstColor >> 16) & 0xff;
+          final int dstG = (dstColor >> 8) & 0xff;
+          final int dstB = dstColor & 0xff;
+
+          if (erase) {
+            final double alphaFactor = 1.0 - (a / 255.0);
+            final int outA = (dstA * alphaFactor).round();
+            destination[destIndex] =
+                (outA << 24) | (dstR << 16) | (dstG << 8) | dstB;
+            changed = true;
+            continue;
+          }
+
+          final int srcR = _controllerUnpremultiplyChannel(r, a);
+          final int srcG = _controllerUnpremultiplyChannel(g, a);
+          final int srcB = _controllerUnpremultiplyChannel(b, a);
+
+          if (eraseOccludedParts) {
+            destination[destIndex] =
+                (a << 24) |
+                (srcR.clamp(0, 255) << 16) |
+                (srcG.clamp(0, 255) << 8) |
+                srcB.clamp(0, 255);
+            changed = true;
+            continue;
+          }
+
+          final double srcAlpha = a / 255.0;
+          final double dstAlpha = dstA / 255.0;
+          final double invSrcAlpha = 1.0 - srcAlpha;
+          final double outAlphaDouble = srcAlpha + dstAlpha * invSrcAlpha;
+          if (outAlphaDouble <= 0.001) {
+            continue;
+          }
+          final int outA = (outAlphaDouble * 255.0).round();
+          final double outR =
+              (srcR * srcAlpha + dstR * dstAlpha * invSrcAlpha) /
+              outAlphaDouble;
+          final double outG =
+              (srcG * srcAlpha + dstG * dstAlpha * invSrcAlpha) /
+              outAlphaDouble;
+          final double outB =
+              (srcB * srcAlpha + dstB * dstAlpha * invSrcAlpha) /
+              outAlphaDouble;
+
+          destination[destIndex] =
+              (outA.clamp(0, 255) << 24) |
+              (outR.round().clamp(0, 255) << 16) |
+              (outG.round().clamp(0, 255) << 8) |
+              outB.round().clamp(0, 255);
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        bitmapSurface.markDirty();
+      }
+      return changed;
+    },
+  );
 
   if (!anyChange) {
     return false;
@@ -1337,8 +1613,19 @@ void _controllerApplyPaintingCommandsSynchronously(
   if (commands.isEmpty) {
     return;
   }
-  final BitmapSurface surface = controller._activeSurface;
-  final Uint8List? mask = controller._selectionMask;
+  if (controller._activeLayer.surface.isTiled) {
+    _controllerApplyPaintingCommandsSynchronouslyTiled(
+      controller,
+      region,
+      commands,
+    );
+    return;
+  }
+  final BitmapSurface surface =
+      controller._activeLayer.surface.bitmapSurface!;
+  final Uint8List? mask = controller._selectionMaskIsFull
+      ? null
+      : controller._selectionMask;
   final BrushShapeRaster? customShape = controller.customBrushShapeRaster;
   bool anyChange = false;
   for (final PaintingDrawCommand command in commands) {
@@ -1496,6 +1783,289 @@ void _controllerApplyPaintingCommandsSynchronously(
         );
         anyChange = true;
         break;
+    }
+  }
+  if (!anyChange) {
+    return;
+  }
+  controller._resetWorkerSurfaceSync();
+  controller._markDirty(
+    region: region,
+    layerId: controller._activeLayer.id,
+    pixelsDirty: true,
+  );
+}
+
+void _controllerApplyPaintingCommandsSynchronouslyTiled(
+  BitmapCanvasController controller,
+  Rect region,
+  List<PaintingDrawCommand> commands,
+) {
+  if (commands.isEmpty) {
+    return;
+  }
+  final TiledSurface tiled =
+      controller._activeLayer.surface.tiledSurface!;
+  final Uint8List? selectionMask = controller._selectionMask;
+  final bool selectionIsFull = controller._selectionMaskIsFull;
+  final TiledSelectionMask? tiledMask = controller._selectionMaskTiled;
+  final bool hasSelection = selectionMask != null && !selectionIsFull;
+  final Map<TileKey, Uint8List> cachedTileMasks =
+      (selectionMask == null || selectionIsFull || tiledMask != null)
+      ? const <TileKey, Uint8List>{}
+      : <TileKey, Uint8List>{};
+  final BrushShapeRaster? customShape = controller.customBrushShapeRaster;
+  bool anyChange = false;
+
+  bool applyCommandToTile({
+    required BitmapSurface surface,
+    required Offset tileOrigin,
+    required Uint8List? mask,
+    required PaintingDrawCommand command,
+  }) {
+    final Color color = Color(command.color);
+    final bool erase = command.erase;
+    switch (command.type) {
+      case PaintingDrawCommandType.brushStamp:
+        final Offset? center = command.center;
+        final double? radius = command.radius;
+        final int? shapeIndex = command.shapeIndex;
+        if (center == null || radius == null || shapeIndex == null) {
+          return false;
+        }
+        final Offset localCenter = center - tileOrigin;
+        final int clampedShape = shapeIndex.clamp(
+          0,
+          BrushShape.values.length - 1,
+        );
+        if (customShape != null) {
+          final bool randomRotation = command.randomRotation ?? false;
+          final double rotationJitter = command.rotationJitter ?? 1.0;
+          final double rotation = randomRotation
+              ? brushRandomRotationRadians(
+                    center: center,
+                    seed: command.rotationSeed ?? 0,
+                  ) *
+                  rotationJitter
+              : 0.0;
+          surface.drawCustomBrushStamp(
+            shape: customShape,
+            center: localCenter,
+            radius: radius,
+            color: color,
+            erase: erase,
+            softness: command.softness ?? 0.0,
+            rotation: rotation,
+            snapToPixel: command.snapToPixel ?? false,
+            mask: mask,
+          );
+        } else {
+          surface.drawBrushStamp(
+            center: localCenter,
+            radius: radius,
+            color: color,
+            shape: BrushShape.values[clampedShape],
+            mask: mask,
+            antialiasLevel: command.antialiasLevel,
+            erase: erase,
+            softness: command.softness ?? 0.0,
+            randomRotation: command.randomRotation ?? false,
+            smoothRotation: command.smoothRotation ?? false,
+            rotationSeed: command.rotationSeed ?? 0,
+            rotationJitter: command.rotationJitter ?? 1.0,
+            snapToPixel: command.snapToPixel ?? false,
+          );
+        }
+        return true;
+      case PaintingDrawCommandType.line:
+        final Offset? start = command.start;
+        final Offset? end = command.end;
+        final double? radius = command.radius;
+        if (start == null || end == null || radius == null) {
+          return false;
+        }
+        surface.drawLine(
+          a: start - tileOrigin,
+          b: end - tileOrigin,
+          radius: radius,
+          color: color,
+          mask: mask,
+          antialiasLevel: command.antialiasLevel,
+          includeStartCap: command.includeStartCap ?? true,
+          erase: erase,
+        );
+        return true;
+      case PaintingDrawCommandType.variableLine:
+        final Offset? start = command.start;
+        final Offset? end = command.end;
+        final double? startRadius = command.startRadius;
+        final double? endRadius = command.endRadius;
+        if (start == null ||
+            end == null ||
+            startRadius == null ||
+            endRadius == null) {
+          return false;
+        }
+        surface.drawVariableLine(
+          a: start - tileOrigin,
+          b: end - tileOrigin,
+          startRadius: startRadius,
+          endRadius: endRadius,
+          color: color,
+          mask: mask,
+          antialiasLevel: command.antialiasLevel,
+          includeStartCap: command.includeStartCap ?? true,
+          erase: erase,
+        );
+        return true;
+      case PaintingDrawCommandType.stampSegment:
+        final Offset? start = command.start;
+        final Offset? end = command.end;
+        final double? startRadius = command.startRadius;
+        final double? endRadius = command.endRadius;
+        final int? shapeIndex = command.shapeIndex;
+        if (start == null ||
+            end == null ||
+            startRadius == null ||
+            endRadius == null ||
+            shapeIndex == null) {
+          return false;
+        }
+        final int clampedShape = shapeIndex.clamp(
+          0,
+          BrushShape.values.length - 1,
+        );
+        _controllerApplyStampSegmentFallback(
+          surface: surface,
+          start: start - tileOrigin,
+          end: end - tileOrigin,
+          startRadius: startRadius,
+          endRadius: endRadius,
+          includeStart: command.includeStartCap ?? true,
+          shape: BrushShape.values[clampedShape],
+          color: color,
+          mask: mask,
+          antialias: command.antialiasLevel,
+          erase: erase,
+          randomRotation: command.randomRotation ?? false,
+          smoothRotation: command.smoothRotation ?? false,
+          rotationSeed: command.rotationSeed ?? 0,
+          rotationJitter: command.rotationJitter ?? 1.0,
+          spacing: command.spacing ?? 0.15,
+          scatter: command.scatter ?? 0.0,
+          softness: command.softness ?? 0.0,
+          snapToPixel: command.snapToPixel ?? false,
+          customShape: customShape,
+        );
+        return true;
+      case PaintingDrawCommandType.vectorStroke:
+        return false;
+      case PaintingDrawCommandType.filledPolygon:
+        final List<Offset>? points = command.points;
+        if (points == null || points.length < 3) {
+          return false;
+        }
+        final List<Offset> localPoints = List<Offset>.generate(
+          points.length,
+          (int index) => points[index] - tileOrigin,
+          growable: false,
+        );
+        surface.drawFilledPolygon(
+          vertices: localPoints,
+          color: color,
+          mask: mask,
+          antialiasLevel: command.antialiasLevel,
+          erase: erase,
+        );
+        return true;
+    }
+  }
+
+  for (final PaintingDrawCommand command in commands) {
+    final Rect? bounds = controller._dirtyRectForCommand(command);
+    if (bounds == null || bounds.isEmpty) {
+      continue;
+    }
+    final RasterIntRect clipped = controller._clipRectToSurface(bounds);
+    if (clipped.isEmpty) {
+      continue;
+    }
+    if (!hasSelection) {
+      for (final TileEntry entry
+          in tiled.tilesInRect(clipped, createMissing: true)) {
+        final RasterIntRect tileRect =
+            tileBounds(entry.key.tx, entry.key.ty, tiled.tileSize);
+        final Offset tileOrigin =
+            Offset(tileRect.left.toDouble(), tileRect.top.toDouble());
+        final BitmapSurface surface = entry.surface;
+        if (applyCommandToTile(
+              surface: surface,
+              tileOrigin: tileOrigin,
+              mask: null,
+              command: command,
+            )) {
+          anyChange = true;
+        }
+      }
+    } else {
+      final int tileSize = tiled.tileSize;
+      final int startTx = tileIndexForCoord(clipped.left, tileSize);
+      final int endTx = tileIndexForCoord(clipped.right - 1, tileSize);
+      final int startTy = tileIndexForCoord(clipped.top, tileSize);
+      final int endTy = tileIndexForCoord(clipped.bottom - 1, tileSize);
+      for (int ty = startTy; ty <= endTy; ty++) {
+        for (int tx = startTx; tx <= endTx; tx++) {
+          final RasterIntRect tileRect = tileBounds(tx, ty, tileSize);
+          final int left = clipped.left > tileRect.left
+              ? clipped.left
+              : tileRect.left;
+          final int top =
+              clipped.top > tileRect.top ? clipped.top : tileRect.top;
+          final int right = clipped.right < tileRect.right
+              ? clipped.right
+              : tileRect.right;
+          final int bottom = clipped.bottom < tileRect.bottom
+              ? clipped.bottom
+              : tileRect.bottom;
+          if (left >= right || top >= bottom) {
+            continue;
+          }
+
+          Uint8List? tileMask;
+          if (tiledMask != null) {
+            tileMask = tiledMask.tile(tx, ty);
+            if (tileMask == null) {
+              continue;
+            }
+          } else {
+            final TileKey key = TileKey(tx, ty);
+            tileMask = cachedTileMasks[key] ??=
+                _controllerCopyMaskTile(
+                  selectionMask!,
+                  controller._width,
+                  controller._height,
+                  tileRect,
+                  tileSize,
+                );
+            if (!_controllerMaskHasCoverage(tileMask)) {
+              continue;
+            }
+          }
+
+          final BitmapSurface surface =
+              tiled.getTile(tx, ty) ?? tiled.ensureTile(tx, ty);
+          final Offset tileOrigin =
+              Offset(tileRect.left.toDouble(), tileRect.top.toDouble());
+          if (applyCommandToTile(
+                surface: surface,
+                tileOrigin: tileOrigin,
+                mask: tileMask,
+                command: command,
+              )) {
+            anyChange = true;
+          }
+        }
+      }
     }
   }
   if (!anyChange) {

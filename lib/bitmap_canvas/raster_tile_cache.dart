@@ -115,7 +115,7 @@ class RasterTileCache {
     }
 
     final Stopwatch sw = Stopwatch()..start();
-    final bool useSurfaceBuffer = forceFullSurface;
+    final bool useSurfaceBuffer = forceFullSurface && !backend.useTiledComposite;
     final int surfaceRowBytes = surfaceWidth * 4;
     Uint8List? surfaceRgba;
     final List<_PendingTile> uploads = <_PendingTile>[

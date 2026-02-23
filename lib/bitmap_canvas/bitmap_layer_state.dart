@@ -6,7 +6,8 @@ import '../canvas/canvas_composite_layer.dart';
 import '../canvas/canvas_layer.dart';
 import '../canvas/canvas_layer_info.dart';
 import '../canvas/text_renderer.dart';
-import 'bitmap_canvas.dart';
+import 'raster_int_rect.dart';
+import 'layer_surface.dart';
 
 /// 在画布控制器与渲染后端之间共享的图层状态模型。
 class BitmapLayerState implements CanvasLayerInfo, CanvasCompositeLayer {
@@ -30,11 +31,20 @@ class BitmapLayerState implements CanvasLayerInfo, CanvasCompositeLayer {
   bool locked;
   bool clippingMask;
   CanvasLayerBlendMode blendMode;
-  final BitmapSurface surface;
+  final LayerSurface surface;
   int revision = 0;
   CanvasTextData? text;
   Rect? textBounds;
 
   @override
   Uint32List get pixels => surface.pixels;
+
+  @override
+  int get width => surface.width;
+
+  @override
+  int get height => surface.height;
+
+  @override
+  Uint32List readRect(RasterIntRect rect) => surface.readRect(rect);
 }

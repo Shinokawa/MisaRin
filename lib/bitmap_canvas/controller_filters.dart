@@ -278,29 +278,34 @@ bool _controllerApplyAntialiasToActiveLayerRustCpu(
   if (layer.locked) {
     return false;
   }
-  final Uint32List pixels = layer.surface.pixels;
-  if (pixels.isEmpty) {
-    return false;
-  }
-  if (!RustCpuFiltersFfi.instance.isSupported ||
-      layer.surface.pointerAddress == 0) {
-    return false;
-  }
-  final bool ok = RustCpuFiltersFfi.instance.applyAntialias(
-    pixelsPtr: layer.surface.pointerAddress,
-    pixelsLen: pixels.length,
-    width: controller._width,
-    height: controller._height,
-    level: level.clamp(0, 9),
-    previewOnly: previewOnly,
+  return layer.surface.withBitmapSurface(
+    writeBack: !previewOnly,
+    action: (BitmapSurface surface) {
+      final Uint32List pixels = surface.pixels;
+      if (pixels.isEmpty) {
+        return false;
+      }
+      if (!RustCpuFiltersFfi.instance.isSupported ||
+          surface.pointerAddress == 0) {
+        return false;
+      }
+      final bool ok = RustCpuFiltersFfi.instance.applyAntialias(
+        pixelsPtr: surface.pointerAddress,
+        pixelsLen: pixels.length,
+        width: controller._width,
+        height: controller._height,
+        level: level.clamp(0, 9),
+        previewOnly: previewOnly,
+      );
+      if (!ok) {
+        return false;
+      }
+      if (!previewOnly) {
+        surface.markDirty();
+        controller._markDirty(layerId: layer.id, pixelsDirty: true);
+        controller._notify();
+      }
+      return true;
+    },
   );
-  if (!ok) {
-    return false;
-  }
-  if (!previewOnly) {
-    layer.surface.markDirty();
-    controller._markDirty(layerId: layer.id, pixelsDirty: true);
-    controller._notify();
-  }
-  return true;
 }
