@@ -497,6 +497,46 @@ void _drawStampSegment({
   BrushShapeRaster? customShape,
 }) {
   if (customShape != null) {
+    final Uint8List customMask = customShape.packedMask;
+    final bool ok = RustCpuBrushFfi.instance.drawStampSegment(
+      pixelsPtr: surface.pointerAddress,
+      pixelsLen: surface.pixels.length,
+      width: surface.width,
+      height: surface.height,
+      startX: start.dx,
+      startY: start.dy,
+      endX: end.dx,
+      endY: end.dy,
+      startRadius: startRadius,
+      endRadius: endRadius,
+      colorArgb: color.value,
+      brushShape: shape.index,
+      antialiasLevel: antialias,
+      includeStart: includeStart,
+      erase: erase,
+      randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
+      rotationSeed: rotationSeed,
+      rotationJitter: rotationJitter,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
+      spacing: spacing,
+      scatter: scatter,
+      softness: softness,
+      snapToPixel: snapToPixel,
+      accumulate: true,
+      customMask: customMask,
+      customMaskWidth: customShape.width,
+      customMaskHeight: customShape.height,
+      selectionMask: null,
+    );
+    if (ok) {
+      surface.markDirty();
+      return;
+    }
     _drawCustomStampSegment(
       surface: surface,
       shape: customShape,

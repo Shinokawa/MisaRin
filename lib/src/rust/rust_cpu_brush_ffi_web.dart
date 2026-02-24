@@ -83,6 +83,9 @@ class RustCpuBrushFfi {
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
     required bool snapToPixel,
+    Uint8List? customMask,
+    int customMaskWidth = 0,
+    int customMaskHeight = 0,
     Uint8List? selectionMask,
   }) {
     final Uint32List? pixels = _lookupPixels(pixelsPtr, pixelsLen);
@@ -118,6 +121,9 @@ class RustCpuBrushFfi {
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
       snapToPixel: snapToPixel,
+      customMaskWidth: customMaskWidth,
+      customMaskHeight: customMaskHeight,
+      customMask: customMask,
       selection: selectionMask,
     );
     if (!result.ok) {
@@ -276,6 +282,9 @@ class RustCpuBrushFfi {
     required double softness,
     required bool snapToPixel,
     required bool accumulate,
+    Uint8List? customMask,
+    int customMaskWidth = 0,
+    int customMaskHeight = 0,
     Uint8List? selectionMask,
   }) {
     final Uint32List? pixels = _lookupPixels(pixelsPtr, pixelsLen);
@@ -318,6 +327,9 @@ class RustCpuBrushFfi {
       softness: softness,
       snapToPixel: snapToPixel,
       accumulate: accumulate,
+      customMaskWidth: customMaskWidth,
+      customMaskHeight: customMaskHeight,
+      customMask: customMask,
       selection: selectionMask,
     );
     if (!result.ok) {

@@ -75,10 +75,17 @@ pub fn cpu_brush_draw_stamp_rgba(
     screentone_rotation: f32,
     screentone_softness: f32,
     snap_to_pixel: bool,
+    custom_mask_width: u32,
+    custom_mask_height: u32,
+    custom_mask: Option<Vec<u8>>,
     selection: Option<Vec<u8>>,
 ) -> CpuBrushResult {
     let mut pixels = pixels;
     let (selection_ptr, selection_len) = match selection.as_ref() {
+        Some(mask) => (mask.as_ptr(), mask.len()),
+        None => (std::ptr::null(), 0),
+    };
+    let (custom_mask_ptr, custom_mask_len) = match custom_mask.as_ref() {
         Some(mask) => (mask.as_ptr(), mask.len()),
         None => (std::ptr::null(), 0),
     };
@@ -105,6 +112,10 @@ pub fn cpu_brush_draw_stamp_rgba(
         screentone_rotation,
         screentone_softness,
         bool_to_u8(snap_to_pixel),
+        custom_mask_width,
+        custom_mask_height,
+        custom_mask_ptr,
+        custom_mask_len,
         selection_ptr,
         selection_len,
     );
@@ -239,10 +250,17 @@ pub fn cpu_brush_draw_stamp_segment_rgba(
     softness: f32,
     snap_to_pixel: bool,
     accumulate: bool,
+    custom_mask_width: u32,
+    custom_mask_height: u32,
+    custom_mask: Option<Vec<u8>>,
     selection: Option<Vec<u8>>,
 ) -> CpuBrushResult {
     let mut pixels = pixels;
     let (selection_ptr, selection_len) = match selection.as_ref() {
+        Some(mask) => (mask.as_ptr(), mask.len()),
+        None => (std::ptr::null(), 0),
+    };
+    let (custom_mask_ptr, custom_mask_len) = match custom_mask.as_ref() {
         Some(mask) => (mask.as_ptr(), mask.len()),
         None => (std::ptr::null(), 0),
     };
@@ -276,6 +294,10 @@ pub fn cpu_brush_draw_stamp_segment_rgba(
         softness,
         bool_to_u8(snap_to_pixel),
         bool_to_u8(accumulate),
+        custom_mask_width,
+        custom_mask_height,
+        custom_mask_ptr,
+        custom_mask_len,
         selection_ptr,
         selection_len,
     );
@@ -365,6 +387,10 @@ pub fn cpu_brush_apply_commands_rgba(
         cmd.screentone_rotation,
         cmd.screentone_softness,
         bool_to_u8(cmd.snap_to_pixel),
+        0,
+        0,
+        std::ptr::null(),
+        0,
                 selection_ptr,
                 selection_len,
             ),
@@ -398,6 +424,10 @@ pub fn cpu_brush_apply_commands_rgba(
                 cmd.softness,
                 bool_to_u8(cmd.snap_to_pixel),
                 1,
+                0,
+                0,
+                std::ptr::null(),
+                0,
                 selection_ptr,
                 selection_len,
             ),

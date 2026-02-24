@@ -913,12 +913,17 @@ impl StrokeResampler {
                 SmoothingMode::Stabilizer => {
                     let stabilized = self.stabilizer.process(sample, is_down, is_up);
                     for stab in stabilized {
-                        if let Some(prev) = self.smooth_previous {
-                            self.emit_line_segment(prev, stab, true, brush_settings, &mut emitted);
-                        } else {
-                            self.emit_point(stab.pos, stab.pressure, &mut emitted);
-                        }
-                        self.smooth_previous = Some(stab);
+                        // Feed stabilizer samples into the same weighted + bezier smoothing
+                        // pipeline so corners stay rounded.
+                        self.process_smoothing_sample(
+                            stab,
+                            SmoothingMode::Weighted,
+                            brush_settings,
+                            &mut emitted,
+                        );
+                    }
+                    if is_up {
+                        self.finish_smoothing(brush_settings, &mut emitted);
                     }
                 }
                 SmoothingMode::Weighted | SmoothingMode::Simple => {

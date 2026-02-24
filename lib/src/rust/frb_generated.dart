@@ -200,6 +200,9 @@ abstract class RustLibApi extends BaseApi {
     required double screentoneRotation,
     required double screentoneSoftness,
     required bool snapToPixel,
+    required int customMaskWidth,
+    required int customMaskHeight,
+    Uint8List? customMask,
     Uint8List? selection,
   });
 
@@ -232,6 +235,9 @@ abstract class RustLibApi extends BaseApi {
     required double softness,
     required bool snapToPixel,
     required bool accumulate,
+    required int customMaskWidth,
+    required int customMaskHeight,
+    Uint8List? customMask,
     Uint8List? selection,
   });
 
@@ -933,6 +939,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required double screentoneRotation,
     required double screentoneSoftness,
     required bool snapToPixel,
+    required int customMaskWidth,
+    required int customMaskHeight,
+    Uint8List? customMask,
     Uint8List? selection,
   }) {
     return handler.executeSync(
@@ -960,6 +969,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_f_32(screentoneRotation, serializer);
           sse_encode_f_32(screentoneSoftness, serializer);
           sse_encode_bool(snapToPixel, serializer);
+          sse_encode_u_32(customMaskWidth, serializer);
+          sse_encode_u_32(customMaskHeight, serializer);
+          sse_encode_opt_list_prim_u_8_strict(customMask, serializer);
           sse_encode_opt_list_prim_u_8_strict(selection, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
         },
@@ -990,6 +1002,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           screentoneRotation,
           screentoneSoftness,
           snapToPixel,
+          customMaskWidth,
+          customMaskHeight,
+          customMask,
           selection,
         ],
         apiImpl: this,
@@ -1022,6 +1037,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "screentoneRotation",
           "screentoneSoftness",
           "snapToPixel",
+          "customMaskWidth",
+          "customMaskHeight",
+          "customMask",
           "selection",
         ],
       );
@@ -1056,6 +1074,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required double softness,
     required bool snapToPixel,
     required bool accumulate,
+    required int customMaskWidth,
+    required int customMaskHeight,
+    Uint8List? customMask,
     Uint8List? selection,
   }) {
     return handler.executeSync(
@@ -1090,6 +1111,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_f_32(softness, serializer);
           sse_encode_bool(snapToPixel, serializer);
           sse_encode_bool(accumulate, serializer);
+          sse_encode_u_32(customMaskWidth, serializer);
+          sse_encode_u_32(customMaskHeight, serializer);
+          sse_encode_opt_list_prim_u_8_strict(customMask, serializer);
           sse_encode_opt_list_prim_u_8_strict(selection, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
         },
@@ -1127,6 +1151,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           softness,
           snapToPixel,
           accumulate,
+          customMaskWidth,
+          customMaskHeight,
+          customMask,
           selection,
         ],
         apiImpl: this,
@@ -1166,6 +1193,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "softness",
           "snapToPixel",
           "accumulate",
+          "customMaskWidth",
+          "customMaskHeight",
+          "customMask",
           "selection",
         ],
       );

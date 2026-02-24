@@ -30,6 +30,9 @@ CpuBrushResult cpuBrushDrawStampRgba({
   required double screentoneRotation,
   required double screentoneSoftness,
   required bool snapToPixel,
+  required int customMaskWidth,
+  required int customMaskHeight,
+  Uint8List? customMask,
   Uint8List? selection,
 }) => RustLib.instance.api.crateApiCpuBrushCpuBrushDrawStampRgba(
   pixels: pixels,
@@ -53,6 +56,9 @@ CpuBrushResult cpuBrushDrawStampRgba({
   screentoneRotation: screentoneRotation,
   screentoneSoftness: screentoneSoftness,
   snapToPixel: snapToPixel,
+  customMaskWidth: customMaskWidth,
+  customMaskHeight: customMaskHeight,
+  customMask: customMask,
   selection: selection,
 );
 
@@ -151,6 +157,9 @@ CpuBrushResult cpuBrushDrawStampSegmentRgba({
   required double softness,
   required bool snapToPixel,
   required bool accumulate,
+  required int customMaskWidth,
+  required int customMaskHeight,
+  Uint8List? customMask,
   Uint8List? selection,
 }) => RustLib.instance.api.crateApiCpuBrushCpuBrushDrawStampSegmentRgba(
   pixels: pixels,
@@ -181,6 +190,9 @@ CpuBrushResult cpuBrushDrawStampSegmentRgba({
   softness: softness,
   snapToPixel: snapToPixel,
   accumulate: accumulate,
+  customMaskWidth: customMaskWidth,
+  customMaskHeight: customMaskHeight,
+  customMask: customMask,
   selection: selection,
 );
 

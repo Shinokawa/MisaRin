@@ -40,7 +40,8 @@ screentone|zh|网点笔
 screentone|zh_CN|网点笔
 screentone|zh_TW|網點筆
 [circle.svg]
-length:117
+length:118
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <circle cx="50" cy="50" r="45" fill="black"/>
 </svg>
+

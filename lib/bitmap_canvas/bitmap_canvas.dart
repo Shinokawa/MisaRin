@@ -356,6 +356,9 @@ class BitmapSurface {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    Uint8List? customMask,
+    int customMaskWidth = 0,
+    int customMaskHeight = 0,
   }) {
     Offset resolvedCenter = center;
     double resolvedRadius = radius;
@@ -398,6 +401,9 @@ class BitmapSurface {
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
       snapToPixel: snapToPixel,
+      customMask: customMask,
+      customMaskWidth: customMaskWidth,
+      customMaskHeight: customMaskHeight,
       selectionMask: mask,
     );
     if (ok) {

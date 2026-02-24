@@ -18,4 +18,26 @@ class BrushShapeRaster {
   final int height;
   final Uint8List alpha;
   final Uint8List softAlpha;
+  Uint8List? _packedMask;
+
+  Uint8List get packedMask {
+    final Uint8List? cached = _packedMask;
+    if (cached != null) {
+      return cached;
+    }
+    final int count = width * height;
+    if (count <= 0 ||
+        alpha.length != count ||
+        softAlpha.length != count) {
+      return Uint8List(0);
+    }
+    final Uint8List packed = Uint8List(count * 2);
+    int out = 0;
+    for (int i = 0; i < count; i++) {
+      packed[out++] = alpha[i];
+      packed[out++] = softAlpha[i];
+    }
+    _packedMask = packed;
+    return packed;
+  }
 }

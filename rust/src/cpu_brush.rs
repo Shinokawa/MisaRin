@@ -303,6 +303,90 @@ fn rotate_to_brush_space(x: f32, y: f32, rot_sin: f32, rot_cos: f32) -> (f32, f3
     (x * rot_cos + y * rot_sin, -x * rot_sin + y * rot_cos)
 }
 
+#[derive(Clone, Copy)]
+struct CustomMaskView<'a> {
+    width: u32,
+    height: u32,
+    data: &'a [u8],
+}
+
+fn custom_mask_view_from_params<'a>(
+    width: u32,
+    height: u32,
+    mask_ptr: *const u8,
+    mask_len: usize,
+) -> Option<CustomMaskView<'a>> {
+    if mask_ptr.is_null() || width == 0 || height == 0 {
+        return None;
+    }
+    let expected = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|v| v.checked_mul(2));
+    let expected = match expected {
+        Some(value) => value,
+        None => return None,
+    };
+    if mask_len < expected {
+        return None;
+    }
+    let data = unsafe { std::slice::from_raw_parts(mask_ptr, mask_len) };
+    Some(CustomMaskView {
+        width,
+        height,
+        data: &data[..expected],
+    })
+}
+
+fn custom_mask_alpha(
+    rel_x: f32,
+    rel_y: f32,
+    radius: f32,
+    softness: f32,
+    mask: &CustomMaskView<'_>,
+) -> f32 {
+    if radius <= EPS {
+        return 0.0;
+    }
+    if mask.width == 0 || mask.height == 0 {
+        return 0.0;
+    }
+    let u = rel_x / radius * 0.5 + 0.5;
+    let v = rel_y / radius * 0.5 + 0.5;
+    if u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0 {
+        return 0.0;
+    }
+    let max_x = (mask.width - 1) as f32;
+    let max_y = (mask.height - 1) as f32;
+    let fx = u * max_x;
+    let fy = v * max_y;
+    let x0 = fx.floor() as i32;
+    let y0 = fy.floor() as i32;
+    let x1 = (x0 + 1).min(mask.width as i32 - 1);
+    let y1 = (y0 + 1).min(mask.height as i32 - 1);
+    let tx = fx - x0 as f32;
+    let ty = fy - y0 as f32;
+
+    let stride = (mask.width as usize) * 2;
+    let sample = |x: i32, y: i32| -> (f32, f32) {
+        let idx = (y as usize) * stride + (x as usize) * 2;
+        let a = mask.data.get(idx).copied().unwrap_or(0) as f32 / 255.0;
+        let b = mask.data.get(idx + 1).copied().unwrap_or(0) as f32 / 255.0;
+        (a, b)
+    };
+    let c00 = sample(x0, y0);
+    let c10 = sample(x1, y0);
+    let c01 = sample(x0, y1);
+    let c11 = sample(x1, y1);
+    let lerp = |a: (f32, f32), b: (f32, f32), t: f32| -> (f32, f32) {
+        (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t)
+    };
+    let a0 = lerp(c00, c10, tx);
+    let a1 = lerp(c01, c11, tx);
+    let sample = lerp(a0, a1, ty);
+    let t = clamp01(softness);
+    sample.0 + (sample.1 - sample.0) * t
+}
+
 fn tri_vert(i: u32) -> (f32, f32) {
     match i {
         0 => (0.0, -1.0),
@@ -739,7 +823,7 @@ struct BrushPoint {
     rot_cos: f32,
 }
 
-fn draw_points_sampled(
+fn draw_points_sampled<'a>(
     pixels_ptr: *mut u32,
     pixels_len: usize,
     width: u32,
@@ -753,6 +837,7 @@ fn draw_points_sampled(
     accumulate: bool,
     selection_ptr: *const u8,
     selection_len: usize,
+    custom_mask: Option<CustomMaskView<'a>>,
     screentone: ScreentoneSettings,
 ) -> u8 {
     if points.is_empty() || pixels_ptr.is_null() || width == 0 || height == 0 {
@@ -783,6 +868,7 @@ fn draw_points_sampled(
     let inv_samples = 1.0 / (samples as f32);
     let total_samples = (samples * samples) as f32;
     let use_screentone = screentone.enabled;
+    let custom_mask = custom_mask.as_ref();
 
     let mut any_point = false;
     let mut union_min_x = width as i32;
@@ -852,18 +938,26 @@ fn draw_points_sampled(
                     let mut sample_cov = if accumulate {
                         let mut remain = 1.0f32;
                         for p in points {
-                            let dist = shape_distance_to_point(
-                                sample_x,
-                                sample_y,
-                                p.x,
-                                p.y,
-                                p.radius,
-                                p.rot_sin,
-                                p.rot_cos,
-                                brush_shape,
-                            );
-                            let a = brush_alpha(dist, p.radius, soft, aa_level)
-                                * clamp01(p.alpha);
+                            let a = if let Some(mask) = custom_mask {
+                                let rel_x = sample_x - p.x;
+                                let rel_y = sample_y - p.y;
+                                let (rx, ry) =
+                                    rotate_to_brush_space(rel_x, rel_y, p.rot_sin, p.rot_cos);
+                                custom_mask_alpha(rx, ry, p.radius, soft, mask)
+                                    * clamp01(p.alpha)
+                            } else {
+                                let dist = shape_distance_to_point(
+                                    sample_x,
+                                    sample_y,
+                                    p.x,
+                                    p.y,
+                                    p.radius,
+                                    p.rot_sin,
+                                    p.rot_cos,
+                                    brush_shape,
+                                );
+                                brush_alpha(dist, p.radius, soft, aa_level) * clamp01(p.alpha)
+                            };
                             if a > 0.0 {
                                 remain *= 1.0 - a;
                                 if remain <= 0.0001 {
@@ -876,18 +970,26 @@ fn draw_points_sampled(
                     } else {
                         let mut best = 0.0f32;
                         for p in points {
-                            let dist = shape_distance_to_point(
-                                sample_x,
-                                sample_y,
-                                p.x,
-                                p.y,
-                                p.radius,
-                                p.rot_sin,
-                                p.rot_cos,
-                                brush_shape,
-                            );
-                            let a = brush_alpha(dist, p.radius, soft, aa_level)
-                                * clamp01(p.alpha);
+                            let a = if let Some(mask) = custom_mask {
+                                let rel_x = sample_x - p.x;
+                                let rel_y = sample_y - p.y;
+                                let (rx, ry) =
+                                    rotate_to_brush_space(rel_x, rel_y, p.rot_sin, p.rot_cos);
+                                custom_mask_alpha(rx, ry, p.radius, soft, mask)
+                                    * clamp01(p.alpha)
+                            } else {
+                                let dist = shape_distance_to_point(
+                                    sample_x,
+                                    sample_y,
+                                    p.x,
+                                    p.y,
+                                    p.radius,
+                                    p.rot_sin,
+                                    p.rot_cos,
+                                    brush_shape,
+                                );
+                                brush_alpha(dist, p.radius, soft, aa_level) * clamp01(p.alpha)
+                            };
                             if a > best {
                                 best = a;
                                 if best >= 1.0 {
@@ -951,6 +1053,10 @@ pub extern "C" fn cpu_brush_draw_stamp(
     screentone_rotation: f32,
     screentone_softness: f32,
     snap_to_pixel: u8,
+    custom_mask_width: u32,
+    custom_mask_height: u32,
+    custom_mask_ptr: *const u8,
+    custom_mask_len: usize,
     selection_ptr: *const u8,
     selection_len: usize,
 ) -> u8 {
@@ -976,7 +1082,9 @@ pub extern "C" fn cpu_brush_draw_stamp(
         r = 0.01;
     }
     let _ = smooth_rotation;
-    let supports_rotation = brush_shape != 0;
+    let custom_mask =
+        custom_mask_view_from_params(custom_mask_width, custom_mask_height, custom_mask_ptr, custom_mask_len);
+    let supports_rotation = brush_shape != 0 || custom_mask.is_some();
     let needs_rotation = random_rotation != 0 && rotation_jitter > 0.0001 && supports_rotation;
     let (rot_sin, rot_cos) = if needs_rotation {
         let jitter = if rotation_jitter.is_finite() {
@@ -1018,6 +1126,7 @@ pub extern "C" fn cpu_brush_draw_stamp(
         true,
         selection_ptr,
         selection_len,
+        custom_mask,
         screentone,
     )
 }
@@ -1053,6 +1162,10 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
     softness: f32,
     snap_to_pixel: u8,
     accumulate: u8,
+    custom_mask_width: u32,
+    custom_mask_height: u32,
+    custom_mask_ptr: *const u8,
+    custom_mask_len: usize,
     selection_ptr: *const u8,
     selection_len: usize,
 ) -> u8 {
@@ -1090,6 +1203,10 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
             screentone_rotation,
             screentone_softness,
             snap_to_pixel,
+            custom_mask_width,
+            custom_mask_height,
+            custom_mask_ptr,
+            custom_mask_len,
             selection_ptr,
             selection_len,
         );
@@ -1111,7 +1228,9 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
 
     let mut points: Vec<BrushPoint> =
         Vec::with_capacity((samples - start_index + 1).max(1) as usize);
-    let supports_rotation = brush_shape != 0;
+    let custom_mask =
+        custom_mask_view_from_params(custom_mask_width, custom_mask_height, custom_mask_ptr, custom_mask_len);
+    let supports_rotation = brush_shape != 0 || custom_mask.is_some();
     let needs_rotation = random_rotation != 0 && rotation_jitter > 0.0001 && supports_rotation;
     let base_angle = if smooth_rotation != 0 && supports_rotation {
         (end_y - start_y).atan2(end_x - start_x)
@@ -1196,6 +1315,7 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
         accumulate != 0,
         selection_ptr,
         selection_len,
+        custom_mask,
         screentone,
     )
 }
@@ -1658,6 +1778,7 @@ pub extern "C" fn cpu_brush_draw_spray(
         accumulate != 0,
         selection_ptr,
         selection_len,
+        None,
         ScreentoneSettings::disabled(),
     )
 }

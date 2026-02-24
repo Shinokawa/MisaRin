@@ -1879,25 +1879,29 @@ void _controllerApplyPaintingCommandsSynchronously(
           BrushShape.values.length - 1,
         );
         if (customShape != null) {
-          final bool randomRotation = command.randomRotation ?? false;
-          final double rotationJitter = command.rotationJitter ?? 1.0;
-          final double rotation = randomRotation
-              ? brushRandomRotationRadians(
-                    center: center,
-                    seed: command.rotationSeed ?? 0,
-                  ) *
-                  rotationJitter
-              : 0.0;
-          surface.drawCustomBrushStamp(
-            shape: customShape,
+          final Uint8List customMask = customShape.packedMask;
+          surface.drawBrushStamp(
             center: center,
             radius: radius,
             color: color,
+            shape: BrushShape.values[clampedShape],
+            mask: mask,
+            antialiasLevel: command.antialiasLevel,
             erase: erase,
             softness: command.softness ?? 0.0,
-            rotation: rotation,
+            randomRotation: command.randomRotation ?? false,
+            smoothRotation: command.smoothRotation ?? false,
+            rotationSeed: command.rotationSeed ?? 0,
+            rotationJitter: command.rotationJitter ?? 1.0,
             snapToPixel: command.snapToPixel ?? false,
-            mask: mask,
+            screentoneEnabled: command.screentoneEnabled ?? false,
+            screentoneSpacing: command.screentoneSpacing ?? 10.0,
+            screentoneDotSize: command.screentoneDotSize ?? 0.6,
+            screentoneRotation: command.screentoneRotation ?? 45.0,
+            screentoneSoftness: command.screentoneSoftness ?? 0.0,
+            customMask: customMask,
+            customMaskWidth: customShape.width,
+            customMaskHeight: customShape.height,
           );
         } else {
           surface.drawBrushStamp(
@@ -2112,25 +2116,29 @@ void _controllerApplyPaintingCommandsSynchronouslyTiled(
           BrushShape.values.length - 1,
         );
         if (customShape != null) {
-          final bool randomRotation = command.randomRotation ?? false;
-          final double rotationJitter = command.rotationJitter ?? 1.0;
-          final double rotation = randomRotation
-              ? brushRandomRotationRadians(
-                    center: center,
-                    seed: command.rotationSeed ?? 0,
-                  ) *
-                  rotationJitter
-              : 0.0;
-          surface.drawCustomBrushStamp(
-            shape: customShape,
+          final Uint8List customMask = customShape.packedMask;
+          surface.drawBrushStamp(
             center: localCenter,
             radius: radius,
             color: color,
+            shape: BrushShape.values[clampedShape],
+            mask: mask,
+            antialiasLevel: command.antialiasLevel,
             erase: erase,
             softness: command.softness ?? 0.0,
-            rotation: rotation,
+            randomRotation: command.randomRotation ?? false,
+            smoothRotation: command.smoothRotation ?? false,
+            rotationSeed: command.rotationSeed ?? 0,
+            rotationJitter: command.rotationJitter ?? 1.0,
             snapToPixel: command.snapToPixel ?? false,
-            mask: mask,
+            screentoneEnabled: command.screentoneEnabled ?? false,
+            screentoneSpacing: command.screentoneSpacing ?? 10.0,
+            screentoneDotSize: command.screentoneDotSize ?? 0.6,
+            screentoneRotation: command.screentoneRotation ?? 45.0,
+            screentoneSoftness: command.screentoneSoftness ?? 0.0,
+            customMask: customMask,
+            customMaskWidth: customShape.width,
+            customMaskHeight: customShape.height,
           );
         } else {
           surface.drawBrushStamp(
@@ -2410,8 +2418,10 @@ void _controllerApplyStampSegmentFallback({
   double screentoneSoftness = 0.0,
   BrushShapeRaster? customShape,
 }) {
-  if (customShape == null &&
-      RustCpuBrushFfi.instance.drawStampSegment(
+  final Uint8List? customMask = customShape?.packedMask;
+  final int customMaskWidth = customShape?.width ?? 0;
+  final int customMaskHeight = customShape?.height ?? 0;
+  if (RustCpuBrushFfi.instance.drawStampSegment(
         pixelsPtr: surface.pointerAddress,
         pixelsLen: surface.pixels.length,
         width: surface.width,
@@ -2441,6 +2451,9 @@ void _controllerApplyStampSegmentFallback({
         softness: softness,
         snapToPixel: snapToPixel,
         accumulate: true,
+        customMask: customMask,
+        customMaskWidth: customMaskWidth,
+        customMaskHeight: customMaskHeight,
         selectionMask: mask,
       )) {
     surface.markDirty();

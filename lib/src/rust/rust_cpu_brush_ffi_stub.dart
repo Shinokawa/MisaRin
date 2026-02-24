@@ -44,6 +44,9 @@ class RustCpuBrushFfi {
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
     required bool snapToPixel,
+    Uint8List? customMask,
+    int customMaskWidth = 0,
+    int customMaskHeight = 0,
     Uint8List? selectionMask,
   }) {
     _logUnsupportedOnce();
@@ -123,6 +126,9 @@ class RustCpuBrushFfi {
     required double softness,
     required bool snapToPixel,
     required bool accumulate,
+    Uint8List? customMask,
+    int customMaskWidth = 0,
+    int customMaskHeight = 0,
     Uint8List? selectionMask,
   }) {
     _logUnsupportedOnce();

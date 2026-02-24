@@ -470,6 +470,9 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_stamp_rgba_impl(
             let api_screentone_rotation = <f32>::sse_decode(&mut deserializer);
             let api_screentone_softness = <f32>::sse_decode(&mut deserializer);
             let api_snap_to_pixel = <bool>::sse_decode(&mut deserializer);
+            let api_custom_mask_width = <u32>::sse_decode(&mut deserializer);
+            let api_custom_mask_height = <u32>::sse_decode(&mut deserializer);
+            let api_custom_mask = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
             let api_selection = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
@@ -496,6 +499,9 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_stamp_rgba_impl(
                         api_screentone_rotation,
                         api_screentone_softness,
                         api_snap_to_pixel,
+                        api_custom_mask_width,
+                        api_custom_mask_height,
+                        api_custom_mask,
                         api_selection,
                     ))?;
                 Ok(output_ok)
@@ -552,6 +558,9 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_stamp_segment_rgba_impl(
             let api_softness = <f32>::sse_decode(&mut deserializer);
             let api_snap_to_pixel = <bool>::sse_decode(&mut deserializer);
             let api_accumulate = <bool>::sse_decode(&mut deserializer);
+            let api_custom_mask_width = <u32>::sse_decode(&mut deserializer);
+            let api_custom_mask_height = <u32>::sse_decode(&mut deserializer);
+            let api_custom_mask = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
             let api_selection = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
@@ -585,6 +594,9 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_stamp_segment_rgba_impl(
                         api_softness,
                         api_snap_to_pixel,
                         api_accumulate,
+                        api_custom_mask_width,
+                        api_custom_mask_height,
+                        api_custom_mask,
                         api_selection,
                     ))?;
                 Ok(output_ok)
