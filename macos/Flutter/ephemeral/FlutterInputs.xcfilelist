@@ -898,6 +898,7 @@
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/controller_worker_queue.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/ffi/cpu_buffer.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/ffi/cpu_buffer_io.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/layer_surface.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/memory/native_memory_manager.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/memory/native_memory_manager_io.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/raster_frame.dart
@@ -907,6 +908,9 @@
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/stroke_dynamics.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/stroke_pressure_simulator.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/stroke_sample.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/tile_math.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/tiled_selection_mask.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/tiled_surface.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/velocity_smoother.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/brushes/brush_library.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/brushes/brush_package.dart

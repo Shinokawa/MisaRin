@@ -231,7 +231,7 @@ class CanvasRasterBackend {
       return;
     }
     if (useTiledComposite) {
-      await _compositeTiles(
+      await _compositeTilesPass(
         layers: layers,
         requiresFullSurface: requiresFullSurface,
         regions: regions,
@@ -445,7 +445,7 @@ class CanvasRasterBackend {
     });
   }
 
-  Future<void> _compositeTiles({
+  Future<void> _compositeTilesPass({
     required List<CanvasCompositeLayer> layers,
     required bool requiresFullSurface,
     List<RasterIntRect>? regions,
@@ -629,20 +629,24 @@ class CanvasRasterBackend {
       return rust_image_ops.convertPixelsToRgba(pixels: pixels);
     }
     final int totalPixels = _width * _height;
-    final Uint32List pixels = Uint32List(totalPixels);
+    final Uint8List rgba = Uint8List(totalPixels * 4);
     for (final RasterIntRect rect in fullSurfaceTileRects()) {
       final Uint32List? tilePixels = _compositeTiles[_tileKeyForRect(rect)];
       if (tilePixels == null || tilePixels.isEmpty) {
         continue;
       }
+      final Uint8List tileRgba =
+          rust_image_ops.convertPixelsToRgba(pixels: tilePixels);
       final int tileWidth = rect.width;
+      final int rowBytes = tileWidth * 4;
       for (int row = 0; row < rect.height; row++) {
         final int dstRow = (rect.top + row) * _width + rect.left;
-        final int srcRow = row * tileWidth;
-        pixels.setRange(dstRow, dstRow + tileWidth, tilePixels, srcRow);
+        final int dstOffset = dstRow * 4;
+        final int srcOffset = row * rowBytes;
+        rgba.setRange(dstOffset, dstOffset + rowBytes, tileRgba, srcOffset);
       }
     }
-    return rust_image_ops.convertPixelsToRgba(pixels: pixels);
+    return rgba;
   }
 
   Uint32List readCompositeRect(RasterIntRect rect) {

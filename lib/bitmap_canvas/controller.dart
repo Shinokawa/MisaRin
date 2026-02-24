@@ -14,6 +14,7 @@ import '../backend/canvas_painting_worker.dart';
 import '../backend/canvas_raster_backend.dart';
 import '../backend/rgba_utils.dart';
 import '../brushes/brush_shape_raster.dart';
+import 'bitmap_blend_utils.dart' as blend_utils;
 import '../canvas/canvas_backend.dart';
 import '../canvas/canvas_facade.dart';
 import '../canvas/canvas_frame.dart';
@@ -296,7 +297,7 @@ class BitmapCanvasController extends ChangeNotifier
       <String, _LayerOverflowStore>{};
 
   Uint32List? get _compositePixels =>
-      _rasterBackend.compositePixelsSnapshot(rebuildIfTiled: true);
+      _rasterBackend.compositePixelsSnapshot(rebuildIfTiled: false);
 
   String? get _translatingLayerIdForComposite {
     if (_activeLayerTranslationSnapshot != null &&
@@ -825,14 +826,96 @@ class BitmapCanvasController extends ChangeNotifier
       return false;
     }
 
-    final Rect dirty = Rect.fromLTRB(minX, minY, maxX, maxY).intersect(
+    Rect dirty = Rect.fromLTRB(minX, minY, maxX, maxY).intersect(
       Rect.fromLTWH(0, 0, _width.toDouble(), _height.toDouble()),
     );
     if (dirty.isEmpty) {
       return false;
     }
 
+    final Uint8List? selectionMask = _selectionMaskIsFull ? null : _selectionMask;
+    RasterIntRect? selectionBounds =
+        selectionMask == null ? null : _selectionMaskBounds;
+    if (selectionMask != null && selectionBounds == null) {
+      selectionBounds = _controllerMaskBounds(selectionMask, _width, _height);
+    }
+    if (selectionMask != null && selectionBounds == null) {
+      return false;
+    }
+    if (selectionBounds != null) {
+      final Rect selectionRect = Rect.fromLTRB(
+        selectionBounds.left.toDouble(),
+        selectionBounds.top.toDouble(),
+        selectionBounds.right.toDouble(),
+        selectionBounds.bottom.toDouble(),
+      );
+      dirty = dirty.intersect(selectionRect);
+      if (dirty.isEmpty) {
+        return false;
+      }
+    }
+
     final LayerSurface surface = _activeLayer.surface;
+    if (surface.isTiled) {
+      final RasterIntRect clipped = _clipRectToSurface(dirty);
+      if (clipped.isEmpty) {
+        return false;
+      }
+      final BitmapSurface tempSurface = BitmapSurface(
+        width: clipped.width,
+        height: clipped.height,
+      );
+      final Uint32List snapshot = surface.readRect(clipped);
+      if (snapshot.isNotEmpty) {
+        tempSurface.pixels.setAll(0, snapshot);
+      }
+      final Float32List localPoints = Float32List(needed);
+      final double offsetX = clipped.left.toDouble();
+      final double offsetY = clipped.top.toDouble();
+      for (int i = 0; i < needed; i += 4) {
+        localPoints[i] = points[i] - offsetX;
+        localPoints[i + 1] = points[i + 1] - offsetY;
+        localPoints[i + 2] = points[i + 2];
+        localPoints[i + 3] = points[i + 3];
+      }
+      final Uint8List? localMask = selectionMask == null
+          ? null
+          : _controllerCopyMaskRegion(selectionMask, _width, clipped);
+      final bool ok = RustCpuBrushFfi.instance.drawSpray(
+        pixelsPtr: tempSurface.pointerAddress,
+        pixelsLen: tempSurface.pixels.length,
+        width: clipped.width,
+        height: clipped.height,
+        points: localPoints,
+        pointCount: pointCount,
+        colorArgb: color.value,
+        brushShape: brushShape.index,
+        antialiasLevel: antialiasLevel.clamp(0, 9),
+        softness: clampedSoftness,
+        erase: erase,
+        accumulate: accumulate,
+        selectionMask: localMask,
+      );
+      if (!ok) {
+        tempSurface.dispose();
+        return false;
+      }
+      surface.writeRect(clipped, tempSurface.pixels);
+      tempSurface.dispose();
+      _resetWorkerSurfaceSync();
+      _markDirty(
+        region: Rect.fromLTRB(
+          clipped.left.toDouble(),
+          clipped.top.toDouble(),
+          clipped.right.toDouble(),
+          clipped.bottom.toDouble(),
+        ),
+        layerId: _activeLayer.id,
+        pixelsDirty: true,
+      );
+      return true;
+    }
+
     final bool ok = surface.withBitmapSurface(
       writeBack: true,
       action: (BitmapSurface bitmapSurface) {
@@ -849,7 +932,7 @@ class BitmapCanvasController extends ChangeNotifier
           softness: clampedSoftness,
           erase: erase,
           accumulate: accumulate,
-          selectionMask: _selectionMaskIsFull ? null : _selectionMask,
+          selectionMask: selectionMask,
         );
       },
     );

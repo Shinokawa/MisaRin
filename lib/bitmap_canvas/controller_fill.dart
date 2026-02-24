@@ -137,6 +137,78 @@ bool _fillAllPixelsMatchColor(Uint32List pixels, int color) {
   return true;
 }
 
+class _CompositeTileCache {
+  _CompositeTileCache(this.rect, this.pixels);
+
+  final RasterIntRect rect;
+  final Uint32List pixels;
+
+  int get width => rect.width;
+}
+
+class _CompositeTileReader {
+  _CompositeTileReader(this.controller)
+    : tileSize = controller._rasterBackend.tileSize;
+
+  final BitmapCanvasController controller;
+  final int tileSize;
+  final Map<int, _CompositeTileCache> _cache = <int, _CompositeTileCache>{};
+
+  int _tileKey(int tx, int ty) => (tx << 32) ^ ty;
+
+  _CompositeTileCache _loadTile(int tx, int ty) {
+    final int left = tx * tileSize;
+    final int top = ty * tileSize;
+    final int right = math.min(left + tileSize, controller._width);
+    final int bottom = math.min(top + tileSize, controller._height);
+    if (left >= right || top >= bottom) {
+      return _CompositeTileCache(const RasterIntRect(0, 0, 0, 0), Uint32List(0));
+    }
+    final RasterIntRect rect = RasterIntRect(left, top, right, bottom);
+    controller._updateComposite(
+      requiresFullSurface: false,
+      region: Rect.fromLTRB(
+        left.toDouble(),
+        top.toDouble(),
+        right.toDouble(),
+        bottom.toDouble(),
+      ),
+    );
+    final Uint32List pixels = controller._rasterBackend.readCompositeRect(rect);
+    final _CompositeTileCache cache = _CompositeTileCache(rect, pixels);
+    _cache[_tileKey(tx, ty)] = cache;
+    return cache;
+  }
+
+  _CompositeTileCache tileFor(int tx, int ty) {
+    final int key = _tileKey(tx, ty);
+    return _cache[key] ?? _loadTile(tx, ty);
+  }
+
+  int pixelAt(int x, int y) {
+    if (x < 0 ||
+        y < 0 ||
+        x >= controller._width ||
+        y >= controller._height) {
+      return 0;
+    }
+    final int tx = tileIndexForCoord(x, tileSize);
+    final int ty = tileIndexForCoord(y, tileSize);
+    final _CompositeTileCache cache = tileFor(tx, ty);
+    if (cache.pixels.isEmpty) {
+      return 0;
+    }
+    final RasterIntRect rect = cache.rect;
+    final int localX = x - rect.left;
+    final int localY = y - rect.top;
+    final int index = localY * cache.width + localX;
+    if (index < 0 || index >= cache.pixels.length) {
+      return 0;
+    }
+    return cache.pixels[index];
+  }
+}
+
 Uint32List _fillReadActivePixels(BitmapCanvasController controller) {
   final LayerSurface surface = controller._activeLayer.surface;
   if (!surface.isTiled) {
@@ -216,6 +288,9 @@ void _fillFloodFill(
       controller._height,
     );
   }
+  if (selectionMask != null && selectionBounds == null) {
+    return;
+  }
   final Uint32List? swallowColorsU32 =
       swallowColors != null && swallowColors.isNotEmpty
       ? Uint32List.fromList(
@@ -255,9 +330,11 @@ void _fillFloodFill(
     } else if (needsCompositeSample) {
       controller._updateComposite(requiresFullSurface: true, region: null);
       final Uint32List? compositePixels = controller._compositePixels;
-      if (compositePixels == null ||
-          compositePixels.isEmpty ||
-          controller._rasterBackend.isCompositeDirty) {
+      if (compositePixels == null || compositePixels.isEmpty) {
+        return;
+      }
+      if (controller._rasterBackend.isCompositeDirty &&
+          !controller._rasterBackend.useTiledComposite) {
         return;
       }
       samplePixels = compositePixels;
@@ -294,7 +371,8 @@ void _fillFloodFill(
           rect.bottom.toDouble(),
         ),
       );
-      if (controller._rasterBackend.isCompositeDirty) {
+      if (controller._rasterBackend.isCompositeDirty &&
+          !controller._rasterBackend.useTiledComposite) {
         return null;
       }
       return controller._rasterBackend.readCompositeRect(rect);
@@ -387,7 +465,33 @@ void _fillFloodFill(
                 }
               }
 
-              surface.writeRect(rect, tempSurface.pixels);
+              final RasterIntRect dirtyRect = RasterIntRect(
+                rect.left + rectResult.left,
+                rect.top + rectResult.top,
+                rect.left + rectResult.left + rectResult.width,
+                rect.top + rectResult.top + rectResult.height,
+              );
+              if (!dirtyRect.isEmpty) {
+                if (rectResult.left == 0 &&
+                    rectResult.top == 0 &&
+                    rectResult.width == rect.width &&
+                    rectResult.height == rect.height) {
+                  surface.writeRect(rect, tempSurface.pixels);
+                } else {
+                  final RasterIntRect localRect = RasterIntRect(
+                    rectResult.left,
+                    rectResult.top,
+                    rectResult.left + rectResult.width,
+                    rectResult.top + rectResult.height,
+                  );
+                  final Uint32List patch = _controllerCopySurfaceRegion(
+                    tempSurface.pixels,
+                    rect.width,
+                    localRect,
+                  );
+                  surface.writeRect(dirtyRect, patch);
+                }
+              }
               tempSurface.dispose();
               controller._markDirty(
                 region: Rect.fromLTWH(
@@ -467,8 +571,9 @@ void _fillFloodFill(
               bounded.bottom.toDouble(),
             ),
           );
-          if (controller._rasterBackend.isCompositeDirty) {
-            tempSurface.dispose();
+          if (controller._rasterBackend.isCompositeDirty &&
+              !controller._rasterBackend.useTiledComposite) {
+            tempSurface?.dispose();
             return;
           }
           fillSamplePixels = controller._rasterBackend.readCompositeRect(
@@ -524,8 +629,34 @@ void _fillFloodFill(
           if (surface.isTiled) {
             final RasterIntRect targetRect = writeRect ??
                 RasterIntRect(0, 0, controller._width, controller._height);
-            surface.writeRect(targetRect, tempSurface!.pixels);
-            tempSurface.dispose();
+            final RasterIntRect dirtyRect = RasterIntRect(
+              rect.left + offsetX,
+              rect.top + offsetY,
+              rect.left + offsetX + rect.width,
+              rect.top + offsetY + rect.height,
+            );
+            if (!dirtyRect.isEmpty) {
+              if (rect.left == 0 &&
+                  rect.top == 0 &&
+                  rect.width == fillWidth &&
+                  rect.height == fillHeight) {
+                surface.writeRect(targetRect, tempSurface!.pixels);
+              } else {
+                final RasterIntRect localRect = RasterIntRect(
+                  rect.left,
+                  rect.top,
+                  rect.left + rect.width,
+                  rect.top + rect.height,
+                );
+                final Uint32List patch = _controllerCopySurfaceRegion(
+                  tempSurface!.pixels,
+                  fillWidth,
+                  localRect,
+                );
+                surface.writeRect(dirtyRect, patch);
+              }
+            }
+            tempSurface?.dispose();
           } else if (surface.isClean && (colorValue & 0xff000000) != 0) {
             surface.markDirty();
           }
@@ -688,8 +819,6 @@ Future<Uint8List?> _fillComputeMagicWandMask(
     }
   }
 
-  final LayerSurface surface = controller._activeLayer.surface;
-  final bool tiledSurface = surface.isTiled;
   final Uint32List pixels = _fillReadActivePixels(controller);
   if (controller.isMultithreaded) {
     final Uint32List copy = Uint32List.fromList(pixels);
@@ -744,6 +873,15 @@ bool _fillSelectionAllows(BitmapCanvasController controller, Offset position) {
   if (x < 0 || x >= controller._width || y < 0 || y >= controller._height) {
     return false;
   }
+  final RasterIntRect? bounds = controller._selectionMaskBounds;
+  if (bounds != null) {
+    if (x < bounds.left ||
+        x >= bounds.right ||
+        y < bounds.top ||
+        y >= bounds.bottom) {
+      return false;
+    }
+  }
   return mask[y * controller._width + x] != 0;
 }
 
@@ -754,6 +892,15 @@ bool _fillSelectionAllowsInt(BitmapCanvasController controller, int x, int y) {
   }
   if (x < 0 || x >= controller._width || y < 0 || y >= controller._height) {
     return false;
+  }
+  final RasterIntRect? bounds = controller._selectionMaskBounds;
+  if (bounds != null) {
+    if (x < bounds.left ||
+        x >= bounds.right ||
+        y < bounds.top ||
+        y >= bounds.bottom) {
+      return false;
+    }
   }
   return mask[y * controller._width + x] != 0;
 }
@@ -771,18 +918,34 @@ Uint8List? _fillFloodFillAcrossLayers(
   if (!_fillSelectionAllowsInt(controller, startX, startY)) {
     return null;
   }
-  controller._updateComposite(requiresFullSurface: true, region: null);
-  Uint32List? compositePixels = controller._compositePixels;
-  if (compositePixels == null ||
-      compositePixels.isEmpty ||
-      controller._rasterBackend.isCompositeDirty) {
+  final int width = controller._width;
+  final int height = controller._height;
+  if (startX < 0 || startX >= width || startY < 0 || startY >= height) {
     return null;
   }
-  final int index = startY * controller._width + startX;
-  if (index < 0 || index >= compositePixels.length) {
+  final bool useTiledComposite = controller._rasterBackend.useTiledComposite;
+  Uint32List? compositePixels;
+  _CompositeTileReader? compositeReader;
+  if (useTiledComposite) {
+    compositeReader = _CompositeTileReader(controller);
+  } else {
+    controller._updateComposite(requiresFullSurface: true, region: null);
+    compositePixels = controller._compositePixels;
+    if (compositePixels == null || compositePixels.isEmpty) {
+      return null;
+    }
+    if (controller._rasterBackend.isCompositeDirty) {
+      return null;
+    }
+  }
+  final int index = startY * width + startX;
+  if (!useTiledComposite &&
+      (index < 0 || index >= (compositePixels?.length ?? 0))) {
     return null;
   }
-  final int target = compositePixels[index];
+  final int target = useTiledComposite
+      ? compositeReader!.pixelAt(startX, startY)
+      : compositePixels![index];
   final int replacement = BitmapSurface.encodeColor(color);
   final LayerSurface surface = controller._activeLayer.surface;
   final Uint8List? selectionMask = controller._selectionMaskIsFull
@@ -798,9 +961,13 @@ Uint8List? _fillFloodFillAcrossLayers(
       controller._height,
     );
   }
+  if (selectionMask != null && selectionBounds == null) {
+    return null;
+  }
 
-  if (selectionMask == null &&
-      compositePixels.length == controller._width * controller._height &&
+  if (!useTiledComposite &&
+      selectionMask == null &&
+      compositePixels!.length == width * height &&
       _fillAllPixelsMatchColor(compositePixels, target)) {
     if (surface.isTiled) {
       surface.fill(color);
@@ -831,34 +998,70 @@ Uint8List? _fillFloodFillAcrossLayers(
 
   if (!contiguous) {
     final bool tiledSurface = surface.isTiled;
-    final RasterIntRect effectiveBounds = selectionBounds ??
-        RasterIntRect(0, 0, controller._width, controller._height);
-    final Uint32List surfacePixels = tiledSurface
-        ? surface.readRect(effectiveBounds)
-        : _fillReadActivePixels(controller);
-    final int localWidth = effectiveBounds.width;
-    final Uint8List? swallowMask = collectMask
-        ? Uint8List(controller._width * controller._height)
-        : null;
-    int minX = controller._width;
-    int minY = controller._height;
+    final RasterIntRect effectiveBounds =
+        selectionBounds ?? RasterIntRect(0, 0, width, height);
+    final Uint8List? swallowMask =
+        collectMask ? Uint8List(width * height) : null;
+    int minX = width;
+    int minY = height;
     int maxX = -1;
     int maxY = -1;
     bool changed = false;
     if (selectionMask != null && selectionBounds == null) {
       return null;
     }
-    if (selectionBounds != null) {
-      final int left = selectionBounds.left;
-      final int top = selectionBounds.top;
-      final int right = selectionBounds.right;
-      final int bottom = selectionBounds.bottom;
-      for (int y = top; y < bottom; y++) {
-        final int rowOffset = y * controller._width;
-        final int localRow =
-            tiledSurface ? (y - effectiveBounds.top) * localWidth : rowOffset;
-        for (int x = left; x < right; x++) {
-          final int i = rowOffset + x;
+    if (!useTiledComposite) {
+      final Uint32List surfacePixels = tiledSurface
+          ? surface.readRect(effectiveBounds)
+          : _fillReadActivePixels(controller);
+      final int localWidth = effectiveBounds.width;
+      if (selectionBounds != null) {
+        final int left = selectionBounds.left;
+        final int top = selectionBounds.top;
+        final int right = selectionBounds.right;
+        final int bottom = selectionBounds.bottom;
+        for (int y = top; y < bottom; y++) {
+          final int rowOffset = y * width;
+          final int localRow =
+              tiledSurface ? (y - effectiveBounds.top) * localWidth : rowOffset;
+          for (int x = left; x < right; x++) {
+            final int i = rowOffset + x;
+            final int pixel = compositePixels![i];
+            if (!_fillColorsWithinTolerance(pixel, target, tolerance)) {
+              continue;
+            }
+            if (selectionMask != null && selectionMask[i] == 0) {
+              continue;
+            }
+            final int localIndex =
+                tiledSurface ? localRow + (x - effectiveBounds.left) : i;
+            if (localIndex < 0 || localIndex >= surfacePixels.length) {
+              continue;
+            }
+            if (surfacePixels[localIndex] == replacement) {
+              continue;
+            }
+            surfacePixels[localIndex] = replacement;
+            changed = true;
+            if (swallowMask != null) {
+              swallowMask[i] = 1;
+            }
+            if (x < minX) {
+              minX = x;
+            }
+            if (y < minY) {
+              minY = y;
+            }
+            if (x > maxX) {
+              maxX = x;
+            }
+            if (y > maxY) {
+              maxY = y;
+            }
+          }
+        }
+      } else {
+        for (int i = 0; i < compositePixels!.length; i++) {
           final int pixel = compositePixels[i];
           if (!_fillColorsWithinTolerance(pixel, target, tolerance)) {
             continue;
@@ -866,8 +1069,12 @@ Uint8List? _fillFloodFillAcrossLayers(
           if (selectionMask != null && selectionMask[i] == 0) {
             continue;
           }
-          final int localIndex =
-              tiledSurface ? localRow + (x - effectiveBounds.left) : i;
+          final int px = i % width;
+          final int py = i ~/ width;
+          final int localIndex = tiledSurface
+              ? (py - effectiveBounds.top) * localWidth +
+                  (px - effectiveBounds.left)
+              : i;
           if (localIndex < 0 || localIndex >= surfacePixels.length) {
             continue;
           }
@@ -879,88 +1086,206 @@ Uint8List? _fillFloodFillAcrossLayers(
           if (swallowMask != null) {
             swallowMask[i] = 1;
           }
-          if (x < minX) {
-            minX = x;
+          if (px < minX) {
+            minX = px;
           }
-          if (y < minY) {
-            minY = y;
+          if (py < minY) {
+            minY = py;
           }
-          if (x > maxX) {
-            maxX = x;
+          if (px > maxX) {
+            maxX = px;
           }
-          if (y > maxY) {
-            maxY = y;
+          if (py > maxY) {
+            maxY = py;
+          }
+        }
+      }
+      if (changed) {
+        final RasterIntRect dirtyRect =
+            RasterIntRect(minX, minY, maxX + 1, maxY + 1);
+        if (tiledSurface) {
+          if (!dirtyRect.isEmpty) {
+            if (dirtyRect.left == effectiveBounds.left &&
+                dirtyRect.top == effectiveBounds.top &&
+                dirtyRect.right == effectiveBounds.right &&
+                dirtyRect.bottom == effectiveBounds.bottom) {
+              surface.writeRect(dirtyRect, surfacePixels);
+            } else {
+              final RasterIntRect localRect = RasterIntRect(
+                dirtyRect.left - effectiveBounds.left,
+                dirtyRect.top - effectiveBounds.top,
+                dirtyRect.right - effectiveBounds.left,
+                dirtyRect.bottom - effectiveBounds.top,
+              );
+              final Uint32List patch = _controllerCopySurfaceRegion(
+                surfacePixels,
+                effectiveBounds.width,
+                localRect,
+              );
+              surface.writeRect(dirtyRect, patch);
+            }
+          }
+        } else {
+          _fillCommitActivePixels(controller, surfacePixels, dirtyRect);
+        }
+      }
+    } else if (tiledSurface) {
+      final TiledSurface tiled = surface.tiledSurface!;
+      final int tileSize = tiled.tileSize;
+      final int startTx = tileIndexForCoord(effectiveBounds.left, tileSize);
+      final int endTx =
+          tileIndexForCoord(effectiveBounds.right - 1, tileSize);
+      final int startTy = tileIndexForCoord(effectiveBounds.top, tileSize);
+      final int endTy =
+          tileIndexForCoord(effectiveBounds.bottom - 1, tileSize);
+      for (int ty = startTy; ty <= endTy; ty++) {
+        for (int tx = startTx; tx <= endTx; tx++) {
+          final RasterIntRect tileRect = tileBounds(tx, ty, tileSize);
+          final int left =
+              tileRect.left > effectiveBounds.left ? tileRect.left : effectiveBounds.left;
+          final int top =
+              tileRect.top > effectiveBounds.top ? tileRect.top : effectiveBounds.top;
+          final int right =
+              tileRect.right < effectiveBounds.right ? tileRect.right : effectiveBounds.right;
+          final int bottom =
+              tileRect.bottom < effectiveBounds.bottom ? tileRect.bottom : effectiveBounds.bottom;
+          if (left >= right || top >= bottom) {
+            continue;
+          }
+          final RasterIntRect rect = RasterIntRect(left, top, right, bottom);
+          final _CompositeTileCache compositeTile =
+              compositeReader!.tileFor(tx, ty);
+          if (compositeTile.pixels.isEmpty) {
+            continue;
+          }
+          final RasterIntRect compositeRect = compositeTile.rect;
+          final int compositeWidth = compositeTile.width;
+          final Uint32List surfacePatch = surface.readRect(rect);
+          final int patchWidth = rect.width;
+          bool tileChanged = false;
+          for (int y = rect.top; y < rect.bottom; y++) {
+            final int maskRow = y * width;
+            final int patchRow = (y - rect.top) * patchWidth;
+            final int compositeRow =
+                (y - compositeRect.top) * compositeWidth;
+            for (int x = rect.left; x < rect.right; x++) {
+              final int i = maskRow + x;
+              if (selectionMask != null && selectionMask[i] == 0) {
+                continue;
+              }
+              final int compositeIndex =
+                  compositeRow + (x - compositeRect.left);
+              final int pixel = compositeTile.pixels[compositeIndex];
+              if (!_fillColorsWithinTolerance(pixel, target, tolerance)) {
+                continue;
+              }
+              final int localIndex = patchRow + (x - rect.left);
+              if (surfacePatch[localIndex] == replacement) {
+                continue;
+              }
+              surfacePatch[localIndex] = replacement;
+              tileChanged = true;
+              changed = true;
+              if (swallowMask != null) {
+                swallowMask[i] = 1;
+              }
+              if (x < minX) {
+                minX = x;
+              }
+              if (y < minY) {
+                minY = y;
+              }
+              if (x > maxX) {
+                maxX = x;
+              }
+              if (y > maxY) {
+                maxY = y;
+              }
+            }
+          }
+          if (tileChanged) {
+            surface.writeRect(rect, surfacePatch);
           }
         }
       }
     } else {
-      for (int i = 0; i < compositePixels.length; i++) {
-        final int pixel = compositePixels[i];
-        if (!_fillColorsWithinTolerance(pixel, target, tolerance)) {
-          continue;
+      final Uint32List surfacePixels = surface.bitmapSurface!.pixels;
+      final int tileSize = compositeReader!.tileSize;
+      final int startTx = tileIndexForCoord(effectiveBounds.left, tileSize);
+      final int endTx =
+          tileIndexForCoord(effectiveBounds.right - 1, tileSize);
+      final int startTy = tileIndexForCoord(effectiveBounds.top, tileSize);
+      final int endTy =
+          tileIndexForCoord(effectiveBounds.bottom - 1, tileSize);
+      for (int ty = startTy; ty <= endTy; ty++) {
+        for (int tx = startTx; tx <= endTx; tx++) {
+          final RasterIntRect tileRect = tileBounds(tx, ty, tileSize);
+          final int left =
+              tileRect.left > effectiveBounds.left ? tileRect.left : effectiveBounds.left;
+          final int top =
+              tileRect.top > effectiveBounds.top ? tileRect.top : effectiveBounds.top;
+          final int right =
+              tileRect.right < effectiveBounds.right ? tileRect.right : effectiveBounds.right;
+          final int bottom =
+              tileRect.bottom < effectiveBounds.bottom ? tileRect.bottom : effectiveBounds.bottom;
+          if (left >= right || top >= bottom) {
+            continue;
+          }
+          final _CompositeTileCache compositeTile =
+              compositeReader!.tileFor(tx, ty);
+          if (compositeTile.pixels.isEmpty) {
+            continue;
+          }
+          final RasterIntRect compositeRect = compositeTile.rect;
+          final int compositeWidth = compositeTile.width;
+          for (int y = top; y < bottom; y++) {
+            final int maskRow = y * width;
+            final int compositeRow =
+                (y - compositeRect.top) * compositeWidth;
+            for (int x = left; x < right; x++) {
+              final int i = maskRow + x;
+              if (selectionMask != null && selectionMask[i] == 0) {
+                continue;
+              }
+              final int compositeIndex =
+                  compositeRow + (x - compositeRect.left);
+              final int pixel = compositeTile.pixels[compositeIndex];
+              if (!_fillColorsWithinTolerance(pixel, target, tolerance)) {
+                continue;
+              }
+              if (surfacePixels[i] == replacement) {
+                continue;
+              }
+              surfacePixels[i] = replacement;
+              changed = true;
+              if (swallowMask != null) {
+                swallowMask[i] = 1;
+              }
+              if (x < minX) {
+                minX = x;
+              }
+              if (y < minY) {
+                minY = y;
+              }
+              if (x > maxX) {
+                maxX = x;
+              }
+              if (y > maxY) {
+                maxY = y;
+              }
+            }
+          }
         }
-        if (selectionMask != null && selectionMask[i] == 0) {
-          continue;
-        }
-        final int px = i % controller._width;
-        final int py = i ~/ controller._width;
-        final int localIndex = tiledSurface
-            ? (py - effectiveBounds.top) * localWidth +
-                (px - effectiveBounds.left)
-            : i;
-        if (localIndex < 0 || localIndex >= surfacePixels.length) {
-          continue;
-        }
-        if (surfacePixels[localIndex] == replacement) {
-          continue;
-        }
-        surfacePixels[localIndex] = replacement;
-        changed = true;
-        if (swallowMask != null) {
-          swallowMask[i] = 1;
-        }
-        if (px < minX) {
-          minX = px;
-        }
-        if (py < minY) {
-          minY = py;
-        }
-        if (px > maxX) {
-          maxX = px;
-        }
-        if (py > maxY) {
-          maxY = py;
-        }
+      }
+      if (changed) {
+        final RasterIntRect dirtyRect =
+            RasterIntRect(minX, minY, maxX + 1, maxY + 1);
+        _fillCommitActivePixels(controller, surfacePixels, dirtyRect);
       }
     }
     if (changed) {
       final RasterIntRect dirtyRect =
           RasterIntRect(minX, minY, maxX + 1, maxY + 1);
-      if (tiledSurface) {
-        if (!dirtyRect.isEmpty) {
-          if (dirtyRect.left == effectiveBounds.left &&
-              dirtyRect.top == effectiveBounds.top &&
-              dirtyRect.right == effectiveBounds.right &&
-              dirtyRect.bottom == effectiveBounds.bottom) {
-            surface.writeRect(dirtyRect, surfacePixels);
-          } else {
-            final RasterIntRect localRect = RasterIntRect(
-              dirtyRect.left - effectiveBounds.left,
-              dirtyRect.top - effectiveBounds.top,
-              dirtyRect.right - effectiveBounds.left,
-              dirtyRect.bottom - effectiveBounds.top,
-            );
-            final Uint32List patch = _controllerCopySurfaceRegion(
-              surfacePixels,
-              effectiveBounds.width,
-              localRect,
-            );
-            surface.writeRect(dirtyRect, patch);
-          }
-        }
-      } else {
-        _fillCommitActivePixels(controller, surfacePixels, dirtyRect);
-      }
       controller._markDirty(
         region: Rect.fromLTRB(
           minX.toDouble(),
@@ -978,20 +1303,33 @@ Uint8List? _fillFloodFillAcrossLayers(
     return null;
   }
   final Uint8List contiguousMask = Uint8List(
-    controller._width * controller._height,
+    width * height,
   );
-  final RasterIntRect? filledBounds = _fillFloodFillMask(
-    controller,
-    pixels: compositePixels,
-    targetColor: target,
-    mask: contiguousMask,
-    startX: startX,
-    startY: startY,
-    width: controller._width,
-    height: controller._height,
-    tolerance: tolerance,
-    fillGap: fillGap,
-  );
+  final RasterIntRect? filledBounds = useTiledComposite
+      ? _fillFloodFillMaskWithReader(
+        controller,
+        pixelAt: (int x, int y) => compositeReader!.pixelAt(x, y),
+        targetColor: target,
+        mask: contiguousMask,
+        startX: startX,
+        startY: startY,
+        width: width,
+        height: height,
+        tolerance: tolerance,
+        fillGap: fillGap,
+      )
+      : _fillFloodFillMask(
+        controller,
+        pixels: compositePixels!,
+        targetColor: target,
+        mask: contiguousMask,
+        startX: startX,
+        startY: startY,
+        width: width,
+        height: height,
+        tolerance: tolerance,
+        fillGap: fillGap,
+      );
   if (filledBounds == null) {
     return null;
   }
@@ -1135,7 +1473,7 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
 }) {
   final LayerSurface surface = controller._activeLayer.surface;
   final bool tiledSurface = surface.isTiled;
-  final Uint32List pixels = _fillReadActivePixels(controller);
+  Uint32List? pixels;
   final Uint8List? selectionMask = controller._selectionMaskIsFull
       ? null
       : controller._selectionMask;
@@ -1149,6 +1487,9 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
       controller._height,
     );
   }
+  if (selectionMask != null && selectionBounds == null) {
+    return null;
+  }
   final int width = controller._width;
   final int height = controller._height;
   final int replacement = BitmapSurface.encodeColor(fillColor);
@@ -1160,7 +1501,7 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
         RasterIntRect(0, 0, controller._width, controller._height);
     final Uint32List workingPixels = tiledSurface
         ? surface.readRect(effectiveBounds)
-        : pixels;
+        : (pixels ??= _fillReadActivePixels(controller));
     final int localWidth = effectiveBounds.width;
     int minX = width;
     int minY = height;
@@ -1214,40 +1555,42 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
         }
       }
     } else {
-      for (int i = 0; i < pixels.length; i++) {
-        if (selectionMask != null && selectionMask[i] == 0) {
-          continue;
-        }
-        final int px = i % width;
-        final int py = i ~/ width;
-        final int localIndex = tiledSurface
-            ? (py - effectiveBounds.top) * localWidth +
-                (px - effectiveBounds.left)
-            : i;
-        if (localIndex < 0 || localIndex >= workingPixels.length) {
-          continue;
-        }
-        if (!_fillColorsWithinTolerance(
-              workingPixels[localIndex],
-              target,
-              tolerance,
-            )) {
-          continue;
-        }
-        workingPixels[localIndex] = replacement;
-        mask[i] = 1;
-        changed = true;
-        if (px < minX) {
-          minX = px;
-        }
-        if (py < minY) {
-          minY = py;
-        }
-        if (px > maxX) {
-          maxX = px;
-        }
-        if (py > maxY) {
-          maxY = py;
+      for (int y = effectiveBounds.top; y < effectiveBounds.bottom; y++) {
+        final int rowOffset = y * width;
+        final int localRow =
+            tiledSurface ? (y - effectiveBounds.top) * localWidth : rowOffset;
+        for (int x = effectiveBounds.left; x < effectiveBounds.right; x++) {
+          final int i = rowOffset + x;
+          if (selectionMask != null && selectionMask[i] == 0) {
+            continue;
+          }
+          final int localIndex =
+              tiledSurface ? localRow + (x - effectiveBounds.left) : i;
+          if (localIndex < 0 || localIndex >= workingPixels.length) {
+            continue;
+          }
+          if (!_fillColorsWithinTolerance(
+                workingPixels[localIndex],
+                target,
+                tolerance,
+              )) {
+            continue;
+          }
+          workingPixels[localIndex] = replacement;
+          mask[i] = 1;
+          changed = true;
+          if (x < minX) {
+            minX = x;
+          }
+          if (y < minY) {
+            minY = y;
+          }
+          if (x > maxX) {
+            maxX = x;
+          }
+          if (y > maxY) {
+            maxY = y;
+          }
         }
       }
     }
@@ -1279,7 +1622,7 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
         }
       }
     } else {
-      _fillCommitActivePixels(controller, pixels, dirtyRect);
+      _fillCommitActivePixels(controller, workingPixels, dirtyRect);
     }
     controller._markDirty(
       region: Rect.fromLTRB(
@@ -1294,18 +1637,31 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
     return mask;
   }
 
-  final RasterIntRect? filledBounds = _fillFloodFillMask(
-    controller,
-    pixels: pixels,
-    targetColor: target,
-    mask: mask,
-    startX: startX,
-    startY: startY,
-    width: width,
-    height: height,
-    tolerance: tolerance,
-    fillGap: fillGap,
-  );
+  final RasterIntRect? filledBounds = tiledSurface
+      ? _fillFloodFillMaskWithReader(
+        controller,
+        pixelAt: (int x, int y) => surface.pixelAt(x, y),
+        targetColor: target,
+        mask: mask,
+        startX: startX,
+        startY: startY,
+        width: width,
+        height: height,
+        tolerance: tolerance,
+        fillGap: fillGap,
+      )
+      : _fillFloodFillMask(
+        controller,
+        pixels: pixels ??= _fillReadActivePixels(controller),
+        targetColor: target,
+        mask: mask,
+        startX: startX,
+        startY: startY,
+        width: width,
+        height: height,
+        tolerance: tolerance,
+        fillGap: fillGap,
+      );
   if (filledBounds == null) {
     return null;
   }
@@ -1325,17 +1681,25 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
   int maxX = -1;
   int maxY = -1;
   bool changed = false;
+  final Uint32List workingPixels = tiledSurface
+      ? surface.readRect(applyBounds)
+      : (pixels ??= _fillReadActivePixels(controller));
+  final int workingWidth = tiledSurface ? applyBounds.width : width;
   for (int y = applyBounds.top; y < applyBounds.bottom; y++) {
-    final int rowOffset = y * width;
+    final int maskRow = y * width;
+    final int localRow =
+        tiledSurface ? (y - applyBounds.top) * workingWidth : maskRow;
     for (int x = applyBounds.left; x < applyBounds.right; x++) {
-      final int i = rowOffset + x;
-      if (finalMask[i] == 0) {
+      final int maskIndex = maskRow + x;
+      if (finalMask[maskIndex] == 0) {
         continue;
       }
-      if (pixels[i] == replacement) {
+      final int pixelIndex =
+          tiledSurface ? localRow + (x - applyBounds.left) : maskIndex;
+      if (workingPixels[pixelIndex] == replacement) {
         continue;
       }
-      pixels[i] = replacement;
+      workingPixels[pixelIndex] = replacement;
       changed = true;
       if (x < minX) {
         minX = x;
@@ -1354,7 +1718,28 @@ Uint8List? _fillFloodFillSingleLayerWithMask(
   if (changed) {
     final RasterIntRect dirtyRect =
         RasterIntRect(minX, minY, maxX + 1, maxY + 1);
-    _fillCommitActivePixels(controller, pixels, dirtyRect);
+    if (tiledSurface) {
+      if (!dirtyRect.isEmpty) {
+        if (dirtyRect.left == applyBounds.left &&
+            dirtyRect.top == applyBounds.top &&
+            dirtyRect.right == applyBounds.right &&
+            dirtyRect.bottom == applyBounds.bottom) {
+          surface.writeRect(dirtyRect, workingPixels);
+        } else {
+          final RasterIntRect localRect = RasterIntRect(
+            dirtyRect.left - applyBounds.left,
+            dirtyRect.top - applyBounds.top,
+            dirtyRect.right - applyBounds.left,
+            dirtyRect.bottom - applyBounds.top,
+          );
+          final Uint32List patch =
+              _controllerCopySurfaceRegion(workingPixels, workingWidth, localRect);
+          surface.writeRect(dirtyRect, patch);
+        }
+      }
+    } else {
+      _fillCommitActivePixels(controller, workingPixels, dirtyRect);
+    }
     controller._markDirty(
       region: Rect.fromLTRB(
         minX.toDouble(),
@@ -1416,10 +1801,11 @@ void _fillSwallowColorLines(
     }
     regionBounds = RasterIntRect(left, top, right, bottom);
   }
+  final RasterIntRect region = regionBounds;
   final LayerSurface surface = controller._activeLayer.surface;
   final bool tiledSurface = surface.isTiled;
   final Uint32List pixels = tiledSurface
-      ? surface.readRect(regionBounds)
+      ? surface.readRect(region)
       : _fillReadActivePixels(controller);
   final int fillArgb = BitmapSurface.encodeColor(fillColor);
 
@@ -1436,8 +1822,8 @@ void _fillSwallowColorLines(
     while (queue.isNotEmpty) {
       final int index = queue.removeFirst();
       final int pixelIndex = tiledSurface
-          ? ((index ~/ width) - regionBounds.top) * regionBounds.width +
-                (index % width - regionBounds.left)
+          ? ((index ~/ width) - region.top) * region.width +
+                (index % width - region.left)
           : index;
       if (pixelIndex < 0 || pixelIndex >= pixels.length) {
         continue;
@@ -1480,9 +1866,8 @@ void _fillSwallowColorLines(
           return;
         }
         final int neighborPixelIndex = tiledSurface
-            ? ((neighborIndex ~/ width) - regionBounds.top) *
-                    regionBounds.width +
-                (neighborIndex % width - regionBounds.left)
+            ? ((neighborIndex ~/ width) - region.top) * region.width +
+                (neighborIndex % width - region.left)
             : neighborIndex;
         if (neighborPixelIndex < 0 ||
             neighborPixelIndex >= pixels.length) {
@@ -1502,10 +1887,10 @@ void _fillSwallowColorLines(
     }
   }
 
-  int index = regionBounds.top * width + regionBounds.left;
-  for (int y = regionBounds.top; y < regionBounds.bottom; y++) {
-    index = y * width + regionBounds.left;
-    for (int x = regionBounds.left; x < regionBounds.right; x++, index++) {
+  int index = region.top * width + region.left;
+  for (int y = region.top; y < region.bottom; y++) {
+    index = y * width + region.left;
+    for (int x = region.left; x < region.right; x++, index++) {
       if (regionMask[index] == 0) {
         continue;
       }
@@ -1519,9 +1904,8 @@ void _fillSwallowColorLines(
           return;
         }
         final int neighborPixelIndex = tiledSurface
-            ? ((neighborIndex ~/ width) - regionBounds.top) *
-                    regionBounds.width +
-                (neighborIndex % width - regionBounds.left)
+            ? ((neighborIndex ~/ width) - region.top) * region.width +
+                (neighborIndex % width - region.left)
             : neighborIndex;
         if (neighborPixelIndex < 0 || neighborPixelIndex >= pixels.length) {
           return;
@@ -1545,21 +1929,21 @@ void _fillSwallowColorLines(
         RasterIntRect(minX, minY, maxX + 1, maxY + 1);
     if (tiledSurface) {
       if (!dirtyRect.isEmpty) {
-        if (dirtyRect.left == regionBounds.left &&
-            dirtyRect.top == regionBounds.top &&
-            dirtyRect.right == regionBounds.right &&
-            dirtyRect.bottom == regionBounds.bottom) {
+        if (dirtyRect.left == region.left &&
+            dirtyRect.top == region.top &&
+            dirtyRect.right == region.right &&
+            dirtyRect.bottom == region.bottom) {
           surface.writeRect(dirtyRect, pixels);
         } else {
           final RasterIntRect localRect = RasterIntRect(
-            dirtyRect.left - regionBounds.left,
-            dirtyRect.top - regionBounds.top,
-            dirtyRect.right - regionBounds.left,
-            dirtyRect.bottom - regionBounds.top,
+            dirtyRect.left - region.left,
+            dirtyRect.top - region.top,
+            dirtyRect.right - region.left,
+            dirtyRect.bottom - region.top,
           );
           final Uint32List patch = _controllerCopySurfaceRegion(
             pixels,
-            regionBounds.width,
+            region.width,
             localRect,
           );
           surface.writeRect(dirtyRect, patch);
@@ -2418,6 +2802,552 @@ RasterIntRect? _fillFloodFillMask(
       return;
     }
     if (!_fillColorsWithinTolerance(pixels[index], targetColor, tolerance)) {
+      return;
+    }
+    markFilled(index);
+    queue.add(index);
+  }
+
+  enqueueIndex(startIndex);
+
+  while (head < queue.length) {
+    final int index = queue[head++];
+    final int x = index % width;
+    final int y = index ~/ width;
+    if (x > 0) {
+      enqueueIndex(index - 1);
+    }
+    if (x < width - 1) {
+      enqueueIndex(index + 1);
+    }
+    if (y > 0) {
+      enqueueIndex(index - width);
+    }
+    if (y < height - 1) {
+      enqueueIndex(index + width);
+    }
+  }
+
+  return buildBounds();
+}
+
+RasterIntRect? _fillFloodFillMaskWithReader(
+  BitmapCanvasController controller, {
+  required int Function(int x, int y) pixelAt,
+  required int targetColor,
+  required Uint8List mask,
+  required int startX,
+  required int startY,
+  required int width,
+  required int height,
+  int tolerance = 0,
+  int fillGap = 0,
+}) {
+  final int totalPixels = width * height;
+  if (mask.isEmpty || width <= 0 || height <= 0 || totalPixels <= 0) {
+    return null;
+  }
+  final int startIndex = startY * width + startX;
+  if (startX < 0 ||
+      startX >= width ||
+      startY < 0 ||
+      startY >= height ||
+      startIndex < 0 ||
+      startIndex >= totalPixels) {
+    return null;
+  }
+
+  final Uint8List? selectionMask = controller._selectionMaskIsFull
+      ? null
+      : controller._selectionMask;
+  RasterIntRect? selectionBounds = selectionMask == null
+      ? null
+      : controller._selectionMaskBounds;
+  if (selectionMask != null && selectionBounds == null) {
+    selectionBounds = _controllerMaskBounds(
+      selectionMask,
+      controller._width,
+      controller._height,
+    );
+  }
+  if (selectionMask != null && selectionMask[startIndex] == 0) {
+    return null;
+  }
+
+  int minX = width;
+  int minY = height;
+  int maxX = -1;
+  int maxY = -1;
+  void markFilled(int index) {
+    if (mask[index] == 0) {
+      mask[index] = 1;
+    }
+    final int x = index % width;
+    final int y = index ~/ width;
+    if (x < minX) {
+      minX = x;
+    }
+    if (x > maxX) {
+      maxX = x;
+    }
+    if (y < minY) {
+      minY = y;
+    }
+    if (y > maxY) {
+      maxY = y;
+    }
+  }
+
+  RasterIntRect? buildBounds() {
+    if (maxX < minX || maxY < minY) {
+      return null;
+    }
+    return RasterIntRect(minX, minY, maxX + 1, maxY + 1);
+  }
+
+  int? findNearestFillableStartIndex({
+    required int startIndex,
+    required Uint8List fillable,
+    required int maxDepth,
+  }) {
+    if (startIndex < 0 || startIndex >= fillable.length) {
+      return null;
+    }
+    if (fillable[startIndex] == 1) {
+      return startIndex;
+    }
+
+    final Set<int> visited = <int>{startIndex};
+    final List<int> queue = <int>[startIndex];
+    int head = 0;
+
+    for (int depth = 0; depth <= maxDepth; depth++) {
+      final int levelEnd = queue.length;
+      while (head < levelEnd) {
+        final int index = queue[head++];
+        if (fillable[index] == 1) {
+          return index;
+        }
+
+        final int x = index % width;
+        final int y = index ~/ width;
+
+        void tryNeighbor(int nx, int ny) {
+          if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+            return;
+          }
+          final int neighbor = ny * width + nx;
+          if (!visited.add(neighbor)) {
+            return;
+          }
+          if (selectionMask != null && selectionMask[neighbor] == 0) {
+            return;
+          }
+          if (!_fillColorsWithinTolerance(
+            pixelAt(nx, ny),
+            targetColor,
+            tolerance,
+          )) {
+            return;
+          }
+          queue.add(neighbor);
+        }
+
+        tryNeighbor(x - 1, y);
+        tryNeighbor(x + 1, y);
+        tryNeighbor(x, y - 1);
+        tryNeighbor(x, y + 1);
+      }
+      if (head >= queue.length) {
+        break;
+      }
+    }
+    return null;
+  }
+
+  final int clampedFillGap = fillGap.clamp(0, 64);
+  if (clampedFillGap > 0) {
+    final Uint8List targetMask = Uint8List(totalPixels);
+    if (selectionMask != null && selectionBounds == null) {
+      return null;
+    }
+    if (selectionBounds != null) {
+      final int left = selectionBounds.left;
+      final int top = selectionBounds.top;
+      final int right = selectionBounds.right;
+      final int bottom = selectionBounds.bottom;
+      for (int y = top; y < bottom; y++) {
+        final int rowOffset = y * width;
+        for (int x = left; x < right; x++) {
+          final int i = rowOffset + x;
+          if (selectionMask != null && selectionMask[i] == 0) {
+            continue;
+          }
+          if (_fillColorsWithinTolerance(
+            pixelAt(x, y),
+            targetColor,
+            tolerance,
+          )) {
+            targetMask[i] = 1;
+          }
+        }
+      }
+    } else {
+      for (int y = 0; y < height; y++) {
+        final int rowOffset = y * width;
+        for (int x = 0; x < width; x++) {
+          final int i = rowOffset + x;
+          if (selectionMask != null && selectionMask[i] == 0) {
+            continue;
+          }
+          if (_fillColorsWithinTolerance(
+            pixelAt(x, y),
+            targetColor,
+            tolerance,
+          )) {
+            targetMask[i] = 1;
+          }
+        }
+      }
+    }
+    if (targetMask[startIndex] == 0) {
+      return null;
+    }
+
+    final Uint8List openedTarget = _fillOpenMask8(
+      Uint8List.fromList(targetMask),
+      width,
+      height,
+      radius: clampedFillGap,
+    );
+
+    final List<int> outsideSeeds = <int>[];
+    for (int x = 0; x < width; x++) {
+      final int topIndex = x;
+      if (topIndex < openedTarget.length && openedTarget[topIndex] == 1) {
+        outsideSeeds.add(topIndex);
+      }
+      final int bottomIndex = (height - 1) * width + x;
+      if (bottomIndex >= 0 &&
+          bottomIndex < openedTarget.length &&
+          openedTarget[bottomIndex] == 1) {
+        outsideSeeds.add(bottomIndex);
+      }
+    }
+    for (int y = 1; y < height - 1; y++) {
+      final int leftIndex = y * width;
+      if (leftIndex < openedTarget.length && openedTarget[leftIndex] == 1) {
+        outsideSeeds.add(leftIndex);
+      }
+      final int rightIndex = y * width + (width - 1);
+      if (rightIndex >= 0 &&
+          rightIndex < openedTarget.length &&
+          openedTarget[rightIndex] == 1) {
+        outsideSeeds.add(rightIndex);
+      }
+    }
+
+    if (outsideSeeds.isEmpty) {
+      final List<int> queue = <int>[startIndex];
+      int head = 0;
+      markFilled(startIndex);
+      final Uint8List visited = Uint8List(totalPixels);
+      visited[startIndex] = 1;
+      while (head < queue.length) {
+        final int index = queue[head++];
+        final int x = index % width;
+        final int y = index ~/ width;
+        if (x > 0) {
+          final int neighbor = index - 1;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            markFilled(neighbor);
+            queue.add(neighbor);
+          }
+        }
+        if (x < width - 1) {
+          final int neighbor = index + 1;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            markFilled(neighbor);
+            queue.add(neighbor);
+          }
+        }
+        if (y > 0) {
+          final int neighbor = index - width;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            markFilled(neighbor);
+            queue.add(neighbor);
+          }
+        }
+        if (y < height - 1) {
+          final int neighbor = index + width;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            markFilled(neighbor);
+            queue.add(neighbor);
+          }
+        }
+      }
+      return buildBounds();
+    }
+
+    final Uint8List outsideOpen = Uint8List(totalPixels);
+    final List<int> outsideQueue = List<int>.from(outsideSeeds);
+    int outsideHead = 0;
+    for (final int seed in outsideSeeds) {
+      outsideOpen[seed] = 1;
+    }
+    while (outsideHead < outsideQueue.length) {
+      final int index = outsideQueue[outsideHead++];
+      final int x = index % width;
+      final int y = index ~/ width;
+      if (x > 0) {
+        final int neighbor = index - 1;
+        if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          outsideOpen[neighbor] = 1;
+          outsideQueue.add(neighbor);
+        }
+      }
+      if (x < width - 1) {
+        final int neighbor = index + 1;
+        if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          outsideOpen[neighbor] = 1;
+          outsideQueue.add(neighbor);
+        }
+      }
+      if (y > 0) {
+        final int neighbor = index - width;
+        if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          outsideOpen[neighbor] = 1;
+          outsideQueue.add(neighbor);
+        }
+      }
+      if (y < height - 1) {
+        final int neighbor = index + width;
+        if (outsideOpen[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          outsideOpen[neighbor] = 1;
+          outsideQueue.add(neighbor);
+        }
+      }
+    }
+
+    int effectiveStart = startIndex;
+    if (openedTarget[effectiveStart] == 0) {
+      final int? snapped = findNearestFillableStartIndex(
+        startIndex: startIndex,
+        fillable: openedTarget,
+        maxDepth: clampedFillGap + 1,
+      );
+      if (snapped == null) {
+        final List<int> queue = <int>[startIndex];
+        int head = 0;
+        markFilled(startIndex);
+        final Uint8List visited = Uint8List(totalPixels);
+        visited[startIndex] = 1;
+        while (head < queue.length) {
+          final int index = queue[head++];
+          final int x = index % width;
+          final int y = index ~/ width;
+          if (x > 0) {
+            final int neighbor = index - 1;
+            if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+              visited[neighbor] = 1;
+              markFilled(neighbor);
+              queue.add(neighbor);
+            }
+          }
+          if (x < width - 1) {
+            final int neighbor = index + 1;
+            if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+              visited[neighbor] = 1;
+              markFilled(neighbor);
+              queue.add(neighbor);
+            }
+          }
+          if (y > 0) {
+            final int neighbor = index - width;
+            if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+              visited[neighbor] = 1;
+              markFilled(neighbor);
+              queue.add(neighbor);
+            }
+          }
+          if (y < height - 1) {
+            final int neighbor = index + width;
+            if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+              visited[neighbor] = 1;
+              markFilled(neighbor);
+              queue.add(neighbor);
+            }
+          }
+        }
+        return buildBounds();
+      }
+      effectiveStart = snapped;
+    }
+
+    final Uint8List seedVisited = Uint8List(totalPixels);
+    final List<int> seedQueue = <int>[effectiveStart];
+    seedVisited[effectiveStart] = 1;
+    int seedHead = 0;
+    bool touchesOutside = outsideOpen[effectiveStart] == 1;
+    while (seedHead < seedQueue.length) {
+      final int index = seedQueue[seedHead++];
+      if (outsideOpen[index] == 1) {
+        touchesOutside = true;
+        break;
+      }
+      final int x = index % width;
+      final int y = index ~/ width;
+      if (x > 0) {
+        final int neighbor = index - 1;
+        if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          seedVisited[neighbor] = 1;
+          seedQueue.add(neighbor);
+        }
+      }
+      if (x < width - 1) {
+        final int neighbor = index + 1;
+        if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          seedVisited[neighbor] = 1;
+          seedQueue.add(neighbor);
+        }
+      }
+      if (y > 0) {
+        final int neighbor = index - width;
+        if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          seedVisited[neighbor] = 1;
+          seedQueue.add(neighbor);
+        }
+      }
+      if (y < height - 1) {
+        final int neighbor = index + width;
+        if (seedVisited[neighbor] == 0 && openedTarget[neighbor] == 1) {
+          seedVisited[neighbor] = 1;
+          seedQueue.add(neighbor);
+        }
+      }
+    }
+
+    if (touchesOutside) {
+      final List<int> queue = <int>[startIndex];
+      int head = 0;
+      markFilled(startIndex);
+      final Uint8List visited = Uint8List(totalPixels);
+      visited[startIndex] = 1;
+      while (head < queue.length) {
+        final int index = queue[head++];
+        final int x = index % width;
+        final int y = index ~/ width;
+        if (x > 0) {
+          final int neighbor = index - 1;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            markFilled(neighbor);
+            queue.add(neighbor);
+          }
+        }
+        if (x < width - 1) {
+          final int neighbor = index + 1;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            markFilled(neighbor);
+            queue.add(neighbor);
+          }
+        }
+        if (y > 0) {
+          final int neighbor = index - width;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            markFilled(neighbor);
+            queue.add(neighbor);
+          }
+        }
+        if (y < height - 1) {
+          final int neighbor = index + width;
+          if (visited[neighbor] == 0 && targetMask[neighbor] == 1) {
+            visited[neighbor] = 1;
+            markFilled(neighbor);
+            queue.add(neighbor);
+          }
+        }
+      }
+      return buildBounds();
+    }
+
+    final List<int> queue = List<int>.from(seedQueue);
+    int head = 0;
+    for (final int index in queue) {
+      if (targetMask[index] == 1 &&
+          outsideOpen[index] == 0 &&
+          mask[index] == 0) {
+        markFilled(index);
+      }
+    }
+    while (head < queue.length) {
+      final int index = queue[head++];
+      final int x = index % width;
+      final int y = index ~/ width;
+      if (x > 0) {
+        final int neighbor = index - 1;
+        if (mask[neighbor] == 0 &&
+            targetMask[neighbor] == 1 &&
+            outsideOpen[neighbor] == 0) {
+          markFilled(neighbor);
+          queue.add(neighbor);
+        }
+      }
+      if (x < width - 1) {
+        final int neighbor = index + 1;
+        if (mask[neighbor] == 0 &&
+            targetMask[neighbor] == 1 &&
+            outsideOpen[neighbor] == 0) {
+          markFilled(neighbor);
+          queue.add(neighbor);
+        }
+      }
+      if (y > 0) {
+        final int neighbor = index - width;
+        if (mask[neighbor] == 0 &&
+            targetMask[neighbor] == 1 &&
+            outsideOpen[neighbor] == 0) {
+          markFilled(neighbor);
+          queue.add(neighbor);
+        }
+      }
+      if (y < height - 1) {
+        final int neighbor = index + width;
+        if (mask[neighbor] == 0 &&
+            targetMask[neighbor] == 1 &&
+            outsideOpen[neighbor] == 0) {
+          markFilled(neighbor);
+          queue.add(neighbor);
+        }
+      }
+    }
+    return buildBounds();
+  }
+
+  final Uint8List visited = Uint8List(totalPixels);
+  final List<int> queue = <int>[];
+  int head = 0;
+
+  void enqueueIndex(int index) {
+    if (index < 0 || index >= totalPixels) {
+      return;
+    }
+    if (visited[index] != 0) {
+      return;
+    }
+    visited[index] = 1;
+    if (selectionMask != null && selectionMask[index] == 0) {
+      return;
+    }
+    final int x = index % width;
+    final int y = index ~/ width;
+    if (!_fillColorsWithinTolerance(pixelAt(x, y), targetColor, tolerance)) {
       return;
     }
     markFilled(index);

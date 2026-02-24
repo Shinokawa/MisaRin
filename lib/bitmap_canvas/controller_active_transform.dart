@@ -1,9 +1,6 @@
 part of 'controller.dart';
 
 void _translateActiveLayer(BitmapCanvasController controller, int dx, int dy) {
-  if (controller._activeLayer.surface.isTiled) {
-    return;
-  }
   if (controller._pendingActiveLayerTransformCleanup) {
     return;
   }
@@ -28,9 +25,6 @@ void _translateActiveLayer(BitmapCanvasController controller, int dx, int dy) {
 }
 
 void _commitActiveLayerTranslation(BitmapCanvasController controller) {
-  if (controller._activeLayer.surface.isTiled) {
-    return;
-  }
   if (controller._activeLayerTranslationSnapshot == null ||
       controller._pendingActiveLayerTransformCleanup) {
     return;
@@ -67,9 +61,6 @@ void _commitActiveLayerTranslation(BitmapCanvasController controller) {
 }
 
 void _cancelActiveLayerTranslation(BitmapCanvasController controller) {
-  if (controller._activeLayer.surface.isTiled) {
-    return;
-  }
   if (controller._activeLayerTranslationSnapshot == null) {
     return;
   }
@@ -120,35 +111,60 @@ void _startClippedLayerTransformSession(
   BitmapCanvasController controller,
   BitmapLayerState layer,
 ) {
-  final Uint32List sourcePixels = layer.surface.pixels;
   final int canvasWidth = layer.surface.width;
   final int canvasHeight = layer.surface.height;
-  final Rect? pixelBounds = _computePixelBounds(
-    sourcePixels,
-    canvasWidth,
-    canvasHeight,
-    pixelsPtr: layer.surface.pointerAddress,
-  );
+  Rect? pixelBounds;
   int originX = 0;
   int originY = 0;
   int snapshotWidth = 1;
   int snapshotHeight = 1;
   Uint32List snapshotPixels = Uint32List(1);
-  if (pixelBounds != null && !pixelBounds.isEmpty) {
-    originX = pixelBounds.left.toInt();
-    originY = pixelBounds.top.toInt();
-    snapshotWidth = pixelBounds.width.toInt();
-    snapshotHeight = pixelBounds.height.toInt();
-    snapshotPixels = Uint32List(snapshotWidth * snapshotHeight);
-    for (int sy = 0; sy < snapshotHeight; sy++) {
-      final int srcOffset = (originY + sy) * canvasWidth + originX;
-      final int destOffset = sy * snapshotWidth;
-      snapshotPixels.setRange(
-        destOffset,
-        destOffset + snapshotWidth,
-        sourcePixels,
-        srcOffset,
-      );
+  if (layer.surface.isTiled) {
+    final RasterIntRect? bounds = layer.surface.tiledSurface?.contentBounds();
+    if (bounds != null && !bounds.isEmpty) {
+      final int left = bounds.left.clamp(0, canvasWidth);
+      final int top = bounds.top.clamp(0, canvasHeight);
+      final int right = bounds.right.clamp(0, canvasWidth);
+      final int bottom = bounds.bottom.clamp(0, canvasHeight);
+      if (left < right && top < bottom) {
+        originX = left;
+        originY = top;
+        snapshotWidth = right - left;
+        snapshotHeight = bottom - top;
+        final RasterIntRect rect = RasterIntRect(left, top, right, bottom);
+        snapshotPixels = layer.surface.readRect(rect);
+        pixelBounds = Rect.fromLTRB(
+          left.toDouble(),
+          top.toDouble(),
+          right.toDouble(),
+          bottom.toDouble(),
+        );
+      }
+    }
+  } else {
+    final Uint32List sourcePixels = layer.surface.pixels;
+    pixelBounds = _computePixelBounds(
+      sourcePixels,
+      canvasWidth,
+      canvasHeight,
+      pixelsPtr: layer.surface.pointerAddress,
+    );
+    if (pixelBounds != null && !pixelBounds.isEmpty) {
+      originX = pixelBounds.left.toInt();
+      originY = pixelBounds.top.toInt();
+      snapshotWidth = pixelBounds.width.toInt();
+      snapshotHeight = pixelBounds.height.toInt();
+      snapshotPixels = Uint32List(snapshotWidth * snapshotHeight);
+      for (int sy = 0; sy < snapshotHeight; sy++) {
+        final int srcOffset = (originY + sy) * canvasWidth + originX;
+        final int destOffset = sy * snapshotWidth;
+        snapshotPixels.setRange(
+          destOffset,
+          destOffset + snapshotWidth,
+          sourcePixels,
+          srcOffset,
+        );
+      }
     }
   }
   controller._activeLayerTranslationSnapshot = snapshotPixels;
@@ -172,12 +188,31 @@ void _startOverflowLayerTransformSession(
 ) {
   final _LayerOverflowStore overflowStore =
       controller._layerOverflowStores[layer.id] ?? _LayerOverflowStore();
-  final Rect? canvasBounds = _computePixelBounds(
-    layer.surface.pixels,
-    controller._width,
-    controller._height,
-    pixelsPtr: layer.surface.pointerAddress,
-  );
+  Rect? canvasBounds;
+  if (layer.surface.isTiled) {
+    final RasterIntRect? bounds = layer.surface.tiledSurface?.contentBounds();
+    if (bounds != null && !bounds.isEmpty) {
+      final int left = bounds.left.clamp(0, controller._width);
+      final int top = bounds.top.clamp(0, controller._height);
+      final int right = bounds.right.clamp(0, controller._width);
+      final int bottom = bounds.bottom.clamp(0, controller._height);
+      if (left < right && top < bottom) {
+        canvasBounds = Rect.fromLTRB(
+          left.toDouble(),
+          top.toDouble(),
+          right.toDouble(),
+          bottom.toDouble(),
+        );
+      }
+    }
+  } else {
+    canvasBounds = _computePixelBounds(
+      layer.surface.pixels,
+      controller._width,
+      controller._height,
+      pixelsPtr: layer.surface.pointerAddress,
+    );
+  }
   int minX = 0;
   int minY = 0;
   int maxX = 0;
@@ -367,6 +402,133 @@ void _applyActiveLayerTranslation(BitmapCanvasController controller) {
   }
 }
 
+void _applyTiledLayerTranslationSnapshot(
+  BitmapCanvasController controller,
+  BitmapLayerState target,
+  Uint32List snapshot,
+  int snapshotWidth,
+  int snapshotHeight,
+  int originX,
+  int originY,
+  int dx,
+  int dy, {
+  required bool clipOverflow,
+  required String layerId,
+}) {
+  final TiledSurface? tiled = target.surface.tiledSurface;
+  if (tiled == null) {
+    return;
+  }
+  if (snapshotWidth <= 0 || snapshotHeight <= 0) {
+    if (clipOverflow) {
+      controller._layerOverflowStores[layerId]?.clear();
+    }
+    return;
+  }
+  final int expectedLen = snapshotWidth * snapshotHeight;
+  if (expectedLen != snapshot.length) {
+    return;
+  }
+  final int canvasWidth = controller._width;
+  final int canvasHeight = controller._height;
+  final int newOriginX = originX + dx;
+  final int newOriginY = originY + dy;
+
+  final int oldLeft = originX;
+  final int oldTop = originY;
+  final int oldRight = originX + snapshotWidth;
+  final int oldBottom = originY + snapshotHeight;
+  final int newLeft = newOriginX;
+  final int newTop = newOriginY;
+  final int newRight = newOriginX + snapshotWidth;
+  final int newBottom = newOriginY + snapshotHeight;
+
+  final int clearLeft = math.max(0, math.min(oldLeft, newLeft));
+  final int clearTop = math.max(0, math.min(oldTop, newTop));
+  final int clearRight = math.min(canvasWidth, math.max(oldRight, newRight));
+  final int clearBottom = math.min(canvasHeight, math.max(oldBottom, newBottom));
+  if (clearLeft < clearRight && clearTop < clearBottom) {
+    final Color? defaultFill = tiled.defaultFill;
+    final int defaultArgb =
+        defaultFill == null ? 0 : BitmapSurface.encodeColor(defaultFill);
+    target.surface.fillRect(
+      RasterIntRect(clearLeft, clearTop, clearRight, clearBottom),
+      defaultArgb,
+    );
+  }
+
+  final int destLeft = math.max(0, newLeft);
+  final int destTop = math.max(0, newTop);
+  final int destRight = math.min(canvasWidth, newRight);
+  final int destBottom = math.min(canvasHeight, newBottom);
+  if (destLeft < destRight && destTop < destBottom) {
+    final RasterIntRect destRect =
+        RasterIntRect(destLeft, destTop, destRight, destBottom);
+    final RasterIntRect srcRect = RasterIntRect(
+      destLeft - newLeft,
+      destTop - newTop,
+      destRight - newLeft,
+      destBottom - newTop,
+    );
+    final Uint32List patch = _controllerCopySurfaceRegion(
+      snapshot,
+      snapshotWidth,
+      srcRect,
+    );
+    target.surface.writeRect(destRect, patch);
+  }
+
+  if (clipOverflow) {
+    controller._layerOverflowStores[layerId]?.clear();
+    return;
+  }
+
+  final _LayerOverflowBuilder overflowBuilder = _LayerOverflowBuilder();
+  final int insideLeft = math.min(snapshotWidth, math.max(0, -newLeft));
+  final int insideRight =
+      math.min(snapshotWidth, math.max(0, canvasWidth - newLeft));
+  final bool hasHorizontalInside = insideLeft < insideRight;
+
+  for (int sy = 0; sy < snapshotHeight; sy++) {
+    final int destY = newTop + sy;
+    final int rowOffset = sy * snapshotWidth;
+    if (destY < 0 || destY >= canvasHeight || !hasHorizontalInside) {
+      for (int sx = 0; sx < snapshotWidth; sx++) {
+        final int color = snapshot[rowOffset + sx];
+        if ((color >> 24) == 0) {
+          continue;
+        }
+        overflowBuilder.addPixel(newLeft + sx, destY, color);
+      }
+      continue;
+    }
+    if (insideLeft > 0) {
+      for (int sx = 0; sx < insideLeft; sx++) {
+        final int color = snapshot[rowOffset + sx];
+        if ((color >> 24) == 0) {
+          continue;
+        }
+        overflowBuilder.addPixel(newLeft + sx, destY, color);
+      }
+    }
+    if (insideRight < snapshotWidth) {
+      for (int sx = insideRight; sx < snapshotWidth; sx++) {
+        final int color = snapshot[rowOffset + sx];
+        if ((color >> 24) == 0) {
+          continue;
+        }
+        overflowBuilder.addPixel(newLeft + sx, destY, color);
+      }
+    }
+  }
+  final _LayerOverflowStore overflowStore = overflowBuilder.build();
+  if (!overflowStore.isEmpty) {
+    controller._layerOverflowStores[layerId] = overflowStore;
+  } else if (controller._layerOverflowStores.containsKey(layerId)) {
+    controller._layerOverflowStores[layerId]!.clear();
+  }
+}
+
 void _applyClippedLayerTranslation(
   BitmapCanvasController controller,
   Uint32List snapshot,
@@ -376,23 +538,40 @@ void _applyClippedLayerTranslation(
     (layer) => layer.id == layerId,
     orElse: () => controller._activeLayer,
   );
-  final Uint32List pixels = target.surface.pixels;
-  final int canvasWidth = controller._width;
-  final int canvasHeight = controller._height;
   final int snapshotWidth = controller._activeLayerTransformSnapshotWidth;
   final int snapshotHeight = controller._activeLayerTransformSnapshotHeight;
   final int originX = controller._activeLayerTransformOriginX;
   final int originY = controller._activeLayerTransformOriginY;
   final int dx = controller._activeLayerTranslationDx;
   final int dy = controller._activeLayerTranslationDy;
-  final int canvasPtr = target.surface.pointerAddress;
-  if (canvasPtr == 0 || !RustCpuTransformFfi.instance.isSupported) {
-    return;
-  }
   final int expectedLen = snapshotWidth * snapshotHeight;
   if (snapshotWidth <= 0 ||
       snapshotHeight <= 0 ||
       expectedLen != snapshot.length) {
+    return;
+  }
+  if (target.surface.isTiled) {
+    _applyTiledLayerTranslationSnapshot(
+      controller,
+      target,
+      snapshot,
+      snapshotWidth,
+      snapshotHeight,
+      originX,
+      originY,
+      dx,
+      dy,
+      clipOverflow: true,
+      layerId: layerId,
+    );
+    _textLayerApplyTranslation(target, dx, dy);
+    return;
+  }
+  final Uint32List pixels = target.surface.pixels;
+  final int canvasWidth = controller._width;
+  final int canvasHeight = controller._height;
+  final int canvasPtr = target.surface.pointerAddress;
+  if (canvasPtr == 0 || !RustCpuTransformFfi.instance.isSupported) {
     return;
   }
   final CpuBuffer<Uint32List> snapshotBuffer = allocateUint32(snapshot.length);
@@ -441,17 +620,34 @@ void _applyOverflowLayerTranslation(
   final int originY = controller._activeLayerTransformOriginY;
   final int dx = controller._activeLayerTranslationDx;
   final int dy = controller._activeLayerTranslationDy;
+  final int expectedLen = snapshotWidth * snapshotHeight;
+  if (snapshotWidth <= 0 ||
+      snapshotHeight <= 0 ||
+      expectedLen != snapshot.length) {
+    return;
+  }
+  if (target.surface.isTiled) {
+    _applyTiledLayerTranslationSnapshot(
+      controller,
+      target,
+      snapshot,
+      snapshotWidth,
+      snapshotHeight,
+      originX,
+      originY,
+      dx,
+      dy,
+      clipOverflow: false,
+      layerId: layerId,
+    );
+    _textLayerApplyTranslation(target, dx, dy);
+    return;
+  }
   final int canvasWidth = controller._width;
   final int canvasHeight = controller._height;
   final Uint32List pixels = target.surface.pixels;
   final int canvasPtr = target.surface.pointerAddress;
   if (canvasPtr == 0 || !RustCpuTransformFfi.instance.isSupported) {
-    return;
-  }
-  final int expectedLen = snapshotWidth * snapshotHeight;
-  if (snapshotWidth <= 0 ||
-      snapshotHeight <= 0 ||
-      expectedLen != snapshot.length) {
     return;
   }
   final int overflowCapacity = snapshot.length;
@@ -527,6 +723,23 @@ void _restoreOverflowLayerSnapshot(
   }
   final int originX = controller._activeLayerTransformOriginX;
   final int originY = controller._activeLayerTransformOriginY;
+  if (target.surface.isTiled) {
+    _applyTiledLayerTranslationSnapshot(
+      controller,
+      target,
+      snapshot,
+      snapshotWidth,
+      snapshotHeight,
+      originX,
+      originY,
+      0,
+      0,
+      clipOverflow: false,
+      layerId: layerId,
+    );
+    _resetActiveLayerTranslationState(controller);
+    return;
+  }
   final int canvasWidth = controller._width;
   final int canvasHeight = controller._height;
   final Uint32List pixels = target.surface.pixels;
@@ -570,6 +783,23 @@ void _restoreClippedLayerSnapshot(
   }
   final int originX = controller._activeLayerTransformOriginX;
   final int originY = controller._activeLayerTransformOriginY;
+  if (target.surface.isTiled) {
+    _applyTiledLayerTranslationSnapshot(
+      controller,
+      target,
+      snapshot,
+      snapshotWidth,
+      snapshotHeight,
+      originX,
+      originY,
+      0,
+      0,
+      clipOverflow: true,
+      layerId: layerId,
+    );
+    _resetActiveLayerTranslationState(controller);
+    return;
+  }
   final int canvasWidth = controller._width;
   final int canvasHeight = controller._height;
   final Uint32List pixels = target.surface.pixels;

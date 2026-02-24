@@ -415,9 +415,30 @@ Future<void> _controllerDrawStrokeOnRustWgpu(
       canvasWidth.toDouble(),
       canvasHeight.toDouble(),
     );
-    final Rect clipped = dirty.intersect(canvasRect);
+    Rect clipped = dirty.intersect(canvasRect);
     if (clipped.isEmpty) {
       return;
+    }
+    if (mask != null) {
+      RasterIntRect? selectionBounds = controller._selectionMaskBounds;
+      selectionBounds ??= _controllerMaskBounds(
+        mask,
+        controller._width,
+        controller._height,
+      );
+      if (selectionBounds == null) {
+        return;
+      }
+      final Rect selectionRect = Rect.fromLTRB(
+        selectionBounds.left.toDouble(),
+        selectionBounds.top.toDouble(),
+        selectionBounds.right.toDouble(),
+        selectionBounds.bottom.toDouble(),
+      );
+      clipped = clipped.intersect(selectionRect);
+      if (clipped.isEmpty) {
+        return;
+      }
     }
 
     final int outerLeft = clipped.left.floor().clamp(0, canvasWidth);
@@ -815,20 +836,67 @@ bool _controllerApplyPaintingCommandsBatchWeb(
     return true;
   }
 
-  final BitmapSurface surface =
-      controller._activeLayer.surface.bitmapSurface!;
-  final Uint32List patch =
-      _controllerCopySurfaceRegion(surface.pixels, controller._width, clipped);
   final Uint8List? selectionMask = controller._selectionMaskIsFull
       ? null
       : controller._selectionMask;
+  RasterIntRect effectiveRect = clipped;
+  if (selectionMask != null) {
+    RasterIntRect? selectionBounds = controller._selectionMaskBounds;
+    selectionBounds ??= _controllerMaskBounds(
+      selectionMask,
+      controller._width,
+      controller._height,
+    );
+    if (selectionBounds == null) {
+      return true;
+    }
+    final int left = math.max(effectiveRect.left, selectionBounds.left);
+    final int top = math.max(effectiveRect.top, selectionBounds.top);
+    final int right = math.min(effectiveRect.right, selectionBounds.right);
+    final int bottom = math.min(effectiveRect.bottom, selectionBounds.bottom);
+    if (left >= right || top >= bottom) {
+      return true;
+    }
+    effectiveRect = RasterIntRect(left, top, right, bottom);
+  }
+  final Rect effectiveRectF = Rect.fromLTRB(
+    effectiveRect.left.toDouble(),
+    effectiveRect.top.toDouble(),
+    effectiveRect.right.toDouble(),
+    effectiveRect.bottom.toDouble(),
+  );
+
+  final BitmapSurface surface =
+      controller._activeLayer.surface.bitmapSurface!;
+  final Uint32List patch = _controllerCopySurfaceRegion(
+    surface.pixels,
+    controller._width,
+    effectiveRect,
+  );
   final Uint8List? selectionPatch = selectionMask == null
       ? null
-      : _controllerCopyMaskRegion(selectionMask, controller._width, clipped);
+      : _controllerCopyMaskRegion(
+          selectionMask,
+          controller._width,
+          effectiveRect,
+        );
 
   final List<rust.CpuBrushCommand> rustCommands =
       <rust.CpuBrushCommand>[];
+  bool sawSupportedCommand = false;
   for (final PaintingDrawCommand command in commands) {
+    final Rect? bounds = controller._dirtyRectForCommand(command);
+    final bool isSupported =
+        command.type == PaintingDrawCommandType.brushStamp ||
+        command.type == PaintingDrawCommandType.stampSegment ||
+        command.type == PaintingDrawCommandType.line ||
+        command.type == PaintingDrawCommandType.variableLine;
+    if (bounds != null && !bounds.overlaps(effectiveRectF)) {
+      if (isSupported) {
+        sawSupportedCommand = true;
+      }
+      continue;
+    }
     switch (command.type) {
       case PaintingDrawCommandType.brushStamp:
         final Offset? center = command.center;
@@ -837,6 +905,7 @@ bool _controllerApplyPaintingCommandsBatchWeb(
         if (center == null || radius == null || shapeIndex == null) {
           return false;
         }
+        sawSupportedCommand = true;
         rustCommands.add(
           rust.CpuBrushCommand(
             kind: 0,
@@ -846,8 +915,8 @@ bool _controllerApplyPaintingCommandsBatchWeb(
             by: 0,
             startRadius: 0,
             endRadius: 0,
-            centerX: center.dx - clipped.left,
-            centerY: center.dy - clipped.top,
+            centerX: center.dx - effectiveRect.left,
+            centerY: center.dy - effectiveRect.top,
             radius: radius,
             colorArgb: command.color,
             brushShape: shapeIndex,
@@ -879,13 +948,14 @@ bool _controllerApplyPaintingCommandsBatchWeb(
             shapeIndex == null) {
           return false;
         }
+        sawSupportedCommand = true;
         rustCommands.add(
           rust.CpuBrushCommand(
             kind: 1,
-            ax: start.dx - clipped.left,
-            ay: start.dy - clipped.top,
-            bx: end.dx - clipped.left,
-            by: end.dy - clipped.top,
+            ax: start.dx - effectiveRect.left,
+            ay: start.dy - effectiveRect.top,
+            bx: end.dx - effectiveRect.left,
+            by: end.dy - effectiveRect.top,
             startRadius: startRadius,
             endRadius: endRadius,
             centerX: 0,
@@ -920,13 +990,14 @@ bool _controllerApplyPaintingCommandsBatchWeb(
             endRadius == null) {
           return false;
         }
+        sawSupportedCommand = true;
         rustCommands.add(
           rust.CpuBrushCommand(
             kind: 2,
-            ax: start.dx - clipped.left,
-            ay: start.dy - clipped.top,
-            bx: end.dx - clipped.left,
-            by: end.dy - clipped.top,
+            ax: start.dx - effectiveRect.left,
+            ay: start.dy - effectiveRect.top,
+            bx: end.dx - effectiveRect.left,
+            by: end.dy - effectiveRect.top,
             startRadius: startRadius,
             endRadius: endRadius,
             centerX: 0,
@@ -956,12 +1027,12 @@ bool _controllerApplyPaintingCommandsBatchWeb(
   }
 
   if (rustCommands.isEmpty) {
-    return false;
+    return sawSupportedCommand;
   }
   final bool ok = RustCpuBrushFfi.instance.applyCommands(
     pixels: patch,
-    width: clipped.width,
-    height: clipped.height,
+    width: effectiveRect.width,
+    height: effectiveRect.height,
     commands: rustCommands,
     selectionMask: selectionPatch,
   );
@@ -971,17 +1042,17 @@ bool _controllerApplyPaintingCommandsBatchWeb(
   _controllerWriteSurfaceRegion(
     surface.pixels,
     controller._width,
-    clipped,
+    effectiveRect,
     patch,
   );
   surface.markDirty();
   controller._resetWorkerSurfaceSync();
   controller._markDirty(
     region: Rect.fromLTRB(
-      clipped.left.toDouble(),
-      clipped.top.toDouble(),
-      clipped.right.toDouble(),
-      clipped.bottom.toDouble(),
+      effectiveRect.left.toDouble(),
+      effectiveRect.top.toDouble(),
+      effectiveRect.right.toDouble(),
+      effectiveRect.bottom.toDouble(),
     ),
     layerId: controller._activeLayer.id,
     pixelsDirty: true,
@@ -1011,14 +1082,18 @@ void _controllerCommitDeferredStrokeCommandsAsRaster(
   final bool useCustomShape = customShape != null;
 
   if (controller._activeLayer.surface.isTiled) {
+    Rect? union;
     for (final PaintingDrawCommand command in commands) {
       final Rect? bounds = controller._dirtyRectForCommand(command);
       if (bounds == null || bounds.isEmpty) {
         continue;
       }
+      union = union == null ? bounds : _controllerUnionRects(union, bounds);
+    }
+    if (union != null && !union.isEmpty) {
       controller._applyPaintingCommandsSynchronously(
-        bounds,
-        <PaintingDrawCommand>[command],
+        union,
+        commands,
       );
     }
     if (!keepStrokeState) {
@@ -1288,10 +1363,27 @@ bool _controllerMergeVectorPatchOnMainThread(
       : controller._selectionMask;
   final bool selectionIsFull = controller._selectionMaskIsFull;
   final TiledSelectionMask? tiledMask = controller._selectionMaskTiled;
+  final RasterIntRect? selectionBounds =
+      (selectionMask != null && !selectionIsFull)
+      ? controller._selectionMaskBounds
+      : null;
+  if (selectionMask != null && !selectionIsFull && selectionBounds == null) {
+    return false;
+  }
   if (surface.isTiled) {
     final TiledSurface tiled = surface.tiledSurface!;
-    final RasterIntRect patchRect =
+    RasterIntRect patchRect =
         RasterIntRect(clampedLeft, clampedTop, clampedRight, clampedBottom);
+    if (selectionBounds != null) {
+      final int left = math.max(patchRect.left, selectionBounds.left);
+      final int top = math.max(patchRect.top, selectionBounds.top);
+      final int right = math.min(patchRect.right, selectionBounds.right);
+      final int bottom = math.min(patchRect.bottom, selectionBounds.bottom);
+      if (left >= right || top >= bottom) {
+        return false;
+      }
+      patchRect = RasterIntRect(left, top, right, bottom);
+    }
     final Map<TileKey, Uint8List> cachedTileMasks =
         (selectionMask == null || selectionIsFull || tiledMask != null)
         ? const <TileKey, Uint8List>{}
@@ -1473,10 +1565,10 @@ bool _controllerMergeVectorPatchOnMainThread(
     }
     controller._resetWorkerSurfaceSync();
     final Rect dirtyRegion = Rect.fromLTRB(
-      clampedLeft.toDouble(),
-      clampedTop.toDouble(),
-      clampedRight.toDouble(),
-      clampedBottom.toDouble(),
+      patchRect.left.toDouble(),
+      patchRect.top.toDouble(),
+      patchRect.right.toDouble(),
+      patchRect.bottom.toDouble(),
     );
     controller._markDirty(
       region: dirtyRegion,
@@ -1486,13 +1578,35 @@ bool _controllerMergeVectorPatchOnMainThread(
     return true;
   }
 
+  final RasterIntRect patchRect =
+      RasterIntRect(clampedLeft, clampedTop, clampedRight, clampedBottom);
+  RasterIntRect effectiveRect = patchRect;
+  if (selectionBounds != null) {
+    final int leftBound = math.max(patchRect.left, selectionBounds.left);
+    final int topBound = math.max(patchRect.top, selectionBounds.top);
+    final int rightBound = math.min(patchRect.right, selectionBounds.right);
+    final int bottomBound = math.min(patchRect.bottom, selectionBounds.bottom);
+    if (leftBound >= rightBound || topBound >= bottomBound) {
+      return false;
+    }
+    effectiveRect = RasterIntRect(leftBound, topBound, rightBound, bottomBound);
+  }
+
+  final int rowStart = (effectiveRect.top - top).clamp(0, height);
+  final int rowEnd = (effectiveRect.bottom - top).clamp(0, height);
+  final int colStart = (effectiveRect.left - left).clamp(0, width);
+  final int colEnd = (effectiveRect.right - left).clamp(0, width);
+  if (rowStart >= rowEnd || colStart >= colEnd) {
+    return false;
+  }
+
   final bool anyChange = surface.withBitmapSurface(
     writeBack: true,
     action: (BitmapSurface bitmapSurface) {
       final Uint32List destination = bitmapSurface.pixels;
       bool changed = false;
 
-      for (int y = 0; y < height; y++) {
+      for (int y = rowStart; y < rowEnd; y++) {
         final int surfaceY = top + y;
         if (surfaceY < 0 || surfaceY >= controller._height) {
           continue;
@@ -1500,7 +1614,7 @@ bool _controllerMergeVectorPatchOnMainThread(
         final int surfaceRowOffset = surfaceY * controller._width;
         final int rgbaRowOffset = y * width * 4;
 
-        for (int x = 0; x < width; x++) {
+        for (int x = colStart; x < colEnd; x++) {
           final int surfaceX = left + x;
           if (surfaceX < 0 || surfaceX >= controller._width) {
             continue;
@@ -1592,10 +1706,10 @@ bool _controllerMergeVectorPatchOnMainThread(
 
   controller._resetWorkerSurfaceSync();
   final Rect dirtyRegion = Rect.fromLTRB(
-    clampedLeft.toDouble(),
-    clampedTop.toDouble(),
-    clampedRight.toDouble(),
-    clampedBottom.toDouble(),
+    effectiveRect.left.toDouble(),
+    effectiveRect.top.toDouble(),
+    effectiveRect.right.toDouble(),
+    effectiveRect.bottom.toDouble(),
   );
   controller._markDirty(
     region: dirtyRegion,
@@ -1626,9 +1740,35 @@ void _controllerApplyPaintingCommandsSynchronously(
   final Uint8List? mask = controller._selectionMaskIsFull
       ? null
       : controller._selectionMask;
+  Rect effectiveRegion = region;
+  if (mask != null) {
+    RasterIntRect? selectionBounds = controller._selectionMaskBounds;
+    selectionBounds ??= _controllerMaskBounds(
+      mask,
+      controller._width,
+      controller._height,
+    );
+    if (selectionBounds == null) {
+      return;
+    }
+    final Rect selectionRect = Rect.fromLTRB(
+      selectionBounds.left.toDouble(),
+      selectionBounds.top.toDouble(),
+      selectionBounds.right.toDouble(),
+      selectionBounds.bottom.toDouble(),
+    );
+    effectiveRegion = effectiveRegion.intersect(selectionRect);
+    if (effectiveRegion.isEmpty) {
+      return;
+    }
+  }
   final BrushShapeRaster? customShape = controller.customBrushShapeRaster;
   bool anyChange = false;
   for (final PaintingDrawCommand command in commands) {
+    final Rect? bounds = controller._dirtyRectForCommand(command);
+    if (bounds != null && !bounds.overlaps(effectiveRegion)) {
+      continue;
+    }
     final Color color = Color(command.color);
     final bool erase = command.erase;
     switch (command.type) {
@@ -1790,7 +1930,7 @@ void _controllerApplyPaintingCommandsSynchronously(
   }
   controller._resetWorkerSurfaceSync();
   controller._markDirty(
-    region: region,
+    region: effectiveRegion,
     layerId: controller._activeLayer.id,
     pixelsDirty: true,
   );
@@ -1810,6 +1950,24 @@ void _controllerApplyPaintingCommandsSynchronouslyTiled(
   final bool selectionIsFull = controller._selectionMaskIsFull;
   final TiledSelectionMask? tiledMask = controller._selectionMaskTiled;
   final bool hasSelection = selectionMask != null && !selectionIsFull;
+  final RasterIntRect? selectionBounds =
+      hasSelection ? controller._selectionMaskBounds : null;
+  if (hasSelection && selectionBounds == null) {
+    return;
+  }
+  Rect effectiveRegion = region;
+  if (selectionBounds != null) {
+    final Rect selectionRect = Rect.fromLTRB(
+      selectionBounds.left.toDouble(),
+      selectionBounds.top.toDouble(),
+      selectionBounds.right.toDouble(),
+      selectionBounds.bottom.toDouble(),
+    );
+    effectiveRegion = effectiveRegion.intersect(selectionRect);
+    if (effectiveRegion.isEmpty) {
+      return;
+    }
+  }
   final Map<TileKey, Uint8List> cachedTileMasks =
       (selectionMask == null || selectionIsFull || tiledMask != null)
       ? const <TileKey, Uint8List>{}
@@ -2008,24 +2166,35 @@ void _controllerApplyPaintingCommandsSynchronouslyTiled(
         }
       }
     } else {
+      RasterIntRect effective = clipped;
+      if (selectionBounds != null) {
+        final int left = math.max(clipped.left, selectionBounds.left);
+        final int top = math.max(clipped.top, selectionBounds.top);
+        final int right = math.min(clipped.right, selectionBounds.right);
+        final int bottom = math.min(clipped.bottom, selectionBounds.bottom);
+        if (left >= right || top >= bottom) {
+          continue;
+        }
+        effective = RasterIntRect(left, top, right, bottom);
+      }
       final int tileSize = tiled.tileSize;
-      final int startTx = tileIndexForCoord(clipped.left, tileSize);
-      final int endTx = tileIndexForCoord(clipped.right - 1, tileSize);
-      final int startTy = tileIndexForCoord(clipped.top, tileSize);
-      final int endTy = tileIndexForCoord(clipped.bottom - 1, tileSize);
+      final int startTx = tileIndexForCoord(effective.left, tileSize);
+      final int endTx = tileIndexForCoord(effective.right - 1, tileSize);
+      final int startTy = tileIndexForCoord(effective.top, tileSize);
+      final int endTy = tileIndexForCoord(effective.bottom - 1, tileSize);
       for (int ty = startTy; ty <= endTy; ty++) {
         for (int tx = startTx; tx <= endTx; tx++) {
           final RasterIntRect tileRect = tileBounds(tx, ty, tileSize);
-          final int left = clipped.left > tileRect.left
-              ? clipped.left
+          final int left = effective.left > tileRect.left
+              ? effective.left
               : tileRect.left;
           final int top =
-              clipped.top > tileRect.top ? clipped.top : tileRect.top;
-          final int right = clipped.right < tileRect.right
-              ? clipped.right
+              effective.top > tileRect.top ? effective.top : tileRect.top;
+          final int right = effective.right < tileRect.right
+              ? effective.right
               : tileRect.right;
-          final int bottom = clipped.bottom < tileRect.bottom
-              ? clipped.bottom
+          final int bottom = effective.bottom < tileRect.bottom
+              ? effective.bottom
               : tileRect.bottom;
           if (left >= right || top >= bottom) {
             continue;
@@ -2073,7 +2242,7 @@ void _controllerApplyPaintingCommandsSynchronouslyTiled(
   }
   controller._resetWorkerSurfaceSync();
   controller._markDirty(
-    region: region,
+    region: effectiveRegion,
     layerId: controller._activeLayer.id,
     pixelsDirty: true,
   );
