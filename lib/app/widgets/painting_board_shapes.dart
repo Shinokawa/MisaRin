@@ -565,6 +565,11 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       scatter: _brushScatter,
       rotationJitter: _brushRotationJitter,
       snapToPixel: _brushSnapToPixel,
+      screentoneEnabled: _brushScreentoneEnabled,
+      screentoneSpacing: _brushScreentoneSpacing,
+      screentoneDotSize: _brushScreentoneDotSize,
+      screentoneRotation: _brushScreentoneRotation,
+      screentoneSoftness: _brushScreentoneSoftness,
       erase: erase,
     );
     if (simulatePressure) {

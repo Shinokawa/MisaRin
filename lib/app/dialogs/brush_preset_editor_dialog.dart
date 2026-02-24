@@ -84,6 +84,11 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   late bool _hollowEraseOccludedParts;
   late bool _autoSharpTaper;
   late bool _snapToPixel;
+  late bool _screentoneEnabled;
+  late double _screentoneSpacing;
+  late double _screentoneDotSize;
+  late double _screentoneRotation;
+  late double _screentoneSoftness;
   ui.Locale? _lastLocale;
   bool _didSync = false;
 
@@ -150,6 +155,11 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
     _hollowEraseOccludedParts = sanitized.hollowEraseOccludedParts;
     _autoSharpTaper = sanitized.autoSharpTaper;
     _snapToPixel = sanitized.snapToPixel;
+    _screentoneEnabled = sanitized.screentoneEnabled;
+    _screentoneSpacing = sanitized.screentoneSpacing;
+    _screentoneDotSize = sanitized.screentoneDotSize;
+    _screentoneRotation = sanitized.screentoneRotation;
+    _screentoneSoftness = sanitized.screentoneSoftness;
     if (stopwatch != null) {
       BrushPresetTimeline.mark(
         'editor_sync id=${sanitized.id} t=${stopwatch.elapsedMilliseconds}ms',
@@ -181,6 +191,11 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
       hollowEraseOccludedParts: _hollowEraseOccludedParts,
       autoSharpTaper: _autoSharpTaper,
       snapToPixel: _snapToPixel,
+      screentoneEnabled: _screentoneEnabled,
+      screentoneSpacing: _screentoneSpacing,
+      screentoneDotSize: _screentoneDotSize,
+      screentoneRotation: _screentoneRotation,
+      screentoneSoftness: _screentoneSoftness,
     );
   }
 
@@ -392,6 +407,56 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
           value: _snapToPixel,
           onChanged: (value) => _setAndNotify(() => _snapToPixel = value),
         ),
+        const SizedBox(height: 12),
+        _buildToggleRow(
+          context,
+          label: l10n.screentoneEnabled,
+          value: _screentoneEnabled,
+          onChanged: (value) =>
+              _setAndNotify(() => _screentoneEnabled = value),
+        ),
+        if (_screentoneEnabled) ...[
+          const SizedBox(height: 12),
+          _buildSlider(
+            context,
+            label: l10n.screentoneSpacing,
+            value: _screentoneSpacing,
+            min: 2.0,
+            max: 200.0,
+            divisions: 198,
+            formatter: (value) => value.toStringAsFixed(1),
+            onChanged: (value) =>
+                _setAndNotify(() => _screentoneSpacing = value),
+          ),
+          const SizedBox(height: 12),
+          _buildPercentSlider(
+            context,
+            label: l10n.screentoneDotSize,
+            value: _screentoneDotSize,
+            onChanged: (value) =>
+                _setAndNotify(() => _screentoneDotSize = value),
+          ),
+          const SizedBox(height: 12),
+          _buildSlider(
+            context,
+            label: l10n.screentoneRotation,
+            value: _screentoneRotation,
+            min: -90.0,
+            max: 90.0,
+            divisions: 180,
+            formatter: (value) => '${value.round()}°',
+            onChanged: (value) =>
+                _setAndNotify(() => _screentoneRotation = value),
+          ),
+          const SizedBox(height: 12),
+          _buildPercentSlider(
+            context,
+            label: l10n.screentoneSoftness,
+            value: _screentoneSoftness,
+            onChanged: (value) =>
+                _setAndNotify(() => _screentoneSoftness = value),
+          ),
+        ],
       ],
     );
 

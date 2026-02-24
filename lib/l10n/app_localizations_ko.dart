@@ -1059,6 +1059,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get brushPresetPen => '펜';
 
   @override
+  String get brushPresetScreentone => '스크린톤';
+
+  @override
   String get brushPresetPixel => '픽셀';
 
   @override
@@ -1087,6 +1090,21 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get brushSnapToPixel => '픽셀 스냅';
+
+  @override
+  String get screentoneEnabled => '스크린톤';
+
+  @override
+  String get screentoneSpacing => '도트 간격';
+
+  @override
+  String get screentoneDotSize => '도트 크기';
+
+  @override
+  String get screentoneRotation => '도트 회전';
+
+  @override
+  String get screentoneSoftness => '도트 부드러움';
 
   @override
   String get brushShape => '브러시 모양';

@@ -1194,6 +1194,11 @@ class PaintingBoardState extends _PaintingBoardBase
       _brushScatter = sanitized.scatter;
       _brushRotationJitter = sanitized.rotationJitter;
       _brushSnapToPixel = sanitized.snapToPixel;
+      _brushScreentoneEnabled = sanitized.screentoneEnabled;
+      _brushScreentoneSpacing = sanitized.screentoneSpacing;
+      _brushScreentoneDotSize = sanitized.screentoneDotSize;
+      _brushScreentoneRotation = sanitized.screentoneRotation;
+      _brushScreentoneSoftness = sanitized.screentoneSoftness;
       _penAntialiasLevel = sanitized.antialiasLevel;
       _hollowStrokeEnabled = sanitized.hollowEnabled;
       _hollowStrokeRatio = sanitized.hollowRatio;

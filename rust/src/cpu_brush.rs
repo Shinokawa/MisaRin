@@ -1,4 +1,4 @@
-use std::f32::consts::FRAC_1_SQRT_2;
+use std::f32::consts::{FRAC_1_SQRT_2, PI};
 
 const EPS: f32 = 1.0e-6;
 const SUBPIXEL_RADIUS_LIMIT: f32 = 0.6;
@@ -7,6 +7,29 @@ const SUPERSAMPLE_DIAMETER_THRESHOLD: f32 = 10.0;
 const SUPERSAMPLE_FINE_DIAMETER: f32 = 1.0;
 const MIN_INTEGRATION_SLICES: i32 = 6;
 const MAX_INTEGRATION_SLICES: i32 = 20;
+
+#[derive(Clone, Copy)]
+struct ScreentoneSettings {
+    enabled: bool,
+    spacing: f32,
+    dot_size: f32,
+    rot_sin: f32,
+    rot_cos: f32,
+    softness: f32,
+}
+
+impl ScreentoneSettings {
+    fn disabled() -> Self {
+        Self {
+            enabled: false,
+            spacing: 10.0,
+            dot_size: 0.6,
+            rot_sin: 0.0,
+            rot_cos: 1.0,
+            softness: 0.0,
+        }
+    }
+}
 
 fn clamp01(v: f32) -> f32 {
     if v.is_finite() {
@@ -38,6 +61,76 @@ fn antialias_samples_per_axis(level: u32) -> u32 {
     } else {
         8 + (clamped - 3) * 2
     }
+}
+
+fn screentone_settings_from_params(
+    enabled: u8,
+    spacing: f32,
+    dot_size: f32,
+    rotation_deg: f32,
+    softness: f32,
+) -> ScreentoneSettings {
+    if enabled == 0 {
+        return ScreentoneSettings::disabled();
+    }
+    let spacing = if spacing.is_finite() { spacing } else { 10.0 }.clamp(2.0, 200.0);
+    let dot_size = if dot_size.is_finite() { dot_size } else { 0.6 }.clamp(0.0, 1.0);
+    let rotation = if rotation_deg.is_finite() { rotation_deg } else { 45.0 }
+        .clamp(-180.0, 180.0);
+    let angle = rotation * (PI / 180.0);
+    let rot_sin = angle.sin();
+    let rot_cos = angle.cos();
+    let softness = if softness.is_finite() { softness } else { 0.0 }.clamp(0.0, 1.0);
+    ScreentoneSettings {
+        enabled: true,
+        spacing,
+        dot_size,
+        rot_sin,
+        rot_cos,
+        softness,
+    }
+}
+
+fn screentone_mask_at(
+    sample_x: f32,
+    sample_y: f32,
+    settings: ScreentoneSettings,
+    antialias_level: u32,
+) -> f32 {
+    if !settings.enabled {
+        return 1.0;
+    }
+    let spacing = settings.spacing;
+    if !spacing.is_finite() || spacing <= 0.0 {
+        return 1.0;
+    }
+    let dot_radius = (spacing * 0.5 * settings.dot_size).max(0.0);
+    if dot_radius <= 0.0 {
+        return 0.0;
+    }
+    let rx = sample_x * settings.rot_cos + sample_y * settings.rot_sin;
+    let ry = -sample_x * settings.rot_sin + sample_y * settings.rot_cos;
+    let cell_x = (rx / spacing).floor();
+    let cell_y = (ry / spacing).floor();
+    let center_x = (cell_x + 0.5) * spacing;
+    let center_y = (cell_y + 0.5) * spacing;
+    let dx = rx - center_x;
+    let dy = ry - center_y;
+    let dist = (dx * dx + dy * dy).sqrt();
+    let aa_feather = antialias_feather(antialias_level);
+    let edge = (dot_radius * settings.softness).max(aa_feather);
+    if edge <= 0.0 {
+        return if dist <= dot_radius { 1.0 } else { 0.0 };
+    }
+    let inner = (dot_radius - edge).max(0.0);
+    let outer = dot_radius + edge;
+    if dist <= inner {
+        return 1.0;
+    }
+    if dist >= outer || outer <= inner {
+        return 0.0;
+    }
+    ((outer - dist) / (outer - inner)).clamp(0.0, 1.0)
 }
 
 fn needs_supersampling(radius: f32, antialias_level: u32) -> bool {
@@ -660,6 +753,7 @@ fn draw_points_sampled(
     accumulate: bool,
     selection_ptr: *const u8,
     selection_len: usize,
+    screentone: ScreentoneSettings,
 ) -> u8 {
     if points.is_empty() || pixels_ptr.is_null() || width == 0 || height == 0 {
         return 0;
@@ -688,6 +782,7 @@ fn draw_points_sampled(
     let samples = antialias_samples_per_axis(aa_level);
     let inv_samples = 1.0 / (samples as f32);
     let total_samples = (samples * samples) as f32;
+    let use_screentone = screentone.enabled;
 
     let mut any_point = false;
     let mut union_min_x = width as i32;
@@ -754,7 +849,7 @@ fn draw_points_sampled(
                     let oy = (sy as f32 + 0.5) * inv_samples - 0.5;
                     let sample_x = x as f32 + 0.5 + ox;
                     let sample_y = y as f32 + 0.5 + oy;
-                    let sample_cov = if accumulate {
+                    let mut sample_cov = if accumulate {
                         let mut remain = 1.0f32;
                         for p in points {
                             let dist = shape_distance_to_point(
@@ -802,6 +897,13 @@ fn draw_points_sampled(
                         }
                         best
                     };
+                    if use_screentone {
+                        let mask = screentone_mask_at(sample_x, sample_y, screentone, aa_level);
+                        if mask <= 0.0 {
+                            continue;
+                        }
+                        sample_cov *= mask;
+                    }
                     accum += sample_cov;
                 }
             }
@@ -843,6 +945,11 @@ pub extern "C" fn cpu_brush_draw_stamp(
     smooth_rotation: u8,
     rotation_seed: u32,
     rotation_jitter: f32,
+    screentone_enabled: u8,
+    screentone_spacing: f32,
+    screentone_dot_size: f32,
+    screentone_rotation: f32,
+    screentone_softness: f32,
     snap_to_pixel: u8,
     selection_ptr: *const u8,
     selection_len: usize,
@@ -890,6 +997,13 @@ pub extern "C" fn cpu_brush_draw_stamp(
         rot_sin,
         rot_cos,
     };
+    let screentone = screentone_settings_from_params(
+        screentone_enabled,
+        screentone_spacing,
+        screentone_dot_size,
+        screentone_rotation,
+        screentone_softness,
+    );
     draw_points_sampled(
         pixels_ptr,
         pixels_len,
@@ -904,6 +1018,7 @@ pub extern "C" fn cpu_brush_draw_stamp(
         true,
         selection_ptr,
         selection_len,
+        screentone,
     )
 }
 
@@ -928,6 +1043,11 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
     smooth_rotation: u8,
     rotation_seed: u32,
     rotation_jitter: f32,
+    screentone_enabled: u8,
+    screentone_spacing: f32,
+    screentone_dot_size: f32,
+    screentone_rotation: f32,
+    screentone_softness: f32,
     spacing: f32,
     scatter: f32,
     softness: f32,
@@ -964,6 +1084,11 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
             smooth_rotation,
             rotation_seed,
             rotation_jitter,
+            screentone_enabled,
+            screentone_spacing,
+            screentone_dot_size,
+            screentone_rotation,
+            screentone_softness,
             snap_to_pixel,
             selection_ptr,
             selection_len,
@@ -1050,6 +1175,13 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
             rot_cos,
         });
     }
+    let screentone = screentone_settings_from_params(
+        screentone_enabled,
+        screentone_spacing,
+        screentone_dot_size,
+        screentone_rotation,
+        screentone_softness,
+    );
     draw_points_sampled(
         pixels_ptr,
         pixels_len,
@@ -1064,6 +1196,7 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
         accumulate != 0,
         selection_ptr,
         selection_len,
+        screentone,
     )
 }
 
@@ -1083,6 +1216,11 @@ pub extern "C" fn cpu_brush_draw_capsule_segment(
     antialias_level: u32,
     include_start_cap: u8,
     erase: u8,
+    screentone_enabled: u8,
+    screentone_spacing: f32,
+    screentone_dot_size: f32,
+    screentone_rotation: f32,
+    screentone_softness: f32,
     selection_ptr: *const u8,
     selection_len: usize,
 ) -> u8 {
@@ -1116,6 +1254,13 @@ pub extern "C" fn cpu_brush_draw_capsule_segment(
     let src_r = unpack_r(color_argb);
     let src_g = unpack_g(color_argb);
     let src_b = unpack_b(color_argb);
+    let screentone = screentone_settings_from_params(
+        screentone_enabled,
+        screentone_spacing,
+        screentone_dot_size,
+        screentone_rotation,
+        screentone_softness,
+    );
 
     if len_sq <= 1.0e-6 {
         let expand = max_radius + feather + 1.5;
@@ -1140,8 +1285,15 @@ pub extern "C" fn cpu_brush_draw_capsule_segment(
                 let dx = px - ax;
                 let dy = py - ay;
                 let distance = (dx * dx + dy * dy).sqrt();
-                let coverage =
+                let mut coverage =
                     compute_pixel_coverage(dx, dy, distance, max_radius, feather, aa_level);
+                if screentone.enabled {
+                    let mask = screentone_mask_at(px, py, screentone, aa_level);
+                    if mask <= 0.0 {
+                        continue;
+                    }
+                    coverage *= mask;
+                }
                 if coverage <= 0.0 {
                     continue;
                 }
@@ -1227,6 +1379,16 @@ pub extern "C" fn cpu_brush_draw_capsule_segment(
                     aa_level,
                     supersample,
                 );
+                if coverage <= 0.0 {
+                    continue;
+                }
+            }
+            if screentone.enabled {
+                let mask = screentone_mask_at(px, py, screentone, aa_level);
+                if mask <= 0.0 {
+                    continue;
+                }
+                coverage *= mask;
                 if coverage <= 0.0 {
                     continue;
                 }
@@ -1496,6 +1658,7 @@ pub extern "C" fn cpu_brush_draw_spray(
         accumulate != 0,
         selection_ptr,
         selection_len,
+        ScreentoneSettings::disabled(),
     )
 }
 

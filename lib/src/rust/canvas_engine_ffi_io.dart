@@ -330,6 +330,11 @@ typedef _EngineSetBrushNative =
       ffi.Float scatter,
       ffi.Float rotationJitter,
       ffi.Uint8 snapToPixel,
+      ffi.Uint8 screentoneEnabled,
+      ffi.Float screentoneSpacing,
+      ffi.Float screentoneDotSize,
+      ffi.Float screentoneRotation,
+      ffi.Float screentoneSoftness,
       ffi.Uint8 hollow,
       ffi.Float hollowRatio,
       ffi.Uint8 hollowEraseOccludedParts,
@@ -355,6 +360,11 @@ typedef _EngineSetBrushDart =
       double scatter,
       double rotationJitter,
       int snapToPixel,
+      int screentoneEnabled,
+      double screentoneSpacing,
+      double screentoneDotSize,
+      double screentoneRotation,
+      double screentoneSoftness,
       int hollow,
       double hollowRatio,
       int hollowEraseOccludedParts,
@@ -1351,6 +1361,11 @@ class CanvasEngineFfi {
     double scatter = 0.0,
     double rotationJitter = 1.0,
     bool snapToPixel = false,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
     bool hollow = false,
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,
@@ -1396,6 +1411,26 @@ class CanvasEngineFfi {
       rotationValue = 1.0;
     }
     rotationValue = rotationValue.clamp(0.0, 1.0);
+    double screentoneSpacingValue = screentoneSpacing;
+    if (!screentoneSpacingValue.isFinite) {
+      screentoneSpacingValue = 10.0;
+    }
+    screentoneSpacingValue = screentoneSpacingValue.clamp(2.0, 200.0);
+    double screentoneDotSizeValue = screentoneDotSize;
+    if (!screentoneDotSizeValue.isFinite) {
+      screentoneDotSizeValue = 0.6;
+    }
+    screentoneDotSizeValue = screentoneDotSizeValue.clamp(0.0, 1.0);
+    double screentoneRotationValue = screentoneRotation;
+    if (!screentoneRotationValue.isFinite) {
+      screentoneRotationValue = 45.0;
+    }
+    screentoneRotationValue = screentoneRotationValue.clamp(-180.0, 180.0);
+    double screentoneSoftnessValue = screentoneSoftness;
+    if (!screentoneSoftnessValue.isFinite) {
+      screentoneSoftnessValue = 0.0;
+    }
+    screentoneSoftnessValue = screentoneSoftnessValue.clamp(0.0, 1.0);
     double ratio = hollowRatio;
     if (!ratio.isFinite) {
       ratio = 0.0;
@@ -1435,6 +1470,11 @@ class CanvasEngineFfi {
       scatterValue,
       rotationValue,
       snapToPixel ? 1 : 0,
+      screentoneEnabled ? 1 : 0,
+      screentoneSpacingValue,
+      screentoneDotSizeValue,
+      screentoneRotationValue,
+      screentoneSoftnessValue,
       hollow ? 1 : 0,
       ratio,
       hollowEraseOccludedParts ? 1 : 0,

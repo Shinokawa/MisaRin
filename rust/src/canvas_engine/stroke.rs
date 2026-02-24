@@ -22,6 +22,11 @@ pub(crate) struct EngineBrushSettings {
     pub(crate) scatter: f32,
     pub(crate) rotation_jitter: f32,
     pub(crate) snap_to_pixel: bool,
+    pub(crate) screentone_enabled: bool,
+    pub(crate) screentone_spacing: f32,
+    pub(crate) screentone_dot_size: f32,
+    pub(crate) screentone_rotation: f32,
+    pub(crate) screentone_softness: f32,
     pub(crate) hollow_enabled: bool,
     pub(crate) hollow_ratio: f32,
     pub(crate) hollow_erase_occluded: bool,
@@ -49,6 +54,11 @@ impl Default for EngineBrushSettings {
             scatter: 0.0,
             rotation_jitter: 1.0,
             snap_to_pixel: false,
+            screentone_enabled: false,
+            screentone_spacing: 10.0,
+            screentone_dot_size: 0.6,
+            screentone_rotation: 45.0,
+            screentone_softness: 0.0,
             hollow_enabled: false,
             hollow_ratio: 0.0,
             hollow_erase_occluded: false,
@@ -92,6 +102,26 @@ impl EngineBrushSettings {
             self.rotation_jitter = 1.0;
         } else {
             self.rotation_jitter = self.rotation_jitter.clamp(0.0, 1.0);
+        }
+        if !self.screentone_spacing.is_finite() {
+            self.screentone_spacing = 10.0;
+        } else {
+            self.screentone_spacing = self.screentone_spacing.clamp(2.0, 200.0);
+        }
+        if !self.screentone_dot_size.is_finite() {
+            self.screentone_dot_size = 0.6;
+        } else {
+            self.screentone_dot_size = self.screentone_dot_size.clamp(0.0, 1.0);
+        }
+        if !self.screentone_rotation.is_finite() {
+            self.screentone_rotation = 45.0;
+        } else {
+            self.screentone_rotation = self.screentone_rotation.clamp(-180.0, 180.0);
+        }
+        if !self.screentone_softness.is_finite() {
+            self.screentone_softness = 0.0;
+        } else {
+            self.screentone_softness = self.screentone_softness.clamp(0.0, 1.0);
         }
         if !self.hollow_ratio.is_finite() {
             self.hollow_ratio = 0.0;
@@ -1059,6 +1089,13 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
     brush.set_canvas_size(canvas_width, canvas_height);
     let softness = brush_settings.softness();
     brush.set_softness(softness);
+    brush.set_screentone(
+        brush_settings.screentone_enabled,
+        brush_settings.screentone_spacing,
+        brush_settings.screentone_dot_size,
+        brush_settings.screentone_rotation.to_radians(),
+        brush_settings.screentone_softness,
+    );
 
     let hollow_enabled = brush_settings.hollow_enabled
         && !brush_settings.erase

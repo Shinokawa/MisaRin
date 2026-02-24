@@ -1,0 +1,46 @@
+MRB-TEXT 1
+[brush.json]
+length:690
+{
+  "formatVersion": 1,
+  "id": "screentone",
+  "name": "screentone",
+  "author": "Misa Rin",
+  "version": "1.0.0",
+  "shape": 0,
+  "shapeId": "circle",
+  "shapeFile": "circle.svg",
+  "shapeType": "svg",
+  "spacing": 0.12,
+  "hardness": 1.0,
+  "flow": 1.0,
+  "scatter": 0.0,
+  "randomRotation": false,
+  "smoothRotation": false,
+  "rotationJitter": 1.0,
+  "antialiasLevel": 1,
+  "hollowEnabled": false,
+  "hollowRatio": 0.0,
+  "hollowEraseOccludedParts": false,
+  "autoSharpTaper": false,
+  "snapToPixel": false,
+  "screentoneEnabled": true,
+  "screentoneSpacing": 10.0,
+  "screentoneDotSize": 0.6,
+  "screentoneRotation": 45.0,
+  "screentoneSoftness": 0.0,
+  "langFile": "brush_lang.txt"
+}
+[brush_lang.txt]
+length:168
+screentone|en|Screentone
+screentone|ja|スクリーントーン
+screentone|ko|스크린톤
+screentone|zh|网点笔
+screentone|zh_CN|网点笔
+screentone|zh_TW|網點筆
+[circle.svg]
+length:117
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="45" fill="black"/>
+</svg>

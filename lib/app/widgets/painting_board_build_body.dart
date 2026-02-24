@@ -554,6 +554,16 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     _brushRotationJitter,
                                                 brushSnapToPixel:
                                                     _brushSnapToPixel,
+                                                brushScreentoneEnabled:
+                                                    _brushScreentoneEnabled,
+                                                brushScreentoneSpacing:
+                                                    _brushScreentoneSpacing,
+                                                brushScreentoneDotSize:
+                                                    _brushScreentoneDotSize,
+                                                brushScreentoneRotation:
+                                                    _brushScreentoneRotation,
+                                                brushScreentoneSoftness:
+                                                    _brushScreentoneSoftness,
                                                 hollowStrokeEnabled:
                                                     _hollowStrokeEnabled,
                                                 hollowStrokeRatio:

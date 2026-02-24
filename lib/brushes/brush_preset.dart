@@ -21,6 +21,11 @@ class BrushPreset {
     required this.hollowEraseOccludedParts,
     required this.autoSharpTaper,
     required this.snapToPixel,
+    required this.screentoneEnabled,
+    required this.screentoneSpacing,
+    required this.screentoneDotSize,
+    required this.screentoneRotation,
+    required this.screentoneSoftness,
   });
 
   final String id;
@@ -42,6 +47,11 @@ class BrushPreset {
   bool hollowEraseOccludedParts;
   bool autoSharpTaper;
   bool snapToPixel;
+  bool screentoneEnabled;
+  double screentoneSpacing;
+  double screentoneDotSize;
+  double screentoneRotation;
+  double screentoneSoftness;
 
   BrushPreset copyWith({
     String? id,
@@ -63,6 +73,11 @@ class BrushPreset {
     bool? hollowEraseOccludedParts,
     bool? autoSharpTaper,
     bool? snapToPixel,
+    bool? screentoneEnabled,
+    double? screentoneSpacing,
+    double? screentoneDotSize,
+    double? screentoneRotation,
+    double? screentoneSoftness,
   }) {
     return BrushPreset(
       id: id ?? this.id,
@@ -85,6 +100,11 @@ class BrushPreset {
           hollowEraseOccludedParts ?? this.hollowEraseOccludedParts,
       autoSharpTaper: autoSharpTaper ?? this.autoSharpTaper,
       snapToPixel: snapToPixel ?? this.snapToPixel,
+      screentoneEnabled: screentoneEnabled ?? this.screentoneEnabled,
+      screentoneSpacing: screentoneSpacing ?? this.screentoneSpacing,
+      screentoneDotSize: screentoneDotSize ?? this.screentoneDotSize,
+      screentoneRotation: screentoneRotation ?? this.screentoneRotation,
+      screentoneSoftness: screentoneSoftness ?? this.screentoneSoftness,
     );
   }
 
@@ -100,6 +120,14 @@ class BrushPreset {
     }
     final int aaValue = antialiasLevel.clamp(0, 9);
     final double hollowValue = hollowRatio.isFinite ? hollowRatio : 0.0;
+    final double screentoneSpacingValue =
+        screentoneSpacing.isFinite ? screentoneSpacing : 10.0;
+    final double screentoneDotValue =
+        screentoneDotSize.isFinite ? screentoneDotSize : 0.6;
+    final double screentoneRotationValue =
+        screentoneRotation.isFinite ? screentoneRotation : 45.0;
+    final double screentoneSoftnessValue =
+        screentoneSoftness.isFinite ? screentoneSoftness : 0.0;
 
     final String? resolvedShapeId = shapeId ?? _shapeIdFromEnum(shape);
 
@@ -113,6 +141,10 @@ class BrushPreset {
       antialiasLevel: aaValue,
       hollowRatio: hollowValue.clamp(0.0, 1.0),
       shapeId: resolvedShapeId,
+      screentoneSpacing: screentoneSpacingValue.clamp(2.0, 200.0),
+      screentoneDotSize: screentoneDotValue.clamp(0.0, 1.0),
+      screentoneRotation: screentoneRotationValue.clamp(-180.0, 180.0),
+      screentoneSoftness: screentoneSoftnessValue.clamp(0.0, 1.0),
     );
   }
 
@@ -143,6 +175,15 @@ class BrushPreset {
           (json['hollowEraseOccludedParts'] as bool?) ?? false,
       autoSharpTaper: (json['autoSharpTaper'] as bool?) ?? false,
       snapToPixel: (json['snapToPixel'] as bool?) ?? false,
+      screentoneEnabled: (json['screentoneEnabled'] as bool?) ?? false,
+      screentoneSpacing:
+          (json['screentoneSpacing'] as num?)?.toDouble() ?? 10.0,
+      screentoneDotSize:
+          (json['screentoneDotSize'] as num?)?.toDouble() ?? 0.6,
+      screentoneRotation:
+          (json['screentoneRotation'] as num?)?.toDouble() ?? 45.0,
+      screentoneSoftness:
+          (json['screentoneSoftness'] as num?)?.toDouble() ?? 0.0,
     ).sanitized();
   }
 
@@ -166,6 +207,11 @@ class BrushPreset {
         'hollowEraseOccludedParts': hollowEraseOccludedParts,
         'autoSharpTaper': autoSharpTaper,
         'snapToPixel': snapToPixel,
+        'screentoneEnabled': screentoneEnabled,
+        'screentoneSpacing': screentoneSpacing,
+        'screentoneDotSize': screentoneDotSize,
+        'screentoneRotation': screentoneRotation,
+        'screentoneSoftness': screentoneSoftness,
       };
 
   String get resolvedShapeId => shapeId ?? _shapeIdFromEnum(shape);
@@ -188,6 +234,11 @@ class BrushPreset {
         a.hollowEraseOccludedParts == b.hollowEraseOccludedParts &&
         a.autoSharpTaper == b.autoSharpTaper &&
         a.snapToPixel == b.snapToPixel &&
+        a.screentoneEnabled == b.screentoneEnabled &&
+        a.screentoneSpacing == b.screentoneSpacing &&
+        a.screentoneDotSize == b.screentoneDotSize &&
+        a.screentoneRotation == b.screentoneRotation &&
+        a.screentoneSoftness == b.screentoneSoftness &&
         a.author == b.author &&
         a.version == b.version;
   }

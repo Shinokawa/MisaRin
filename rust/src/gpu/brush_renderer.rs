@@ -75,6 +75,12 @@ struct BrushShaderConfig {
     stroke_mode: u32,
     selection_mask_mode: u32,
     custom_mask_mode: u32,
+    screentone_enabled: u32,
+    screentone_spacing: f32,
+    screentone_dot_size: f32,
+    screentone_rotation_sin: f32,
+    screentone_rotation_cos: f32,
+    screentone_softness: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -132,6 +138,12 @@ pub struct BrushRenderer {
     canvas_width: u32,
     canvas_height: u32,
     softness: f32,
+    screentone_enabled: bool,
+    screentone_spacing: f32,
+    screentone_dot_size: f32,
+    screentone_rotation_sin: f32,
+    screentone_rotation_cos: f32,
+    screentone_softness: f32,
 }
 
 impl BrushRenderer {
@@ -277,6 +289,12 @@ impl BrushRenderer {
             canvas_width: 0,
             canvas_height: 0,
             softness: 0.0,
+            screentone_enabled: false,
+            screentone_spacing: 10.0,
+            screentone_dot_size: 0.6,
+            screentone_rotation_sin: 0.0,
+            screentone_rotation_cos: 1.0,
+            screentone_softness: 0.0,
         })
     }
 
@@ -520,6 +538,39 @@ impl BrushRenderer {
 
     pub fn set_softness(&mut self, softness: f32) {
         self.softness = if softness.is_finite() {
+            softness.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+    }
+
+    pub fn set_screentone(
+        &mut self,
+        enabled: bool,
+        spacing: f32,
+        dot_size: f32,
+        rotation_radians: f32,
+        softness: f32,
+    ) {
+        self.screentone_enabled = enabled;
+        self.screentone_spacing = if spacing.is_finite() {
+            spacing.clamp(2.0, 200.0)
+        } else {
+            10.0
+        };
+        self.screentone_dot_size = if dot_size.is_finite() {
+            dot_size.clamp(0.0, 1.0)
+        } else {
+            0.6
+        };
+        let angle = if rotation_radians.is_finite() {
+            rotation_radians
+        } else {
+            0.0
+        };
+        self.screentone_rotation_sin = angle.sin();
+        self.screentone_rotation_cos = angle.cos();
+        self.screentone_softness = if softness.is_finite() {
             softness.clamp(0.0, 1.0)
         } else {
             0.0
@@ -879,6 +930,12 @@ impl BrushRenderer {
             },
             selection_mask_mode: if self.selection_mask_enabled { 1 } else { 0 },
             custom_mask_mode: if self.custom_mask_enabled { 1 } else { 0 },
+            screentone_enabled: if self.screentone_enabled { 1 } else { 0 },
+            screentone_spacing: self.screentone_spacing,
+            screentone_dot_size: self.screentone_dot_size,
+            screentone_rotation_sin: self.screentone_rotation_sin,
+            screentone_rotation_cos: self.screentone_rotation_cos,
+            screentone_softness: self.screentone_softness,
         };
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&config));

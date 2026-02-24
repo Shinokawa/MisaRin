@@ -48,6 +48,11 @@ class PaintingDrawCommand {
     this.hollow,
     this.hollowRatio,
     this.eraseOccludedParts,
+    this.screentoneEnabled,
+    this.screentoneSpacing,
+    this.screentoneDotSize,
+    this.screentoneRotation,
+    this.screentoneSoftness,
   });
 
   factory PaintingDrawCommand.brushStamp({
@@ -63,6 +68,11 @@ class PaintingDrawCommand {
     int rotationSeed = 0,
     double rotationJitter = 1.0,
     bool snapToPixel = false,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.brushStamp,
@@ -78,6 +88,11 @@ class PaintingDrawCommand {
       rotationSeed: rotationSeed,
       rotationJitter: rotationJitter,
       snapToPixel: snapToPixel,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
     );
   }
 
@@ -89,6 +104,11 @@ class PaintingDrawCommand {
     required int antialiasLevel,
     required bool includeStartCap,
     required bool erase,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.line,
@@ -99,6 +119,11 @@ class PaintingDrawCommand {
       end: end,
       radius: radius,
       includeStartCap: includeStartCap,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
     );
   }
 
@@ -111,6 +136,11 @@ class PaintingDrawCommand {
     required int antialiasLevel,
     required bool includeStartCap,
     required bool erase,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.variableLine,
@@ -122,6 +152,11 @@ class PaintingDrawCommand {
       startRadius: startRadius,
       endRadius: endRadius,
       includeStartCap: includeStartCap,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
     );
   }
 
@@ -143,6 +178,11 @@ class PaintingDrawCommand {
     double scatter = 0.0,
     double softness = 0.0,
     bool snapToPixel = false,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.stampSegment,
@@ -163,6 +203,11 @@ class PaintingDrawCommand {
       spacing: spacing,
       scatter: scatter,
       softness: softness,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
     );
   }
 
@@ -179,6 +224,11 @@ class PaintingDrawCommand {
     bool randomRotation = false,
     bool smoothRotation = false,
     int rotationSeed = 0,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.vectorStroke,
@@ -194,6 +244,11 @@ class PaintingDrawCommand {
       randomRotation: randomRotation,
       smoothRotation: smoothRotation,
       rotationSeed: rotationSeed,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
     );
   }
 
@@ -202,6 +257,11 @@ class PaintingDrawCommand {
     required int colorValue,
     required int antialiasLevel,
     required bool erase,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.filledPolygon,
@@ -209,6 +269,11 @@ class PaintingDrawCommand {
       antialiasLevel: antialiasLevel,
       erase: erase,
       points: points,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
     );
   }
 
@@ -237,6 +302,11 @@ class PaintingDrawCommand {
   final bool? hollow;
   final double? hollowRatio;
   final bool? eraseOccludedParts;
+  final bool? screentoneEnabled;
+  final double? screentoneSpacing;
+  final double? screentoneDotSize;
+  final double? screentoneRotation;
+  final double? screentoneSoftness;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -265,6 +335,11 @@ class PaintingDrawCommand {
       'hollow': hollow,
       'hollowRatio': hollowRatio,
       'eraseOccludedParts': eraseOccludedParts,
+      'screentoneEnabled': screentoneEnabled,
+      'screentoneSpacing': screentoneSpacing,
+      'screentoneDotSize': screentoneDotSize,
+      'screentoneRotation': screentoneRotation,
+      'screentoneSoftness': screentoneSoftness,
     };
   }
 }
@@ -929,6 +1004,16 @@ void _paintingWorkerApplyCommand({
   final Color color = Color(command['color'] as int? ?? 0);
   final bool erase = command['erase'] as bool? ?? false;
   final int antialias = (command['antialias'] as int? ?? 0).clamp(0, 9);
+  final bool screentoneEnabled =
+      command['screentoneEnabled'] as bool? ?? false;
+  final double screentoneSpacing =
+      (command['screentoneSpacing'] as num? ?? 10.0).toDouble();
+  final double screentoneDotSize =
+      (command['screentoneDotSize'] as num? ?? 0.6).toDouble();
+  final double screentoneRotation =
+      (command['screentoneRotation'] as num? ?? 45.0).toDouble();
+  final double screentoneSoftness =
+      (command['screentoneSoftness'] as num? ?? 0.0).toDouble();
   switch (type) {
     case PaintingDrawCommandType.brushStamp:
       final List<double>? centerData = (command['center'] as List<dynamic>?)
@@ -959,6 +1044,11 @@ void _paintingWorkerApplyCommand({
         rotationSeed: rotationSeed,
         rotationJitter: rotationJitter,
         snapToPixel: snapToPixel,
+        screentoneEnabled: screentoneEnabled,
+        screentoneSpacing: screentoneSpacing,
+        screentoneDotSize: screentoneDotSize,
+        screentoneRotation: screentoneRotation,
+        screentoneSoftness: screentoneSoftness,
       );
       break;
     case PaintingDrawCommandType.line:
@@ -977,6 +1067,11 @@ void _paintingWorkerApplyCommand({
         antialiasLevel: antialias,
         includeStartCap: includeStartCap,
         erase: erase,
+        screentoneEnabled: screentoneEnabled,
+        screentoneSpacing: screentoneSpacing,
+        screentoneDotSize: screentoneDotSize,
+        screentoneRotation: screentoneRotation,
+        screentoneSoftness: screentoneSoftness,
       );
       break;
     case PaintingDrawCommandType.variableLine:
@@ -998,6 +1093,11 @@ void _paintingWorkerApplyCommand({
         antialiasLevel: antialias,
         includeStartCap: includeStartCap,
         erase: erase,
+        screentoneEnabled: screentoneEnabled,
+        screentoneSpacing: screentoneSpacing,
+        screentoneDotSize: screentoneDotSize,
+        screentoneRotation: screentoneRotation,
+        screentoneSoftness: screentoneSoftness,
       );
       break;
     case PaintingDrawCommandType.stampSegment:
@@ -1042,6 +1142,11 @@ void _paintingWorkerApplyCommand({
         scatter: scatter,
         softness: softness,
         snapToPixel: snapToPixel,
+        screentoneEnabled: screentoneEnabled,
+        screentoneSpacing: screentoneSpacing,
+        screentoneDotSize: screentoneDotSize,
+        screentoneRotation: screentoneRotation,
+        screentoneSoftness: screentoneSoftness,
       );
       break;
     case PaintingDrawCommandType.vectorStroke:
@@ -1303,6 +1408,11 @@ void _paintingWorkerStampSegment({
   required double scatter,
   required double softness,
   required bool snapToPixel,
+  required bool screentoneEnabled,
+  required double screentoneSpacing,
+  required double screentoneDotSize,
+  required double screentoneRotation,
+  required double screentoneSoftness,
 }) {
   if (RustCpuBrushFfi.instance.drawStampSegment(
     pixelsPtr: surface.pointerAddress,
@@ -1328,6 +1438,11 @@ void _paintingWorkerStampSegment({
     scatter: scatter,
     softness: softness,
     snapToPixel: snapToPixel,
+    screentoneEnabled: screentoneEnabled,
+    screentoneSpacing: screentoneSpacing,
+    screentoneDotSize: screentoneDotSize,
+    screentoneRotation: screentoneRotation,
+    screentoneSoftness: screentoneSoftness,
     accumulate: true,
     selectionMask: mask,
   )) {
@@ -1351,6 +1466,11 @@ void _paintingWorkerStampSegment({
       rotationSeed: rotationSeed,
       rotationJitter: rotationJitter,
       snapToPixel: snapToPixel,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
     );
     return;
   }
@@ -1389,6 +1509,11 @@ void _paintingWorkerStampSegment({
       rotationSeed: rotationSeed,
       rotationJitter: rotationJitter,
       snapToPixel: snapToPixel,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
     );
   }
 }

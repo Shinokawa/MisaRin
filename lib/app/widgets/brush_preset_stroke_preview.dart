@@ -105,7 +105,7 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
       return;
     }
     final BrushPreset preset = widget.preset.sanitized();
-    final int nextSignature = Object.hash(
+    final int nextSignature = Object.hashAll(<Object?>[
       pixelWidth,
       pixelHeight,
       preset.id,
@@ -122,9 +122,14 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
       preset.hollowRatio,
       preset.autoSharpTaper,
       preset.snapToPixel,
+      preset.screentoneEnabled,
+      preset.screentoneSpacing,
+      preset.screentoneDotSize,
+      preset.screentoneRotation,
+      preset.screentoneSoftness,
       widget.color.value,
       scale,
-    );
+    ]);
     if (nextSignature == _signature) {
       return;
     }
@@ -399,6 +404,11 @@ void _drawStrokeSegments({
   final double rotationJitter = preset.rotationJitter;
   final bool snapToPixel = preset.snapToPixel;
   final BrushShape shape = preset.shape;
+  final bool screentoneEnabled = preset.screentoneEnabled;
+  final double screentoneSpacing = preset.screentoneSpacing;
+  final double screentoneDotSize = preset.screentoneDotSize;
+  final double screentoneRotation = preset.screentoneRotation;
+  final double screentoneSoftness = preset.screentoneSoftness;
 
   final _PreviewStrokeSample first = samples.first;
   _drawStampSegment(
@@ -420,6 +430,11 @@ void _drawStrokeSegments({
     scatter: scatter,
     softness: softness,
     snapToPixel: snapToPixel,
+    screentoneEnabled: screentoneEnabled,
+    screentoneSpacing: screentoneSpacing,
+    screentoneDotSize: screentoneDotSize,
+    screentoneRotation: screentoneRotation,
+    screentoneSoftness: screentoneSoftness,
     customShape: customShape,
   );
 
@@ -445,6 +460,11 @@ void _drawStrokeSegments({
       scatter: scatter,
       softness: softness,
       snapToPixel: snapToPixel,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
       customShape: customShape,
     );
   }
@@ -469,6 +489,11 @@ void _drawStampSegment({
   required double scatter,
   required double softness,
   required bool snapToPixel,
+  required bool screentoneEnabled,
+  required double screentoneSpacing,
+  required double screentoneDotSize,
+  required double screentoneRotation,
+  required double screentoneSoftness,
   BrushShapeRaster? customShape,
 }) {
   if (customShape != null) {
@@ -490,6 +515,11 @@ void _drawStampSegment({
       scatter: scatter,
       softness: softness,
       snapToPixel: snapToPixel,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
     );
     return;
   }
@@ -517,6 +547,11 @@ void _drawStampSegment({
     scatter: scatter,
     softness: softness,
     snapToPixel: snapToPixel,
+    screentoneEnabled: screentoneEnabled,
+    screentoneSpacing: screentoneSpacing,
+    screentoneDotSize: screentoneDotSize,
+    screentoneRotation: screentoneRotation,
+    screentoneSoftness: screentoneSoftness,
     accumulate: true,
     selectionMask: null,
   );
@@ -543,6 +578,11 @@ void _drawCustomStampSegment({
   required double scatter,
   required double softness,
   required bool snapToPixel,
+  required bool screentoneEnabled,
+  required double screentoneSpacing,
+  required double screentoneDotSize,
+  required double screentoneRotation,
+  required double screentoneSoftness,
 }) {
   final double distance = (end - start).distance;
   if (!distance.isFinite || distance <= 0.0001) {

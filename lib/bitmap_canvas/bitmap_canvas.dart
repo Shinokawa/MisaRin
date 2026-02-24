@@ -83,6 +83,11 @@ class BitmapSurface {
     int antialiasLevel = 0,
     bool erase = false,
     double softness = 0.0,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
   }) {
     if (radius <= 0) {
       return;
@@ -107,6 +112,11 @@ class BitmapSurface {
       smoothRotation: false,
       rotationSeed: 0,
       rotationJitter: 0.0,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
       snapToPixel: false,
       selectionMask: mask,
     );
@@ -125,6 +135,11 @@ class BitmapSurface {
     int antialiasLevel = 0,
     bool includeStartCap = true,
     bool erase = false,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
   }) {
     if (!_ensureRustCpuBrushSupported()) {
       return;
@@ -144,6 +159,11 @@ class BitmapSurface {
       antialiasLevel: antialiasLevel.clamp(0, 9),
       includeStartCap: includeStartCap,
       erase: erase,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
       selectionMask: mask,
     );
     if (ok) {
@@ -163,6 +183,11 @@ class BitmapSurface {
     int antialiasLevel = 0,
     bool includeStartCap = true,
     bool erase = false,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
   }) {
     if (!_ensureRustCpuBrushSupported()) {
       return;
@@ -182,6 +207,11 @@ class BitmapSurface {
       antialiasLevel: antialiasLevel.clamp(0, 9),
       includeStartCap: includeStartCap,
       erase: erase,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
       selectionMask: mask,
     );
     if (ok) {
@@ -198,6 +228,11 @@ class BitmapSurface {
     Uint8List? mask,
     int antialiasLevel = 0,
     bool erase = false,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
   }) {
     if (points.isEmpty) {
       return;
@@ -210,6 +245,11 @@ class BitmapSurface {
         mask: mask,
         antialiasLevel: antialiasLevel,
         erase: erase,
+        screentoneEnabled: screentoneEnabled,
+        screentoneSpacing: screentoneSpacing,
+        screentoneDotSize: screentoneDotSize,
+        screentoneRotation: screentoneRotation,
+        screentoneSoftness: screentoneSoftness,
       );
       return;
     }
@@ -224,6 +264,11 @@ class BitmapSurface {
         antialiasLevel: antialiasLevel,
         includeStartCap: includeStartCap,
         erase: erase,
+        screentoneEnabled: screentoneEnabled,
+        screentoneSpacing: screentoneSpacing,
+        screentoneDotSize: screentoneDotSize,
+        screentoneRotation: screentoneRotation,
+        screentoneSoftness: screentoneSoftness,
       );
       includeStartCap = false;
     }
@@ -306,6 +351,11 @@ class BitmapSurface {
     int rotationSeed = 0,
     double rotationJitter = 1.0,
     bool snapToPixel = false,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
   }) {
     Offset resolvedCenter = center;
     double resolvedRadius = radius;
@@ -342,6 +392,11 @@ class BitmapSurface {
       smoothRotation: smoothRotation,
       rotationSeed: rotationSeed,
       rotationJitter: rotationJitter,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
       snapToPixel: snapToPixel,
       selectionMask: mask,
     );

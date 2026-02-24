@@ -1055,6 +1055,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get brushPresetPen => 'ペン';
 
   @override
+  String get brushPresetScreentone => 'スクリーントーン';
+
+  @override
   String get brushPresetPixel => 'ピクセル';
 
   @override
@@ -1083,6 +1086,21 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get brushSnapToPixel => 'ピクセルにスナップ';
+
+  @override
+  String get screentoneEnabled => 'スクリーントーン';
+
+  @override
+  String get screentoneSpacing => 'ドット間隔';
+
+  @override
+  String get screentoneDotSize => 'ドットサイズ';
+
+  @override
+  String get screentoneRotation => 'ドット回転';
+
+  @override
+  String get screentoneSoftness => 'ドットの柔らかさ';
 
   @override
   String get brushShape => 'ブラシ形状';

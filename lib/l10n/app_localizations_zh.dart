@@ -1049,6 +1049,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get brushPresetPen => '钢笔';
 
   @override
+  String get brushPresetScreentone => '网点笔';
+
+  @override
   String get brushPresetPixel => '像素笔';
 
   @override
@@ -1077,6 +1080,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get brushSnapToPixel => '像素对齐';
+
+  @override
+  String get screentoneEnabled => '网点';
+
+  @override
+  String get screentoneSpacing => '网点间距';
+
+  @override
+  String get screentoneDotSize => '网点大小';
+
+  @override
+  String get screentoneRotation => '网点旋转';
+
+  @override
+  String get screentoneSoftness => '网点柔化';
 
   @override
   String get brushShape => '笔刷形状';
@@ -2793,6 +2811,9 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get brushPresetPen => '钢笔';
 
   @override
+  String get brushPresetScreentone => '网点笔';
+
+  @override
   String get brushPresetPixel => '像素笔';
 
   @override
@@ -2821,6 +2842,21 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get brushSnapToPixel => '像素对齐';
+
+  @override
+  String get screentoneEnabled => '网点';
+
+  @override
+  String get screentoneSpacing => '网点间距';
+
+  @override
+  String get screentoneDotSize => '网点大小';
+
+  @override
+  String get screentoneRotation => '网点旋转';
+
+  @override
+  String get screentoneSoftness => '网点柔化';
 
   @override
   String get brushAuthorLabel => '作者';
@@ -3775,6 +3811,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get brushPresetPen => '鋼筆';
 
   @override
+  String get brushPresetScreentone => '網點筆';
+
+  @override
   String get brushPresetPixel => '像素筆';
 
   @override
@@ -3803,6 +3842,21 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get brushSnapToPixel => '像素對齊';
+
+  @override
+  String get screentoneEnabled => '網點';
+
+  @override
+  String get screentoneSpacing => '網點間距';
+
+  @override
+  String get screentoneDotSize => '網點大小';
+
+  @override
+  String get screentoneRotation => '網點旋轉';
+
+  @override
+  String get screentoneSoftness => '網點柔化';
 
   @override
   String get brushAuthorLabel => '作者';

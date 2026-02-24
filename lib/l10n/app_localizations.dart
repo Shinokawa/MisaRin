@@ -2048,6 +2048,12 @@ abstract class AppLocalizations {
   /// **'Pen'**
   String get brushPresetPen;
 
+  /// No description provided for @brushPresetScreentone.
+  ///
+  /// In en, this message translates to:
+  /// **'Screentone'**
+  String get brushPresetScreentone;
+
   /// No description provided for @brushPresetPixel.
   ///
   /// In en, this message translates to:
@@ -2107,6 +2113,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Snap to Pixel'**
   String get brushSnapToPixel;
+
+  /// No description provided for @screentoneEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Screentone'**
+  String get screentoneEnabled;
+
+  /// No description provided for @screentoneSpacing.
+  ///
+  /// In en, this message translates to:
+  /// **'Dot Spacing'**
+  String get screentoneSpacing;
+
+  /// No description provided for @screentoneDotSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Dot Size'**
+  String get screentoneDotSize;
+
+  /// No description provided for @screentoneRotation.
+  ///
+  /// In en, this message translates to:
+  /// **'Dot Rotation'**
+  String get screentoneRotation;
+
+  /// No description provided for @screentoneSoftness.
+  ///
+  /// In en, this message translates to:
+  /// **'Dot Softness'**
+  String get screentoneSoftness;
 
   /// No description provided for @brushShape.
   ///

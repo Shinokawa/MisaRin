@@ -319,6 +319,11 @@ class BackendCanvasSurface extends StatefulWidget {
     required this.brushScatter,
     required this.brushRotationJitter,
     required this.brushSnapToPixel,
+    required this.brushScreentoneEnabled,
+    required this.brushScreentoneSpacing,
+    required this.brushScreentoneDotSize,
+    required this.brushScreentoneRotation,
+    required this.brushScreentoneSoftness,
     this.hollowStrokeEnabled = false,
     this.hollowStrokeRatio = 0.0,
     this.hollowStrokeEraseOccludedParts = false,
@@ -380,6 +385,11 @@ class BackendCanvasSurface extends StatefulWidget {
   final double brushScatter;
   final double brushRotationJitter;
   final bool brushSnapToPixel;
+  final bool brushScreentoneEnabled;
+  final double brushScreentoneSpacing;
+  final double brushScreentoneDotSize;
+  final double brushScreentoneRotation;
+  final double brushScreentoneSoftness;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
   final bool hollowStrokeEraseOccludedParts;
@@ -471,6 +481,19 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
         (oldWidget.brushRotationJitter - widget.brushRotationJitter).abs() >
             1e-6 ||
         oldWidget.brushSnapToPixel != widget.brushSnapToPixel ||
+        oldWidget.brushScreentoneEnabled != widget.brushScreentoneEnabled ||
+        (oldWidget.brushScreentoneSpacing - widget.brushScreentoneSpacing)
+                .abs() >
+            1e-6 ||
+        (oldWidget.brushScreentoneDotSize - widget.brushScreentoneDotSize)
+                .abs() >
+            1e-6 ||
+        (oldWidget.brushScreentoneRotation - widget.brushScreentoneRotation)
+                .abs() >
+            1e-6 ||
+        (oldWidget.brushScreentoneSoftness - widget.brushScreentoneSoftness)
+                .abs() >
+            1e-6 ||
         oldWidget.hollowStrokeEnabled != widget.hollowStrokeEnabled ||
         (oldWidget.hollowStrokeRatio - widget.hollowStrokeRatio).abs() > 1e-6 ||
         oldWidget.hollowStrokeEraseOccludedParts !=
@@ -726,6 +749,11 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
       scatter: widget.brushScatter,
       rotationJitter: widget.brushRotationJitter,
       snapToPixel: widget.brushSnapToPixel,
+      screentoneEnabled: widget.brushScreentoneEnabled,
+      screentoneSpacing: widget.brushScreentoneSpacing,
+      screentoneDotSize: widget.brushScreentoneDotSize,
+      screentoneRotation: widget.brushScreentoneRotation,
+      screentoneSoftness: widget.brushScreentoneSoftness,
       hollow: widget.hollowStrokeEnabled,
       hollowRatio: widget.hollowStrokeRatio,
       hollowEraseOccludedParts: widget.hollowStrokeEraseOccludedParts,

@@ -1078,6 +1078,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushPresetPen => 'Pen';
 
   @override
+  String get brushPresetScreentone => 'Screentone';
+
+  @override
   String get brushPresetPixel => 'Pixel';
 
   @override
@@ -1106,6 +1109,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get brushSnapToPixel => 'Snap to Pixel';
+
+  @override
+  String get screentoneEnabled => 'Screentone';
+
+  @override
+  String get screentoneSpacing => 'Dot Spacing';
+
+  @override
+  String get screentoneDotSize => 'Dot Size';
+
+  @override
+  String get screentoneRotation => 'Dot Rotation';
+
+  @override
+  String get screentoneSoftness => 'Dot Softness';
 
   @override
   String get brushShape => 'Brush Shape';

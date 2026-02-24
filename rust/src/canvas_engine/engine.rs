@@ -163,6 +163,11 @@ pub(crate) enum EngineCommand {
         scatter: f32,
         rotation_jitter: f32,
         snap_to_pixel: bool,
+        screentone_enabled: bool,
+        screentone_spacing: f32,
+        screentone_dot_size: f32,
+        screentone_rotation: f32,
+        screentone_softness: f32,
         hollow_enabled: bool,
         hollow_ratio: f32,
         hollow_erase_occluded: bool,
@@ -2911,6 +2916,11 @@ fn handle_engine_command(
             scatter,
             rotation_jitter,
             snap_to_pixel,
+            screentone_enabled,
+            screentone_spacing,
+            screentone_dot_size,
+            screentone_rotation,
+            screentone_softness,
             hollow_enabled,
             hollow_ratio,
             hollow_erase_occluded,
@@ -2933,6 +2943,11 @@ fn handle_engine_command(
             brush_settings.scatter = scatter;
             brush_settings.rotation_jitter = rotation_jitter;
             brush_settings.snap_to_pixel = snap_to_pixel;
+            brush_settings.screentone_enabled = screentone_enabled;
+            brush_settings.screentone_spacing = screentone_spacing;
+            brush_settings.screentone_dot_size = screentone_dot_size;
+            brush_settings.screentone_rotation = screentone_rotation;
+            brush_settings.screentone_softness = screentone_softness;
             brush_settings.hollow_enabled = hollow_enabled;
             brush_settings.hollow_ratio = hollow_ratio;
             brush_settings.hollow_erase_occluded = hollow_erase_occluded;

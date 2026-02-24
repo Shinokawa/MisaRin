@@ -32,6 +32,12 @@ struct Config {
   stroke_mode: u32,        // 0: segments, 1: points
   selection_mask_mode: u32, // 0: disabled, 1: clip by selection mask
   custom_mask_mode: u32, // 0: disabled, 1: use custom brush mask
+  screentone_enabled: u32,
+  screentone_spacing: f32,
+  screentone_dot_size: f32,
+  screentone_rotation_sin: f32,
+  screentone_rotation_cos: f32,
+  screentone_softness: f32,
 };
 
 const SQRT2: f32 = 1.414213562;
@@ -155,6 +161,40 @@ fn brush_alpha(dist: f32, radius: f32, softness: f32) -> f32 {
   let s = clamp(softness, 0.0, 1.0);
   let aa_feather = antialias_feather(cfg.antialias_level);
   let edge = max(aa_feather, radius * s);
+  if (edge <= 0.0) {
+    return select(0.0, 1.0, dist <= radius);
+  }
+  let inner = max(radius - edge, 0.0);
+  let outer = radius + edge;
+  if (dist <= inner) {
+    return 1.0;
+  }
+  if (dist >= outer) {
+    return 0.0;
+  }
+  return (outer - dist) / (outer - inner);
+}
+
+fn screentone_mask(sample_pos: vec2<f32>) -> f32 {
+  if (cfg.screentone_enabled == 0u) {
+    return 1.0;
+  }
+  let spacing = max(cfg.screentone_spacing, 0.01);
+  let dot_size = clamp01(cfg.screentone_dot_size);
+  let radius = spacing * 0.5 * dot_size;
+  if (radius <= 0.0) {
+    return 0.0;
+  }
+  let rotated = rotate_to_brush_space(
+    sample_pos,
+    cfg.screentone_rotation_sin,
+    cfg.screentone_rotation_cos,
+  );
+  let cell = vec2<f32>(floor(rotated.x / spacing), floor(rotated.y / spacing));
+  let center = (cell + vec2<f32>(0.5, 0.5)) * spacing;
+  let dist = length(rotated - center);
+  let aa_feather = antialias_feather(cfg.antialias_level);
+  let edge = max(aa_feather, radius * clamp01(cfg.screentone_softness));
   if (edge <= 0.0) {
     return select(0.0, 1.0, dist <= radius);
   }
@@ -396,13 +436,14 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
   if (scale <= 0.0) {
     return 0.0;
   }
+  let tone = screentone_mask(sample_pos);
   if (count == 1u) {
     let sp = stroke_points[0u];
     let radius = sp.radius * scale;
     let rot_sin = select(cfg.rotation_sin, sp.rot_sin, cfg.stroke_mode == 1u);
     let rot_cos = select(cfg.rotation_cos, sp.rot_cos, cfg.stroke_mode == 1u);
     let cov = point_coverage(sample_pos, sp.pos, radius, rot_sin, rot_cos);
-    return cov * clamp01(sp.alpha);
+    return cov * clamp01(sp.alpha) * tone;
   }
 
   if (cfg.stroke_mode == 1u) {
@@ -415,7 +456,7 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
         let a = cov * clamp01(sp.alpha);
         out_alpha = max(out_alpha, a);
       }
-      return out_alpha;
+      return out_alpha * tone;
     }
     var remain = 1.0;
     for (var i: u32 = 0u; i < count; i = i + 1u) {
@@ -425,7 +466,7 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
       let a = clamp01(cov * clamp01(sp.alpha));
       remain = remain * (1.0 - a);
     }
-    return 1.0 - remain;
+    return (1.0 - remain) * tone;
   }
 
   var out_alpha = 0.0;
@@ -447,7 +488,7 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
       let a = cov * clamp01(alpha);
       out_alpha = max(out_alpha, a);
     }
-    return out_alpha;
+    return out_alpha * tone;
   }
   var remain = 1.0;
   for (var i: u32 = 0u; i + 1u < count; i = i + 1u) {
@@ -467,7 +508,7 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
     let a = clamp01(cov * clamp01(alpha));
     remain = remain * (1.0 - a);
   }
-  return 1.0 - remain;
+  return (1.0 - remain) * tone;
 }
 
 fn antialias_samples_per_axis(level: u32) -> u32 {
