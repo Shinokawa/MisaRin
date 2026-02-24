@@ -519,6 +519,7 @@
   "brushPresetCel": "Cel Brush",
   "brushPresetPen": "Pen",
   "brushPresetPixel": "Pixel",
+  "brushPresetDryInk": "Dry Ink",
   "brushSpacing": "Spacing",
   "brushHardness": "Hardness",
   "brushFlow": "Flow",

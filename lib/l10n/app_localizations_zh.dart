@@ -1052,6 +1052,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get brushPresetPixel => '像素笔';
 
   @override
+  String get brushPresetDryInk => '枯墨';
+
+  @override
   String get brushSpacing => '间距';
 
   @override
@@ -2787,6 +2790,9 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get brushPresetPixel => '像素笔';
 
   @override
+  String get brushPresetDryInk => '枯墨';
+
+  @override
   String get brushSpacing => '间距';
 
   @override
@@ -3758,6 +3764,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get brushPresetPixel => '像素筆';
+
+  @override
+  String get brushPresetDryInk => '枯墨';
 
   @override
   String get brushSpacing => '間距';

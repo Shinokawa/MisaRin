@@ -28,6 +28,7 @@ pub(crate) struct EngineBrushSettings {
     pub(crate) streamline_strength: f32,
     pub(crate) smoothing_mode: u8,
     pub(crate) stabilizer_strength: f32,
+    pub(crate) custom_mask_enabled: bool,
 }
 
 impl Default for EngineBrushSettings {
@@ -54,6 +55,7 @@ impl Default for EngineBrushSettings {
             streamline_strength: 0.0,
             smoothing_mode: 1,
             stabilizer_strength: 0.0,
+            custom_mask_enabled: false,
         }
     }
 }
@@ -119,6 +121,10 @@ impl EngineBrushSettings {
 
     pub(crate) fn softness(&self) -> f32 {
         (1.0 - self.hardness).clamp(0.0, 1.0)
+    }
+
+    pub(crate) fn supports_rotation(&self) -> bool {
+        self.custom_mask_enabled || !matches!(self.shape, BrushShape::Circle)
     }
 
     fn smoothing_mode(&self) -> SmoothingMode {
@@ -1078,7 +1084,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
         let dirty = compute_dirty_rect_i32(&points, &dirty_radii, canvas_width, canvas_height);
         before_draw(brush, dirty);
 
-        let supports_rotation = !matches!(brush_settings.shape, BrushShape::Circle);
+        let supports_rotation = brush_settings.supports_rotation();
         let use_smooth = brush_settings.smooth_rotation && supports_rotation;
         let use_random =
             brush_settings.random_rotation && brush_settings.rotation_jitter > 0.0001 && supports_rotation;
@@ -1162,7 +1168,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
         before_draw(brush, dirty);
         let rotation = if brush_settings.random_rotation
             && brush_settings.rotation_jitter > 0.0001
-            && !matches!(brush_settings.shape, BrushShape::Circle)
+            && brush_settings.supports_rotation()
         {
             brush_random_rotation_radians(p0, brush_settings.rotation_seed)
                 * brush_settings.rotation_jitter
@@ -1203,7 +1209,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
         before_draw(brush, dirty);
         let rotation = if brush_settings.random_rotation
             && brush_settings.rotation_jitter > 0.0001
-            && !matches!(brush_settings.shape, BrushShape::Circle)
+            && brush_settings.supports_rotation()
         {
             brush_random_rotation_radians(points[0], brush_settings.rotation_seed)
                 * brush_settings.rotation_jitter
@@ -1242,7 +1248,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
         let needs_per_segment_rotation =
             brush_settings.random_rotation
                 && brush_settings.rotation_jitter > 0.0001
-                && !matches!(brush_settings.shape, BrushShape::Circle);
+                && brush_settings.supports_rotation();
         let color = Color {
             argb: brush_settings.color_argb,
         };

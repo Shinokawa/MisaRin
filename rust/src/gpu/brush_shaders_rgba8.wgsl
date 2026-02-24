@@ -31,6 +31,7 @@ struct Config {
   stroke_accumulate_mode: u32,
   stroke_mode: u32,        // 0: segments, 1: points
   selection_mask_mode: u32, // 0: disabled, 1: clip by selection mask
+  custom_mask_mode: u32, // 0: disabled, 1: use custom brush mask
 };
 
 const SQRT2: f32 = 1.414213562;
@@ -49,6 +50,9 @@ var layer_read: texture_2d<f32>;
 
 @group(0) @binding(4)
 var selection_mask: texture_2d<f32>;
+
+@group(0) @binding(5)
+var brush_mask: texture_2d<f32>;
 
 fn to_u8(x: f32) -> u32 {
   let v = floor(clamp(x, 0.0, 1.0) * 255.0 + 0.5);
@@ -180,6 +184,41 @@ fn rotate_to_brush_space(v: vec2<f32>, rot_sin: f32, rot_cos: f32) -> vec2<f32> 
     v.x * rot_cos + v.y * rot_sin,
     -v.x * rot_sin + v.y * rot_cos,
   );
+}
+
+fn custom_mask_sample(rel: vec2<f32>, radius: f32) -> vec2<f32> {
+  if (radius <= EPS) {
+    return vec2<f32>(0.0, 0.0);
+  }
+  let dims = textureDimensions(brush_mask);
+  if (dims.x == 0u || dims.y == 0u) {
+    return vec2<f32>(0.0, 0.0);
+  }
+  let u = rel.x / radius * 0.5 + 0.5;
+  let v = rel.y / radius * 0.5 + 0.5;
+  if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) {
+    return vec2<f32>(0.0, 0.0);
+  }
+  let fx = u * f32(dims.x - 1u);
+  let fy = v * f32(dims.y - 1u);
+  let x0 = i32(floor(fx));
+  let y0 = i32(floor(fy));
+  let x1 = min(x0 + 1, i32(dims.x - 1u));
+  let y1 = min(y0 + 1, i32(dims.y - 1u));
+  let tx = fx - f32(x0);
+  let ty = fy - f32(y0);
+  let c00 = textureLoad(brush_mask, vec2<i32>(x0, y0), 0).rg;
+  let c10 = textureLoad(brush_mask, vec2<i32>(x1, y0), 0).rg;
+  let c01 = textureLoad(brush_mask, vec2<i32>(x0, y1), 0).rg;
+  let c11 = textureLoad(brush_mask, vec2<i32>(x1, y1), 0).rg;
+  let a0 = mix(c00, c10, tx);
+  let a1 = mix(c01, c11, tx);
+  return mix(a0, a1, ty);
+}
+
+fn custom_mask_alpha(rel: vec2<f32>, radius: f32) -> f32 {
+  let sample = custom_mask_sample(rel, radius);
+  return mix(sample.x, sample.y, clamp01(cfg.softness));
 }
 
 fn tri_vert(i: u32) -> vec2<f32> {
@@ -315,6 +354,39 @@ fn shape_distance_to_segment(
   return shape_distance_to_point(sample_pos, c, radius, rot_sin, rot_cos);
 }
 
+fn point_coverage(
+  sample_pos: vec2<f32>,
+  center: vec2<f32>,
+  radius: f32,
+  rot_sin: f32,
+  rot_cos: f32,
+) -> f32 {
+  if (cfg.custom_mask_mode == 1u) {
+    let rel = rotate_to_brush_space(sample_pos - center, rot_sin, rot_cos);
+    return custom_mask_alpha(rel, radius);
+  }
+  let dist = shape_distance_to_point(sample_pos, center, radius, rot_sin, rot_cos);
+  return brush_alpha(dist, radius, cfg.softness);
+}
+
+fn segment_coverage(
+  sample_pos: vec2<f32>,
+  a: vec2<f32>,
+  b: vec2<f32>,
+  radius: f32,
+  rot_sin: f32,
+  rot_cos: f32,
+) -> f32 {
+  if (cfg.custom_mask_mode == 1u) {
+    let t = closest_t_to_segment(sample_pos, a, b);
+    let c = a + (b - a) * t;
+    let rel = rotate_to_brush_space(sample_pos - c, rot_sin, rot_cos);
+    return custom_mask_alpha(rel, radius);
+  }
+  let dist = shape_distance_to_segment(sample_pos, a, b, radius, rot_sin, rot_cos);
+  return brush_alpha(dist, radius, cfg.softness);
+}
+
 fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
   let count = cfg.point_count;
   if (count == 0u) {
@@ -329,8 +401,8 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
     let radius = sp.radius * scale;
     let rot_sin = select(cfg.rotation_sin, sp.rot_sin, cfg.stroke_mode == 1u);
     let rot_cos = select(cfg.rotation_cos, sp.rot_cos, cfg.stroke_mode == 1u);
-    let dist = shape_distance_to_point(sample_pos, sp.pos, radius, rot_sin, rot_cos);
-    return brush_alpha(dist, radius, cfg.softness) * clamp01(sp.alpha);
+    let cov = point_coverage(sample_pos, sp.pos, radius, rot_sin, rot_cos);
+    return cov * clamp01(sp.alpha);
   }
 
   if (cfg.stroke_mode == 1u) {
@@ -339,8 +411,8 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
       for (var i: u32 = 0u; i < count; i = i + 1u) {
         let sp = stroke_points[i];
         let radius = sp.radius * scale;
-        let dist = shape_distance_to_point(sample_pos, sp.pos, radius, sp.rot_sin, sp.rot_cos);
-        let a = brush_alpha(dist, radius, cfg.softness) * clamp01(sp.alpha);
+        let cov = point_coverage(sample_pos, sp.pos, radius, sp.rot_sin, sp.rot_cos);
+        let a = cov * clamp01(sp.alpha);
         out_alpha = max(out_alpha, a);
       }
       return out_alpha;
@@ -349,8 +421,8 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
     for (var i: u32 = 0u; i < count; i = i + 1u) {
       let sp = stroke_points[i];
       let radius = sp.radius * scale;
-      let dist = shape_distance_to_point(sample_pos, sp.pos, radius, sp.rot_sin, sp.rot_cos);
-      let a = clamp01(brush_alpha(dist, radius, cfg.softness) * clamp01(sp.alpha));
+      let cov = point_coverage(sample_pos, sp.pos, radius, sp.rot_sin, sp.rot_cos);
+      let a = clamp01(cov * clamp01(sp.alpha));
       remain = remain * (1.0 - a);
     }
     return 1.0 - remain;
@@ -364,7 +436,7 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
       let t = closest_t_to_segment(sample_pos, p0.pos, p1.pos);
       let radius = mix(p0.radius, p1.radius, t) * scale;
       let alpha = mix(p0.alpha, p1.alpha, t);
-      let dist = shape_distance_to_segment(
+      let cov = segment_coverage(
         sample_pos,
         p0.pos,
         p1.pos,
@@ -372,7 +444,7 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
         cfg.rotation_sin,
         cfg.rotation_cos,
       );
-      let a = brush_alpha(dist, radius, cfg.softness) * clamp01(alpha);
+      let a = cov * clamp01(alpha);
       out_alpha = max(out_alpha, a);
     }
     return out_alpha;
@@ -384,7 +456,7 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
     let t = closest_t_to_segment(sample_pos, p0.pos, p1.pos);
     let radius = mix(p0.radius, p1.radius, t) * scale;
     let alpha = mix(p0.alpha, p1.alpha, t);
-    let dist = shape_distance_to_segment(
+    let cov = segment_coverage(
       sample_pos,
       p0.pos,
       p1.pos,
@@ -392,7 +464,7 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
       cfg.rotation_sin,
       cfg.rotation_cos,
     );
-    let a = clamp01(brush_alpha(dist, radius, cfg.softness) * clamp01(alpha));
+    let a = clamp01(cov * clamp01(alpha));
     remain = remain * (1.0 - a);
   }
   return 1.0 - remain;

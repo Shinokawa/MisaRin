@@ -2054,6 +2054,12 @@ abstract class AppLocalizations {
   /// **'Pixel'**
   String get brushPresetPixel;
 
+  /// No description provided for @brushPresetDryInk.
+  ///
+  /// In en, this message translates to:
+  /// **'Dry Ink'**
+  String get brushPresetDryInk;
+
   /// No description provided for @brushSpacing.
   ///
   /// In en, this message translates to:

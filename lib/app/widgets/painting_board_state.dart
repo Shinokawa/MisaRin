@@ -1219,6 +1219,7 @@ class PaintingBoardState extends _PaintingBoardBase
     final bool builtIn = shapes.isBuiltInId(shapeId);
     if (builtIn) {
       _brushShapeRaster = null;
+      _syncBackendBrushMask(force: true);
       if (_controller is BitmapCanvasController) {
         (_controller as BitmapCanvasController).setCustomBrushShape(
           shapeId: shapeId,
@@ -1237,6 +1238,7 @@ class PaintingBoardState extends _PaintingBoardBase
       setState(() {
         _brushShapeRaster = raster;
       });
+      _syncBackendBrushMask(force: true);
       if (_controller is BitmapCanvasController) {
         (_controller as BitmapCanvasController).setCustomBrushShape(
           shapeId: shapeId,

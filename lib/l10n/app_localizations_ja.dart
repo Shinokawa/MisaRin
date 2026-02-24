@@ -1058,6 +1058,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get brushPresetPixel => 'ピクセル';
 
   @override
+  String get brushPresetDryInk => '枯墨';
+
+  @override
   String get brushSpacing => '間隔';
 
   @override

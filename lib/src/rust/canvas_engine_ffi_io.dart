@@ -363,6 +363,26 @@ typedef _EngineSetBrushDart =
       double stabilizerStrength,
     );
 
+typedef _EngineSetBrushMaskNative =
+    ffi.Void Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 width,
+      ffi.Uint32 height,
+      ffi.Pointer<ffi.Uint8> mask,
+      ffi.UintPtr maskLen,
+    );
+typedef _EngineSetBrushMaskDart =
+    void Function(
+      int handle,
+      int width,
+      int height,
+      ffi.Pointer<ffi.Uint8> mask,
+      int maskLen,
+    );
+
+typedef _EngineClearBrushMaskNative = ffi.Void Function(ffi.Uint64 handle);
+typedef _EngineClearBrushMaskDart = void Function(int handle);
+
 typedef _EngineSprayBeginNative = ffi.Void Function(ffi.Uint64 handle);
 typedef _EngineSprayBeginDart = void Function(int handle);
 
@@ -651,6 +671,23 @@ class CanvasEngineFfi {
         _setBrush = null;
       }
       try {
+        _setBrushMask = _lib
+            .lookupFunction<_EngineSetBrushMaskNative, _EngineSetBrushMaskDart>(
+              'engine_set_brush_mask',
+            );
+      } catch (_) {
+        _setBrushMask = null;
+      }
+      try {
+        _clearBrushMask = _lib
+            .lookupFunction<
+              _EngineClearBrushMaskNative,
+              _EngineClearBrushMaskDart
+            >('engine_clear_brush_mask');
+      } catch (_) {
+        _clearBrushMask = null;
+      }
+      try {
         _sprayBegin = _lib
             .lookupFunction<_EngineSprayBeginNative, _EngineSprayBeginDart>(
               'engine_spray_begin',
@@ -742,6 +779,8 @@ class CanvasEngineFfi {
   late final _EngineUndoDart? _undo;
   late final _EngineRedoDart? _redo;
   late final _EngineSetBrushDart? _setBrush;
+  late final _EngineSetBrushMaskDart? _setBrushMask;
+  late final _EngineClearBrushMaskDart? _clearBrushMask;
   late final _EngineSprayBeginDart? _sprayBegin;
   late final _EngineSprayDrawDart? _sprayDraw;
   late final _EngineSprayEndDart? _sprayEnd;
@@ -1403,6 +1442,43 @@ class CanvasEngineFfi {
       smoothing,
       stabilizer,
     );
+  }
+
+  void setBrushMask({
+    required int handle,
+    required int width,
+    required int height,
+    required Uint8List mask,
+  }) {
+    final fn = _setBrushMask;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    if (width <= 0 || height <= 0 || mask.isEmpty) {
+      clearBrushMask(handle: handle);
+      return;
+    }
+    final int expectedLen = width * height * 2;
+    if (mask.length != expectedLen) {
+      clearBrushMask(handle: handle);
+      return;
+    }
+    final int maskLen = mask.length;
+    final ffi.Pointer<ffi.Uint8> ptr = malloc.allocate<ffi.Uint8>(maskLen);
+    ptr.asTypedList(maskLen).setAll(0, mask);
+    try {
+      fn(handle, width, height, ptr, maskLen);
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  void clearBrushMask({required int handle}) {
+    final fn = _clearBrushMask;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle);
   }
 
   void beginSpray({required int handle}) {

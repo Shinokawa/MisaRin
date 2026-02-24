@@ -621,6 +621,59 @@ pub extern "C" fn engine_set_brush(
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
 #[no_mangle]
+pub extern "C" fn engine_set_brush_mask(
+    handle: u64,
+    width: u32,
+    height: u32,
+    mask_ptr: *const u8,
+    mask_len: usize,
+) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    if mask_ptr.is_null() || mask_len == 0 || width == 0 || height == 0 {
+        let _ = entry.cmd_tx.send(EngineCommand::ClearBrushMask);
+        return;
+    }
+    let expected_len = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|v| v.checked_mul(2));
+    if expected_len.is_none() || expected_len != Some(mask_len) {
+        let _ = entry.cmd_tx.send(EngineCommand::ClearBrushMask);
+        return;
+    }
+    let mask = unsafe { std::slice::from_raw_parts(mask_ptr, mask_len).to_vec() };
+    let _ = entry
+        .cmd_tx
+        .send(EngineCommand::SetBrushMask { width, height, mask });
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[no_mangle]
+pub extern "C" fn engine_set_brush_mask(
+    _handle: u64,
+    _width: u32,
+    _height: u32,
+    _mask_ptr: *const u8,
+    _mask_len: usize,
+) {
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+#[no_mangle]
+pub extern "C" fn engine_clear_brush_mask(handle: u64) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry.cmd_tx.send(EngineCommand::ClearBrushMask);
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[no_mangle]
+pub extern "C" fn engine_clear_brush_mask(_handle: u64) {}
+
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+#[no_mangle]
 pub extern "C" fn engine_spray_begin(handle: u64) {
     let Some(entry) = lookup_engine(handle) else {
         return;

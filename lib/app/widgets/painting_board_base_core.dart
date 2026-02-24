@@ -56,6 +56,9 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   BrushShape _brushShape = AppPreferences.defaultBrushShape;
   String _brushShapeId = 'circle';
   BrushShapeRaster? _brushShapeRaster;
+  String? _backendBrushMaskId;
+  int _backendBrushMaskWidth = 0;
+  int _backendBrushMaskHeight = 0;
   bool _brushRandomRotationEnabled =
       AppPreferences.defaultBrushRandomRotationEnabled;
   bool _brushSmoothRotationEnabled = false;
@@ -197,7 +200,10 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     final BrushLibrary? library = _brushLibrary;
     final BrushShapeLibrary shapes =
         library?.shapeLibrary ?? BrushLibrary.instance.shapeLibrary;
-    return shapes.isBuiltInId(_brushShapeId);
+    if (shapes.isBuiltInId(_brushShapeId)) {
+      return true;
+    }
+    return _brushShapeRaster != null && _brushShapeRaster!.id == _brushShapeId;
   }
 
   String _shapeIdForBrush(BrushShape shape) {
@@ -1073,6 +1079,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     _backendCanvasEngineSize = engineSize;
     _syncBackendCanvasLayersToEngine();
     _syncBackendCanvasViewFlags();
+    _syncBackendBrushMask(force: true);
     _restoreBackendLayerSnapshotIfNeeded();
     _syncBackendCanvasPixelsIfNeeded();
     _notifyBoardReadyIfNeeded();
@@ -1321,6 +1328,64 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       mirror: _viewMirrorOverlay,
       blackWhite: _viewBlackWhiteOverlay,
     );
+  }
+
+  Uint8List? _buildBackendBrushMask(BrushShapeRaster raster) {
+    final int width = raster.width;
+    final int height = raster.height;
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+    final int count = width * height;
+    if (raster.alpha.length != count || raster.softAlpha.length != count) {
+      return null;
+    }
+    final Uint8List packed = Uint8List(count * 2);
+    int out = 0;
+    for (int i = 0; i < count; i++) {
+      packed[out++] = raster.alpha[i];
+      packed[out++] = raster.softAlpha[i];
+    }
+    return packed;
+  }
+
+  void _syncBackendBrushMask({bool force = false}) {
+    final BrushShapeRaster? raster = _brushShapeRaster;
+    final bool hasCustom = raster != null && raster.id == _brushShapeId;
+    if (!hasCustom) {
+      _backendBrushMaskId = null;
+      _backendBrushMaskWidth = 0;
+      _backendBrushMaskHeight = 0;
+      if (_backend.isReady) {
+        _backend.clearBrushMask();
+      }
+      return;
+    }
+    if (!_backend.isReady) {
+      return;
+    }
+    if (!force &&
+        _backendBrushMaskId == raster!.id &&
+        _backendBrushMaskWidth == raster.width &&
+        _backendBrushMaskHeight == raster.height) {
+      return;
+    }
+    final Uint8List? mask = _buildBackendBrushMask(raster);
+    if (mask == null || mask.isEmpty) {
+      _backendBrushMaskId = null;
+      _backendBrushMaskWidth = 0;
+      _backendBrushMaskHeight = 0;
+      _backend.clearBrushMask();
+      return;
+    }
+    _backend.setBrushMask(
+      width: raster.width,
+      height: raster.height,
+      mask: mask,
+    );
+    _backendBrushMaskId = raster.id;
+    _backendBrushMaskWidth = raster.width;
+    _backendBrushMaskHeight = raster.height;
   }
 
   void _syncBackendCanvasPixelsIfNeeded() {
@@ -1864,6 +1929,31 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
       mirror: mirror,
       blackWhite: blackWhite,
     );
+  }
+
+  bool setBrushMask({
+    required int width,
+    required int height,
+    required Uint8List mask,
+  }) {
+    if (!_backendReady) {
+      return false;
+    }
+    _ffi.setBrushMask(
+      handle: _owner._backendCanvasEngineHandle!,
+      width: width,
+      height: height,
+      mask: mask,
+    );
+    return true;
+  }
+
+  bool clearBrushMask() {
+    if (!_backendReady) {
+      return false;
+    }
+    _ffi.clearBrushMask(handle: _owner._backendCanvasEngineHandle!);
+    return true;
   }
 
   bool setBackendActiveLayerByIndex({required int layerIndex}) {

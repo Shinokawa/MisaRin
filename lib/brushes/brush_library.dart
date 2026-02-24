@@ -969,7 +969,7 @@ class _DefaultPresetNames {
       cel: l10n.brushPresetCel,
       pen: l10n.brushPresetPen,
       pixel: l10n.brushPresetPixel,
-      triangle: l10n.triangle,
+      triangle: l10n.brushPresetDryInk,
       square: l10n.square,
       star: l10n.star,
     );

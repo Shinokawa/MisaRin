@@ -74,6 +74,7 @@ struct BrushShaderConfig {
     stroke_accumulate_mode: u32,
     stroke_mode: u32,
     selection_mask_mode: u32,
+    custom_mask_mode: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -118,6 +119,11 @@ pub struct BrushRenderer {
     selection_mask_width: u32,
     selection_mask_height: u32,
     selection_mask_enabled: bool,
+    custom_mask: wgpu::Texture,
+    custom_mask_view: wgpu::TextureView,
+    custom_mask_width: u32,
+    custom_mask_height: u32,
+    custom_mask_enabled: bool,
     layer_read: Option<wgpu::Texture>,
     layer_read_view: Option<wgpu::TextureView>,
     layer_read_width: u32,
@@ -191,6 +197,16 @@ impl BrushRenderer {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -224,6 +240,7 @@ impl BrushRenderer {
         let (stroke_mask, stroke_mask_view) = create_stroke_mask(device.as_ref(), 1, 1);
         let (stroke_base, stroke_base_view) = create_stroke_base(device.as_ref(), 1, 1);
         let (selection_mask, selection_mask_view) = create_selection_mask(device.as_ref(), 1, 1);
+        let (custom_mask, custom_mask_view) = create_custom_mask(device.as_ref(), 1, 1);
 
         Ok(Self {
             device,
@@ -248,6 +265,11 @@ impl BrushRenderer {
             selection_mask_width: 1,
             selection_mask_height: 1,
             selection_mask_enabled: false,
+            custom_mask,
+            custom_mask_view,
+            custom_mask_width: 1,
+            custom_mask_height: 1,
+            custom_mask_enabled: false,
             layer_read: None,
             layer_read_view: None,
             layer_read_width: 0,
@@ -536,6 +558,45 @@ impl BrushRenderer {
         Ok(())
     }
 
+    pub fn set_custom_mask(
+        &mut self,
+        width: u32,
+        height: u32,
+        mask: &[u8],
+    ) -> Result<(), String> {
+        if width == 0 || height == 0 {
+            self.custom_mask_enabled = false;
+            return Ok(());
+        }
+        let expected_len = (width as usize)
+            .checked_mul(height as usize)
+            .and_then(|v| v.checked_mul(2))
+            .ok_or_else(|| "custom mask size overflow".to_string())?;
+        if mask.len() != expected_len {
+            return Err(format!(
+                "custom mask length mismatch: {} vs {}",
+                mask.len(),
+                expected_len
+            ));
+        }
+
+        if self.custom_mask_width != width || self.custom_mask_height != height {
+            let (tex, view) = create_custom_mask(self.device.as_ref(), width, height);
+            self.custom_mask = tex;
+            self.custom_mask_view = view;
+            self.custom_mask_width = width;
+            self.custom_mask_height = height;
+        }
+
+        write_custom_mask(self.queue.as_ref(), &self.custom_mask, width, height, mask)?;
+        self.custom_mask_enabled = true;
+        Ok(())
+    }
+
+    pub fn clear_custom_mask(&mut self) {
+        self.custom_mask_enabled = false;
+    }
+
     pub fn draw_stroke(
         &mut self,
         layer_view: &wgpu::TextureView,
@@ -817,6 +878,7 @@ impl BrushRenderer {
                 BrushStrokeMode::Points => 1,
             },
             selection_mask_mode: if self.selection_mask_enabled { 1 } else { 0 },
+            custom_mask_mode: if self.custom_mask_enabled { 1 } else { 0 },
         };
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&config));
@@ -846,6 +908,10 @@ impl BrushRenderer {
         entries.push(wgpu::BindGroupEntry {
             binding: 4,
             resource: wgpu::BindingResource::TextureView(&self.selection_mask_view),
+        });
+        entries.push(wgpu::BindGroupEntry {
+            binding: 5,
+            resource: wgpu::BindingResource::TextureView(&self.custom_mask_view),
         });
         device_push_scopes(self.device.as_ref());
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -1133,6 +1199,31 @@ fn create_selection_mask(
     (texture, view)
 }
 
+fn create_custom_mask(
+    device: &wgpu::Device,
+    width: u32,
+    height: u32,
+) -> (wgpu::Texture, wgpu::TextureView) {
+    let format = wgpu::TextureFormat::Rg8Unorm;
+    let usage = wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST;
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("BrushRenderer custom mask"),
+        size: wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage,
+        view_formats: &[],
+    });
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    (texture, view)
+}
+
 fn antialias_feather(level: u32) -> f32 {
     match level {
         0 => 0.0,
@@ -1280,6 +1371,80 @@ fn write_selection_mask(
             for (i, &value) in src.iter().enumerate() {
                 data[dst_offset + i] = if value == 0 { 0 } else { 255 };
             }
+        }
+
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x: 0, y, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            &data,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row_padded),
+                rows_per_image: Some(chunk_h),
+            },
+            wgpu::Extent3d {
+                width,
+                height: chunk_h,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        y = y.saturating_add(chunk_h);
+    }
+
+    Ok(())
+}
+
+fn write_custom_mask(
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    width: u32,
+    height: u32,
+    mask: &[u8],
+) -> Result<(), String> {
+    if width == 0 || height == 0 {
+        return Ok(());
+    }
+
+    let expected_len = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|v| v.checked_mul(2))
+        .ok_or_else(|| "custom mask size overflow".to_string())?;
+    if mask.len() != expected_len {
+        return Err(format!(
+            "custom mask length mismatch: {} vs {}",
+            mask.len(),
+            expected_len
+        ));
+    }
+
+    const COPY_BYTES_PER_ROW_ALIGNMENT: u32 = 256;
+    const MAX_CHUNK_BYTES: usize = 4 * 1024 * 1024;
+
+    let bytes_per_row_unpadded = width
+        .checked_mul(2)
+        .ok_or_else(|| "custom mask bytes_per_row overflow".to_string())?;
+    let bytes_per_row_padded =
+        align_up_u32(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT);
+    if bytes_per_row_padded == 0 {
+        return Err("custom mask bytes_per_row == 0".to_string());
+    }
+    let row_bytes = bytes_per_row_padded as usize;
+    let rows_per_chunk = (MAX_CHUNK_BYTES / row_bytes).max(1) as u32;
+
+    let mut y: u32 = 0;
+    while y < height {
+        let chunk_h = (height - y).min(rows_per_chunk);
+        let mut data: Vec<u8> = vec![0; row_bytes * chunk_h as usize];
+        for row in 0..chunk_h {
+            let src_offset = ((y + row) * width * 2) as usize;
+            let dst_offset = row as usize * row_bytes;
+            let src = &mask[src_offset..src_offset + (width * 2) as usize];
+            data[dst_offset..dst_offset + src.len()].copy_from_slice(src);
         }
 
         queue.write_texture(

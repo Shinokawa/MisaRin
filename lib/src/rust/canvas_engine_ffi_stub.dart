@@ -46,6 +46,15 @@ class CanvasEngineFfi {
     double stabilizerStrength = 0.0,
   }) {}
 
+  void setBrushMask({
+    required int handle,
+    required int width,
+    required int height,
+    required Uint8List mask,
+  }) {}
+
+  void clearBrushMask({required int handle}) {}
+
   void beginSpray({required int handle}) {}
 
   void drawSpray({

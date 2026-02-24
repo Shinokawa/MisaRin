@@ -170,6 +170,12 @@ pub(crate) enum EngineCommand {
         smoothing_mode: u32,
         stabilizer_strength: f32,
     },
+    SetBrushMask {
+        width: u32,
+        height: u32,
+        mask: Vec<u8>,
+    },
+    ClearBrushMask,
     BeginSpray,
     DrawSpray {
         points: Vec<SprayPoint>,
@@ -664,6 +670,9 @@ fn can_use_vector_preview(
     if brush_settings.streamline_strength <= 0.0001 {
         return false;
     }
+    if brush_settings.custom_mask_enabled {
+        return false;
+    }
     if selection_mask_active {
         return false;
     }
@@ -725,7 +734,7 @@ fn build_preview_segments(
     if points.is_empty() || points.len() != radii.len() {
         return Vec::new();
     }
-    let supports_rotation = !matches!(brush_settings.shape, BrushShape::Circle);
+    let supports_rotation = brush_settings.supports_rotation();
     let use_smooth = brush_settings.smooth_rotation && supports_rotation;
     let use_random = brush_settings.random_rotation
         && brush_settings.rotation_jitter > 0.0001
@@ -2939,6 +2948,65 @@ fn handle_engine_command(
                     );
                 }
             }
+        }
+        EngineCommand::SetBrushMask {
+            width,
+            height,
+            mask,
+        } => {
+            brush_settings.custom_mask_enabled = false;
+            if width == 0 || height == 0 || mask.is_empty() {
+                if let Some(renderer) = brush.as_mut() {
+                    renderer.clear_custom_mask();
+                }
+                return EngineCommandOutcome {
+                    stop: false,
+                    needs_render: false,
+                    new_canvas_size: None,
+                };
+            }
+            let brush_ref = match ensure_brush(brush, device, queue, canvas_width, canvas_height) {
+                Ok(brush_ref) => brush_ref,
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("BrushRenderer init failed: {err}"),
+                    );
+                    return EngineCommandOutcome {
+                        stop: false,
+                        needs_render: false,
+                        new_canvas_size: None,
+                    };
+                }
+            };
+            match brush_ref.set_custom_mask(width, height, &mask) {
+                Ok(()) => {
+                    brush_settings.custom_mask_enabled = true;
+                }
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("BrushRenderer set custom mask failed: {err}"),
+                    );
+                    brush_ref.clear_custom_mask();
+                }
+            }
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: false,
+                new_canvas_size: None,
+            };
+        }
+        EngineCommand::ClearBrushMask => {
+            brush_settings.custom_mask_enabled = false;
+            if let Some(renderer) = brush.as_mut() {
+                renderer.clear_custom_mask();
+            }
+            return EngineCommandOutcome {
+                stop: false,
+                needs_render: false,
+                new_canvas_size: None,
+            };
         }
         EngineCommand::BeginSpray => {
             let layer_idx = *active_layer_index as u32;

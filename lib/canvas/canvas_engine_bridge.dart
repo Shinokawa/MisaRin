@@ -108,6 +108,30 @@ class CanvasEngineFfi {
     );
   }
 
+  void setBrushMask({
+    required int handle,
+    required int width,
+    required int height,
+    required Uint8List mask,
+  }) {
+    if (!isSupported) {
+      return;
+    }
+    _rustWgpu.setBrushMask(
+      handle: handle,
+      width: width,
+      height: height,
+      mask: mask,
+    );
+  }
+
+  void clearBrushMask({required int handle}) {
+    if (!isSupported) {
+      return;
+    }
+    _rustWgpu.clearBrushMask(handle: handle);
+  }
+
   void beginSpray({required int handle}) {
     if (!isSupported) {
       return;
@@ -607,6 +631,24 @@ class CanvasBackendFacade {
       smoothingMode: smoothingMode,
       stabilizerStrength: stabilizerStrength,
     );
+  }
+
+  void setBrushMask({
+    required int handle,
+    required int width,
+    required int height,
+    required Uint8List mask,
+  }) {
+    _ffi.setBrushMask(
+      handle: handle,
+      width: width,
+      height: height,
+      mask: mask,
+    );
+  }
+
+  void clearBrushMask({required int handle}) {
+    _ffi.clearBrushMask(handle: handle);
   }
 
   void setActiveLayer({required int handle, required int layerIndex}) {

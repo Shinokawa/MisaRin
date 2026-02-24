@@ -1081,6 +1081,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushPresetPixel => 'Pixel';
 
   @override
+  String get brushPresetDryInk => 'Dry Ink';
+
+  @override
   String get brushSpacing => 'Spacing';
 
   @override
