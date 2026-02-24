@@ -1089,8 +1089,16 @@ void _controllerCommitDeferredStrokeCommandsAsRaster(
         continue;
       }
       union = union == null ? bounds : _controllerUnionRects(union, bounds);
+      if (controller._useWorkerForRaster) {
+        controller._enqueuePaintingWorkerCommand(
+          region: bounds,
+          command: command,
+        );
+      }
     }
-    if (union != null && !union.isEmpty) {
+    if (union != null &&
+        !union.isEmpty &&
+        !controller._useWorkerForRaster) {
       controller._applyPaintingCommandsSynchronously(
         union,
         commands,
@@ -1181,10 +1189,17 @@ void _controllerDispatchDirectPaintCommand(
     return;
   }
   if (controller._activeLayer.surface.isTiled) {
-    controller._applyPaintingCommandsSynchronously(
-      bounds,
-      <PaintingDrawCommand>[command],
-    );
+    if (controller._useWorkerForRaster) {
+      controller._enqueuePaintingWorkerCommand(
+        region: bounds,
+        command: command,
+      );
+    } else {
+      controller._applyPaintingCommandsSynchronously(
+        bounds,
+        <PaintingDrawCommand>[command],
+      );
+    }
     return;
   }
   final _RustWgpuStrokeDrawData? stroke = _controllerRustWgpuStrokeFromCommand(

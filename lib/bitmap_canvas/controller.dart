@@ -64,7 +64,7 @@ part 'controller_text.dart';
 
 class BitmapCanvasController extends ChangeNotifier
     implements CanvasToolHost, CanvasFacade {
-  static const int _kTiledCompositeMinPixels = 4096 * 4096;
+  static const int _kTiledCompositeMinPixels = 1024 * 1024;
   static const int _kTiledTileSizeSmall = 256;
   static const int _kTiledTileSizeMedium = 512;
   static const int _kTiledTileSizeLarge = 1024;
@@ -82,8 +82,7 @@ class BitmapCanvasController extends ChangeNotifier
        _useTiledSurface = _shouldUseTiledSurface(width, height),
        _isMultithreaded =
            CanvasSettings.supportsMultithreadedCanvas &&
-           creationLogic == CanvasCreationLogic.multiThread &&
-           !_shouldUseTiledSurface(width, height),
+           creationLogic == CanvasCreationLogic.multiThread,
        _rasterOutputEnabled = enableRasterOutput,
        _rasterBackend = CanvasRasterBackend(
          width: width,
