@@ -1061,6 +1061,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get brushPresetDryInk => '枯墨';
 
   @override
+  String get brushPresetCharcoal => '木炭';
+
+  @override
+  String get brushPresetStarBrush => '星形ブラシ';
+
+  @override
   String get brushSpacing => '間隔';
 
   @override

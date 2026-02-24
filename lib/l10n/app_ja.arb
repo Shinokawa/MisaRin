@@ -520,6 +520,8 @@
   "brushPresetPen": "ペン",
   "brushPresetPixel": "ピクセル",
   "brushPresetDryInk": "枯墨",
+  "brushPresetCharcoal": "木炭",
+  "brushPresetStarBrush": "星形ブラシ",
   "brushSpacing": "間隔",
   "brushHardness": "硬さ",
   "brushFlow": "流量",

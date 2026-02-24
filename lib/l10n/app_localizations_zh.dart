@@ -1055,6 +1055,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get brushPresetDryInk => '枯墨';
 
   @override
+  String get brushPresetCharcoal => '炭笔';
+
+  @override
+  String get brushPresetStarBrush => '星星笔';
+
+  @override
   String get brushSpacing => '间距';
 
   @override
@@ -2793,6 +2799,12 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get brushPresetDryInk => '枯墨';
 
   @override
+  String get brushPresetCharcoal => '炭笔';
+
+  @override
+  String get brushPresetStarBrush => '星星笔';
+
+  @override
   String get brushSpacing => '间距';
 
   @override
@@ -3767,6 +3779,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get brushPresetDryInk => '枯墨';
+
+  @override
+  String get brushPresetCharcoal => '炭筆';
+
+  @override
+  String get brushPresetStarBrush => '星星筆';
 
   @override
   String get brushSpacing => '間距';

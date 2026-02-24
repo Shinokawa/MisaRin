@@ -494,6 +494,8 @@
   "brushPresetPen": "鋼筆",
   "brushPresetPixel": "像素筆",
   "brushPresetDryInk": "枯墨",
+  "brushPresetCharcoal": "炭筆",
+  "brushPresetStarBrush": "星星筆",
   "brushSpacing": "間距",
   "brushHardness": "硬度",
   "brushFlow": "流量",

@@ -11,13 +11,13 @@ length:529
   "shapeId": "star",
   "shapeFile": "star.svg",
   "shapeType": "svg",
-  "spacing": 0.18,
+  "spacing": 0.52,
   "hardness": 0.8,
   "flow": 1.0,
-  "scatter": 0.0,
-  "randomRotation": false,
+  "scatter": 1.0,
+  "randomRotation": true,
   "smoothRotation": false,
-  "rotationJitter": 0.0,
+  "rotationJitter": 1.0,
   "antialiasLevel": 1,
   "hollowEnabled": false,
   "hollowRatio": 0.0,
@@ -27,12 +27,12 @@ length:529
   "langFile": "brush_lang.txt"
 }
 [brush_lang.txt]
-length:87
-star|en|Star
-star|ja|五芒星
-star|ko|오각별
-star|zh|五角星
-star|zh_TW|五角星
+length:104
+star|en|Star Brush
+star|ja|星形ブラシ
+star|ko|별 브러시
+star|zh|星星笔
+star|zh_TW|星星筆
 [star.svg]
 length:171
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
@@ -40,4 +40,3 @@ length:171
     points="50,5 61,35 95,35 67,55 77,90 50,70 23,90 33,55 5,35 39,35"
     fill="black"/>
 </svg>
-

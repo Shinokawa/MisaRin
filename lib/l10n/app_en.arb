@@ -520,6 +520,8 @@
   "brushPresetPen": "Pen",
   "brushPresetPixel": "Pixel",
   "brushPresetDryInk": "Dry Ink",
+  "brushPresetCharcoal": "Charcoal",
+  "brushPresetStarBrush": "Star Brush",
   "brushSpacing": "Spacing",
   "brushHardness": "Hardness",
   "brushFlow": "Flow",

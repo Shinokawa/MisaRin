@@ -2060,6 +2060,18 @@ abstract class AppLocalizations {
   /// **'Dry Ink'**
   String get brushPresetDryInk;
 
+  /// No description provided for @brushPresetCharcoal.
+  ///
+  /// In en, this message translates to:
+  /// **'Charcoal'**
+  String get brushPresetCharcoal;
+
+  /// No description provided for @brushPresetStarBrush.
+  ///
+  /// In en, this message translates to:
+  /// **'Star Brush'**
+  String get brushPresetStarBrush;
+
   /// No description provided for @brushSpacing.
   ///
   /// In en, this message translates to:

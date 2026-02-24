@@ -1084,6 +1084,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushPresetDryInk => 'Dry Ink';
 
   @override
+  String get brushPresetCharcoal => 'Charcoal';
+
+  @override
+  String get brushPresetStarBrush => 'Star Brush';
+
+  @override
   String get brushSpacing => 'Spacing';
 
   @override

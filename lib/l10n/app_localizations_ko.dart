@@ -1065,6 +1065,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get brushPresetDryInk => '드라이 잉크';
 
   @override
+  String get brushPresetCharcoal => '차콜';
+
+  @override
+  String get brushPresetStarBrush => '별 브러시';
+
+  @override
   String get brushSpacing => '간격';
 
   @override
