@@ -119,9 +119,9 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
     }
     final bool erase = _isBrushEraserEnabled;
     final Color strokeColor = erase ? const Color(0xFFFFFFFF) : _primaryColor;
-    final double stabilizer = (stabilizerStrengthOverride ??
-            _strokeStabilizerStrength)
-        .clamp(0.0, 1.0);
+    final double stabilizer = mapStrokeStabilizerStrength(
+      stabilizerStrengthOverride ?? _strokeStabilizerStrength,
+    );
     final double streamline = (streamlineStrengthOverride ?? _streamlineStrength)
         .clamp(0.0, 1.0);
     final int smoothingMode =
@@ -152,6 +152,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       screentoneDotSize: _brushScreentoneDotSize,
       screentoneRotation: _brushScreentoneRotation,
       screentoneSoftness: _brushScreentoneSoftness,
+      screentoneShape: _brushScreentoneShape.index,
       hollow: _hollowStrokeEnabled,
       hollowRatio: _hollowStrokeRatio,
       hollowEraseOccludedParts: _hollowStrokeEraseOccludedParts,

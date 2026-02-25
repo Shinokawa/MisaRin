@@ -89,6 +89,7 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   late double _screentoneDotSize;
   late double _screentoneRotation;
   late double _screentoneSoftness;
+  late BrushShape _screentoneShape;
   ui.Locale? _lastLocale;
   bool _didSync = false;
 
@@ -160,6 +161,7 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
     _screentoneDotSize = sanitized.screentoneDotSize;
     _screentoneRotation = sanitized.screentoneRotation;
     _screentoneSoftness = sanitized.screentoneSoftness;
+    _screentoneShape = sanitized.screentoneShape;
     if (stopwatch != null) {
       BrushPresetTimeline.mark(
         'editor_sync id=${sanitized.id} t=${stopwatch.elapsedMilliseconds}ms',
@@ -196,6 +198,7 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
       screentoneDotSize: _screentoneDotSize,
       screentoneRotation: _screentoneRotation,
       screentoneSoftness: _screentoneSoftness,
+      screentoneShape: _screentoneShape,
     );
   }
 
@@ -238,6 +241,17 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
         : null;
     final AppLocalizations l10n = context.l10n;
     final BrushShapeLibrary shapeLibrary = BrushLibrary.instance.shapeLibrary;
+    final List<ComboBoxItem<BrushShape>> screentoneShapeItems =
+        BrushShape.values
+            .map((shape) {
+              final String id = _shapeIdForBuiltIn(shape);
+              final String label = shapeLibrary.labelFor(l10n, id);
+              return ComboBoxItem<BrushShape>(
+                value: shape,
+                child: Text(label),
+              );
+            })
+            .toList(growable: false);
     final List<ComboBoxItem<String>> shapeItems = <ComboBoxItem<String>>[];
     final bool hasShapeId =
         shapeLibrary.shapes.any((shape) => shape.id == _shapeId);
@@ -417,6 +431,21 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
         ),
         if (_screentoneEnabled) ...[
           const SizedBox(height: 12),
+          InfoLabel(
+            label: l10n.screentoneShape,
+            child: ComboBox<BrushShape>(
+              isExpanded: true,
+              value: _screentoneShape,
+              items: screentoneShapeItems,
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+                _setAndNotify(() => _screentoneShape = value);
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
           _buildSlider(
             context,
             label: l10n.screentoneSpacing,
@@ -569,5 +598,18 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
         return BrushShape.star;
     }
     return null;
+  }
+
+  String _shapeIdForBuiltIn(BrushShape shape) {
+    switch (shape) {
+      case BrushShape.circle:
+        return 'circle';
+      case BrushShape.triangle:
+        return 'triangle';
+      case BrushShape.square:
+        return 'square';
+      case BrushShape.star:
+        return 'star';
+    }
   }
 }

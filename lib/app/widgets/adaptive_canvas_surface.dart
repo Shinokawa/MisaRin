@@ -35,6 +35,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
     required this.brushScreentoneDotSize,
     required this.brushScreentoneRotation,
     required this.brushScreentoneSoftness,
+    required this.brushScreentoneShape,
     this.hollowStrokeEnabled = false,
     this.hollowStrokeRatio = 0.0,
     this.hollowStrokeEraseOccludedParts = false,
@@ -72,6 +73,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
   final double brushScreentoneDotSize;
   final double brushScreentoneRotation;
   final double brushScreentoneSoftness;
+  final BrushShape brushScreentoneShape;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
   final bool hollowStrokeEraseOccludedParts;
@@ -116,6 +118,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
         brushScreentoneDotSize: brushScreentoneDotSize,
         brushScreentoneRotation: brushScreentoneRotation,
         brushScreentoneSoftness: brushScreentoneSoftness,
+        brushScreentoneShape: brushScreentoneShape,
         hollowStrokeEnabled: hollowStrokeEnabled,
         hollowStrokeRatio: hollowStrokeRatio,
         hollowStrokeEraseOccludedParts: hollowStrokeEraseOccludedParts,

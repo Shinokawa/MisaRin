@@ -950,6 +950,7 @@
 /Library/Afolder/FlutterProject/misa-rin/lib/minecraft/bedrock_animation.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/minecraft/bedrock_model.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/painting/krita_spray_engine.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/painting/stroke_stabilizer_curve.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/performance/canvas_perf_stress.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/performance/stroke_latency_monitor.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/src/rust/api/bucket_fill.dart

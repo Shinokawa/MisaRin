@@ -81,6 +81,7 @@ struct BrushShaderConfig {
     screentone_rotation_sin: f32,
     screentone_rotation_cos: f32,
     screentone_softness: f32,
+    screentone_shape: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -144,6 +145,7 @@ pub struct BrushRenderer {
     screentone_rotation_sin: f32,
     screentone_rotation_cos: f32,
     screentone_softness: f32,
+    screentone_shape: BrushShape,
 }
 
 impl BrushRenderer {
@@ -295,6 +297,7 @@ impl BrushRenderer {
             screentone_rotation_sin: 0.0,
             screentone_rotation_cos: 1.0,
             screentone_softness: 0.0,
+            screentone_shape: BrushShape::Circle,
         })
     }
 
@@ -551,6 +554,7 @@ impl BrushRenderer {
         dot_size: f32,
         rotation_radians: f32,
         softness: f32,
+        shape: BrushShape,
     ) {
         self.screentone_enabled = enabled;
         self.screentone_spacing = if spacing.is_finite() {
@@ -575,6 +579,7 @@ impl BrushRenderer {
         } else {
             0.0
         };
+        self.screentone_shape = shape;
     }
 
     pub fn set_selection_mask(&mut self, mask: Option<&[u8]>) -> Result<(), String> {
@@ -936,6 +941,12 @@ impl BrushRenderer {
             screentone_rotation_sin: self.screentone_rotation_sin,
             screentone_rotation_cos: self.screentone_rotation_cos,
             screentone_softness: self.screentone_softness,
+            screentone_shape: match self.screentone_shape {
+                BrushShape::Circle => 0,
+                BrushShape::Triangle => 1,
+                BrushShape::Square => 2,
+                BrushShape::Star => 3,
+            },
         };
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&config));

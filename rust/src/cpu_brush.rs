@@ -16,6 +16,7 @@ struct ScreentoneSettings {
     rot_sin: f32,
     rot_cos: f32,
     softness: f32,
+    shape: u32,
 }
 
 impl ScreentoneSettings {
@@ -27,6 +28,7 @@ impl ScreentoneSettings {
             rot_sin: 0.0,
             rot_cos: 1.0,
             softness: 0.0,
+            shape: 0,
         }
     }
 }
@@ -69,6 +71,7 @@ fn screentone_settings_from_params(
     dot_size: f32,
     rotation_deg: f32,
     softness: f32,
+    shape: u32,
 ) -> ScreentoneSettings {
     if enabled == 0 {
         return ScreentoneSettings::disabled();
@@ -88,6 +91,7 @@ fn screentone_settings_from_params(
         rot_sin,
         rot_cos,
         softness,
+        shape,
     }
 }
 
@@ -116,21 +120,36 @@ fn screentone_mask_at(
     let center_y = (cell_y + 0.5) * spacing;
     let dx = rx - center_x;
     let dy = ry - center_y;
-    let dist = (dx * dx + dy * dy).sqrt();
     let aa_feather = antialias_feather(antialias_level);
     let edge = (dot_radius * settings.softness).max(aa_feather);
+    let dist = match settings.shape {
+        2 => {
+            let half_side = dot_radius * FRAC_1_SQRT_2;
+            let sd = signed_distance_box(dx, dy, half_side);
+            dot_radius + sd
+        }
+        1 | 3 => {
+            if dot_radius <= EPS {
+                dot_radius
+            } else {
+                let inv_r = 1.0 / dot_radius;
+                let ux = dx * inv_r;
+                let uy = dy * inv_r;
+                let sd_unit = if settings.shape == 3 {
+                    signed_distance_star_unit(ux, uy)
+                } else {
+                    signed_distance_triangle_unit(ux, uy)
+                };
+                dot_radius + sd_unit * dot_radius
+            }
+        }
+        _ => (dx * dx + dy * dy).sqrt(),
+    };
+    let coverage = brush_alpha(dist, dot_radius, settings.softness, antialias_level);
     if edge <= 0.0 {
-        return if dist <= dot_radius { 1.0 } else { 0.0 };
+        return if coverage > 0.0 { 1.0 } else { 0.0 };
     }
-    let inner = (dot_radius - edge).max(0.0);
-    let outer = dot_radius + edge;
-    if dist <= inner {
-        return 1.0;
-    }
-    if dist >= outer || outer <= inner {
-        return 0.0;
-    }
-    ((outer - dist) / (outer - inner)).clamp(0.0, 1.0)
+    coverage
 }
 
 fn needs_supersampling(radius: f32, antialias_level: u32) -> bool {
@@ -1052,6 +1071,7 @@ pub extern "C" fn cpu_brush_draw_stamp(
     screentone_dot_size: f32,
     screentone_rotation: f32,
     screentone_softness: f32,
+    screentone_shape: u32,
     snap_to_pixel: u8,
     custom_mask_width: u32,
     custom_mask_height: u32,
@@ -1111,6 +1131,7 @@ pub extern "C" fn cpu_brush_draw_stamp(
         screentone_dot_size,
         screentone_rotation,
         screentone_softness,
+        screentone_shape,
     );
     draw_points_sampled(
         pixels_ptr,
@@ -1157,6 +1178,7 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
     screentone_dot_size: f32,
     screentone_rotation: f32,
     screentone_softness: f32,
+    screentone_shape: u32,
     spacing: f32,
     scatter: f32,
     softness: f32,
@@ -1202,6 +1224,7 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
             screentone_dot_size,
             screentone_rotation,
             screentone_softness,
+            screentone_shape,
             snap_to_pixel,
             custom_mask_width,
             custom_mask_height,
@@ -1300,6 +1323,7 @@ pub extern "C" fn cpu_brush_draw_stamp_segment(
         screentone_dot_size,
         screentone_rotation,
         screentone_softness,
+        screentone_shape,
     );
     draw_points_sampled(
         pixels_ptr,
@@ -1341,6 +1365,7 @@ pub extern "C" fn cpu_brush_draw_capsule_segment(
     screentone_dot_size: f32,
     screentone_rotation: f32,
     screentone_softness: f32,
+    screentone_shape: u32,
     selection_ptr: *const u8,
     selection_len: usize,
 ) -> u8 {
@@ -1380,6 +1405,7 @@ pub extern "C" fn cpu_brush_draw_capsule_segment(
         screentone_dot_size,
         screentone_rotation,
         screentone_softness,
+        screentone_shape,
     );
 
     if len_sq <= 1.0e-6 {

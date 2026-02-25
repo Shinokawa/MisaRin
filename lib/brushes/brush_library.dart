@@ -791,6 +791,7 @@ class BrushLibrary extends ChangeNotifier {
       screentoneDotSize: 0.6,
       screentoneRotation: 45.0,
       screentoneSoftness: 0.0,
+      screentoneShape: BrushShape.circle,
     ).sanitized();
   }
 

@@ -117,6 +117,7 @@ import '../toolbars/widgets/tool_settings_card.dart';
 import '../toolbars/layouts/layouts.dart';
 import '../toolbars/widgets/measured_size.dart';
 import '../../painting/krita_spray_engine.dart';
+import '../../painting/stroke_stabilizer_curve.dart';
 import 'tool_cursor_overlay.dart';
 import 'adaptive_canvas_surface.dart';
 import 'package:misa_rin/canvas/canvas_engine_bridge.dart';

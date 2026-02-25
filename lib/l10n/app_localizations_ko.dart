@@ -1095,6 +1095,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get screentoneEnabled => '스크린톤';
 
   @override
+  String get screentoneShape => '도트 모양';
+
+  @override
   String get screentoneSpacing => '도트 간격';
 
   @override

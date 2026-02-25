@@ -38,6 +38,7 @@ struct Config {
   screentone_rotation_sin: f32,
   screentone_rotation_cos: f32,
   screentone_softness: f32,
+  screentone_shape: u32,
 };
 
 const SQRT2: f32 = 1.414213562;
@@ -192,7 +193,8 @@ fn screentone_mask(sample_pos: vec2<f32>) -> f32 {
   );
   let cell = vec2<f32>(floor(rotated.x / spacing), floor(rotated.y / spacing));
   let center = (cell + vec2<f32>(0.5, 0.5)) * spacing;
-  let dist = length(rotated - center);
+  let rel = rotated - center;
+  let dist = screentone_distance(rel, radius);
   let aa_feather = antialias_feather(cfg.antialias_level);
   let edge = max(aa_feather, radius * clamp01(cfg.screentone_softness));
   if (edge <= 0.0) {
@@ -207,6 +209,27 @@ fn screentone_mask(sample_pos: vec2<f32>) -> f32 {
     return 0.0;
   }
   return (outer - dist) / (outer - inner);
+}
+
+fn screentone_distance(rel: vec2<f32>, radius: f32) -> f32 {
+  if (cfg.screentone_shape == 2u) {
+    let half_side = radius / SQRT2;
+    let sd = signed_distance_box(rel, vec2<f32>(half_side, half_side));
+    return radius + sd;
+  }
+  if (cfg.screentone_shape == 1u || cfg.screentone_shape == 3u) {
+    if (radius <= EPS) {
+      return radius;
+    }
+    let inv_r = 1.0 / radius;
+    let rel_unit = rel * inv_r;
+    var sd_unit = signed_distance_triangle_unit(rel_unit);
+    if (cfg.screentone_shape == 3u) {
+      sd_unit = signed_distance_star_unit(rel_unit);
+    }
+    return radius + sd_unit * radius;
+  }
+  return length(rel);
 }
 
 fn closest_t_to_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {

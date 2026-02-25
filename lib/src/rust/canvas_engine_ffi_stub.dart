@@ -43,6 +43,7 @@ class CanvasEngineFfi {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    int screentoneShape = 0,
     bool hollow = false,
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,

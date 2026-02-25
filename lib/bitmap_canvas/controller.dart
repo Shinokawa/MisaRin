@@ -175,6 +175,7 @@ class BitmapCanvasController extends ChangeNotifier
   double _currentStrokeScreentoneDotSize = 0.6;
   double _currentStrokeScreentoneRotation = 45.0;
   double _currentStrokeScreentoneSoftness = 0.0;
+  BrushShape _currentStrokeScreentoneShape = BrushShape.circle;
   String? _customBrushShapeId;
   BrushShapeRaster? _customBrushShapeRaster;
   final StrokePressureSimulator _strokePressureSimulator =
@@ -681,6 +682,7 @@ class BitmapCanvasController extends ChangeNotifier
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    BrushShape screentoneShape = BrushShape.circle,
     double streamlineStrength = 0.0,
     bool erase = false,
     bool hollow = false,
@@ -716,6 +718,7 @@ class BitmapCanvasController extends ChangeNotifier
     screentoneDotSize: screentoneDotSize,
     screentoneRotation: screentoneRotation,
     screentoneSoftness: screentoneSoftness,
+    screentoneShape: screentoneShape,
     streamlineStrength: streamlineStrength,
     erase: erase,
     hollow: hollow,

@@ -26,6 +26,7 @@ class BrushPreset {
     required this.screentoneDotSize,
     required this.screentoneRotation,
     required this.screentoneSoftness,
+    required this.screentoneShape,
   });
 
   final String id;
@@ -52,6 +53,7 @@ class BrushPreset {
   double screentoneDotSize;
   double screentoneRotation;
   double screentoneSoftness;
+  BrushShape screentoneShape;
 
   BrushPreset copyWith({
     String? id,
@@ -78,6 +80,7 @@ class BrushPreset {
     double? screentoneDotSize,
     double? screentoneRotation,
     double? screentoneSoftness,
+    BrushShape? screentoneShape,
   }) {
     return BrushPreset(
       id: id ?? this.id,
@@ -105,6 +108,7 @@ class BrushPreset {
       screentoneDotSize: screentoneDotSize ?? this.screentoneDotSize,
       screentoneRotation: screentoneRotation ?? this.screentoneRotation,
       screentoneSoftness: screentoneSoftness ?? this.screentoneSoftness,
+      screentoneShape: screentoneShape ?? this.screentoneShape,
     );
   }
 
@@ -145,6 +149,7 @@ class BrushPreset {
       screentoneDotSize: screentoneDotValue.clamp(0.0, 1.0),
       screentoneRotation: screentoneRotationValue.clamp(-180.0, 180.0),
       screentoneSoftness: screentoneSoftnessValue.clamp(0.0, 1.0),
+      screentoneShape: screentoneShape,
     );
   }
 
@@ -154,6 +159,10 @@ class BrushPreset {
     final BrushShape? shapeFromId = _shapeEnumFromId(shapeId);
     final int clampedShape = shapeIndex.clamp(0, BrushShape.values.length - 1);
     final BrushShape resolvedShape = shapeFromId ?? BrushShape.values[clampedShape];
+    final int screentoneShapeIndex =
+        (json['screentoneShape'] as num?)?.toInt() ?? 0;
+    final int clampedScreentoneShape =
+        screentoneShapeIndex.clamp(0, BrushShape.values.length - 1);
     return BrushPreset(
       id: (json['id'] as String?) ?? 'brush_${DateTime.now().millisecondsSinceEpoch}',
       name: (json['name'] as String?) ?? 'Brush',
@@ -184,6 +193,7 @@ class BrushPreset {
           (json['screentoneRotation'] as num?)?.toDouble() ?? 45.0,
       screentoneSoftness:
           (json['screentoneSoftness'] as num?)?.toDouble() ?? 0.0,
+      screentoneShape: BrushShape.values[clampedScreentoneShape],
     ).sanitized();
   }
 
@@ -212,6 +222,7 @@ class BrushPreset {
         'screentoneDotSize': screentoneDotSize,
         'screentoneRotation': screentoneRotation,
         'screentoneSoftness': screentoneSoftness,
+        'screentoneShape': screentoneShape.index,
       };
 
   String get resolvedShapeId => shapeId ?? _shapeIdFromEnum(shape);
@@ -239,6 +250,7 @@ class BrushPreset {
         a.screentoneDotSize == b.screentoneDotSize &&
         a.screentoneRotation == b.screentoneRotation &&
         a.screentoneSoftness == b.screentoneSoftness &&
+        a.screentoneShape == b.screentoneShape &&
         a.author == b.author &&
         a.version == b.version;
   }

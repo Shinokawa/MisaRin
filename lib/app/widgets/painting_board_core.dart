@@ -31,7 +31,8 @@ const double _initialViewportScaleFactor = 0.8;
 const double _curveStrokeSampleSpacing = 3.4;
 const double _syntheticStrokeMinDeltaMs =
     3.6; // keep >= StrokeDynamics._minDeltaMs
-const int _strokeStabilizerMaxLevel = 30;
+const int _strokeStabilizerMaxLevel = 10;
+const int _streamlineMaxLevel = 30;
 
 enum CanvasRotation {
   clockwise90,

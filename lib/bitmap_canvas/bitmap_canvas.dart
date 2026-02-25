@@ -16,6 +16,24 @@ const double _kSupersampleDiameterThreshold = 10.0;
 const double _kSupersampleFineDiameter = 1.0;
 const int _kMinIntegrationSlices = 6;
 const int _kMaxIntegrationSlices = 20;
+const double _kInvSqrt2 = 0.7071067811865476;
+const List<Offset> _kTriangleUnitVertices = <Offset>[
+  Offset(0.0, -1.0),
+  Offset(0.866025404, 0.5),
+  Offset(-0.866025404, 0.5),
+];
+const List<Offset> _kStarUnitVertices = <Offset>[
+  Offset(0.0, -1.0),
+  Offset(0.224513988, -0.309016994),
+  Offset(0.951056516, -0.309016994),
+  Offset(0.363271264, 0.118033989),
+  Offset(0.587785252, 0.809016994),
+  Offset(0.0, 0.381966011),
+  Offset(-0.587785252, 0.809016994),
+  Offset(-0.363271264, 0.118033989),
+  Offset(-0.951056516, -0.309016994),
+  Offset(-0.224513988, -0.309016994),
+];
 
 /// A lightweight bitmap surface that stores pixels in ARGB8888 format.
 ///
@@ -88,6 +106,7 @@ class BitmapSurface {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    BrushShape screentoneShape = BrushShape.circle,
   }) {
     if (radius <= 0) {
       return;
@@ -117,6 +136,7 @@ class BitmapSurface {
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
+      screentoneShape: screentoneShape.index,
       snapToPixel: false,
       selectionMask: mask,
     );
@@ -140,6 +160,7 @@ class BitmapSurface {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    BrushShape screentoneShape = BrushShape.circle,
   }) {
     if (!_ensureRustCpuBrushSupported()) {
       return;
@@ -164,6 +185,7 @@ class BitmapSurface {
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
+      screentoneShape: screentoneShape.index,
       selectionMask: mask,
     );
     if (ok) {
@@ -188,6 +210,7 @@ class BitmapSurface {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    BrushShape screentoneShape = BrushShape.circle,
   }) {
     if (!_ensureRustCpuBrushSupported()) {
       return;
@@ -212,6 +235,7 @@ class BitmapSurface {
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
+      screentoneShape: screentoneShape.index,
       selectionMask: mask,
     );
     if (ok) {
@@ -233,6 +257,7 @@ class BitmapSurface {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    BrushShape screentoneShape = BrushShape.circle,
   }) {
     if (points.isEmpty) {
       return;
@@ -250,6 +275,7 @@ class BitmapSurface {
         screentoneDotSize: screentoneDotSize,
         screentoneRotation: screentoneRotation,
         screentoneSoftness: screentoneSoftness,
+        screentoneShape: screentoneShape,
       );
       return;
     }
@@ -269,6 +295,7 @@ class BitmapSurface {
         screentoneDotSize: screentoneDotSize,
         screentoneRotation: screentoneRotation,
         screentoneSoftness: screentoneSoftness,
+        screentoneShape: screentoneShape,
       );
       includeStartCap = false;
     }
@@ -356,6 +383,7 @@ class BitmapSurface {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    BrushShape screentoneShape = BrushShape.circle,
     Uint8List? customMask,
     int customMaskWidth = 0,
     int customMaskHeight = 0,
@@ -400,6 +428,7 @@ class BitmapSurface {
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
+      screentoneShape: screentoneShape.index,
       snapToPixel: snapToPixel,
       customMask: customMask,
       customMaskWidth: customMaskWidth,
@@ -422,6 +451,13 @@ class BitmapSurface {
     bool erase = false,
     double softness = 0.0,
     bool snapToPixel = false,
+    int antialiasLevel = 0,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
+    BrushShape screentoneShape = BrushShape.circle,
   }) {
     Offset resolvedCenter = center;
     double resolvedRadius = radius;
@@ -456,6 +492,33 @@ class BitmapSurface {
     final int endY = bottom.clamp(0, height - 1);
 
     final double softnessValue = softness.clamp(0.0, 1.0);
+    final int aaLevel = antialiasLevel.clamp(0, 9);
+    final double toneSpacing = screentoneSpacing.isFinite
+        ? screentoneSpacing.clamp(2.0, 200.0)
+        : 10.0;
+    final double toneDotSize = screentoneDotSize.isFinite
+        ? screentoneDotSize.clamp(0.0, 1.0)
+        : 0.6;
+    final double toneSoftness = screentoneSoftness.isFinite
+        ? screentoneSoftness.clamp(0.0, 1.0)
+        : 0.0;
+    final double toneRadius = toneSpacing * 0.5 * toneDotSize;
+    final double toneAngle = (screentoneRotation.isFinite
+            ? screentoneRotation
+            : 45.0)
+        .clamp(-180.0, 180.0) *
+        (math.pi / 180.0);
+    final double toneSin = math.sin(toneAngle);
+    final double toneCos = math.cos(toneAngle);
+    final bool useScreentone = screentoneEnabled && toneRadius > 0.0;
+    List<Offset>? toneVertices;
+    if (useScreentone) {
+      if (screentoneShape == BrushShape.triangle) {
+        toneVertices = _scaleVertices(_kTriangleUnitVertices, toneRadius);
+      } else if (screentoneShape == BrushShape.star) {
+        toneVertices = _scaleVertices(_kStarUnitVertices, toneRadius);
+      }
+    }
     final double cosR = math.cos(rotation);
     final double sinR = math.sin(rotation);
     final double invRadius = radiusValue <= 0.0 ? 0.0 : 1.0 / radiusValue;
@@ -490,6 +553,26 @@ class BitmapSurface {
               alphaSoft * softnessValue;
         }
         alpha = alpha.clamp(0.0, 1.0);
+        if (useScreentone) {
+          final double sampleX = x + 0.5;
+          final double sampleY = y + 0.5;
+          final double tone = _screentoneMaskAt(
+            px: sampleX,
+            py: sampleY,
+            spacing: toneSpacing,
+            dotRadius: toneRadius,
+            rotSin: toneSin,
+            rotCos: toneCos,
+            softness: toneSoftness,
+            shape: screentoneShape,
+            antialiasLevel: aaLevel,
+            polygonVertices: toneVertices,
+          );
+          if (tone <= 0.0001) {
+            continue;
+          }
+          alpha *= tone;
+        }
         if (alpha <= 0.0001) {
           continue;
         }
@@ -540,6 +623,81 @@ class BitmapSurface {
     final double a0 = a00 + (a10 - a00) * tx;
     final double a1 = a01 + (a11 - a01) * tx;
     return a0 + (a1 - a0) * ty;
+  }
+
+  List<Offset> _scaleVertices(List<Offset> base, double scale) {
+    return base
+        .map((v) => Offset(v.dx * scale, v.dy * scale))
+        .toList(growable: false);
+  }
+
+  double _signedDistanceBox(double px, double py, double halfSide) {
+    final double dx = px.abs() - halfSide;
+    final double dy = py.abs() - halfSide;
+    final double ox = math.max(dx, 0.0);
+    final double oy = math.max(dy, 0.0);
+    final double outside = math.sqrt(ox * ox + oy * oy);
+    final double inside = math.min(math.max(dx, dy), 0.0);
+    return outside + inside;
+  }
+
+  double _screentoneMaskAt({
+    required double px,
+    required double py,
+    required double spacing,
+    required double dotRadius,
+    required double rotSin,
+    required double rotCos,
+    required double softness,
+    required BrushShape shape,
+    required int antialiasLevel,
+    List<Offset>? polygonVertices,
+  }) {
+    if (spacing <= 0.0 || dotRadius <= 0.0) {
+      return 0.0;
+    }
+    final double rx = px * rotCos + py * rotSin;
+    final double ry = -px * rotSin + py * rotCos;
+    final double cellX = (rx / spacing).floorToDouble();
+    final double cellY = (ry / spacing).floorToDouble();
+    final double centerX = (cellX + 0.5) * spacing;
+    final double centerY = (cellY + 0.5) * spacing;
+    final double dx = rx - centerX;
+    final double dy = ry - centerY;
+    double dist;
+    switch (shape) {
+      case BrushShape.square:
+        final double halfSide = dotRadius * _kInvSqrt2;
+        dist = dotRadius + _signedDistanceBox(dx, dy, halfSide);
+        break;
+      case BrushShape.triangle:
+        final List<Offset> verts = polygonVertices ??
+            _scaleVertices(_kTriangleUnitVertices, dotRadius);
+        dist = dotRadius + _signedDistanceToPolygon(dx, dy, verts);
+        break;
+      case BrushShape.star:
+        final List<Offset> verts =
+            polygonVertices ?? _scaleVertices(_kStarUnitVertices, dotRadius);
+        dist = dotRadius + _signedDistanceToPolygon(dx, dy, verts);
+        break;
+      case BrushShape.circle:
+        dist = math.sqrt(dx * dx + dy * dy);
+        break;
+    }
+    final double aaFeather = _featherForLevel(antialiasLevel);
+    final double edge = math.max(aaFeather, dotRadius * softness.clamp(0.0, 1.0));
+    if (edge <= 0.0) {
+      return dist <= dotRadius ? 1.0 : 0.0;
+    }
+    final double inner = math.max(dotRadius - edge, 0.0);
+    final double outer = dotRadius + edge;
+    if (dist <= inner) {
+      return 1.0;
+    }
+    if (dist >= outer) {
+      return 0.0;
+    }
+    return (outer - dist) / (outer - inner);
   }
 
   static bool _ensureRustCpuBrushSupported() {

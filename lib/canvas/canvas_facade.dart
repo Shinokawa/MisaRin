@@ -128,6 +128,7 @@ abstract class CanvasFacade extends Listenable implements CanvasToolHost {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    BrushShape screentoneShape = BrushShape.circle,
     double streamlineStrength = 0.0,
     bool erase = false,
     bool hollow = false,

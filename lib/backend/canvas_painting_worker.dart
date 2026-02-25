@@ -53,6 +53,7 @@ class PaintingDrawCommand {
     this.screentoneDotSize,
     this.screentoneRotation,
     this.screentoneSoftness,
+    this.screentoneShapeIndex,
   });
 
   factory PaintingDrawCommand.brushStamp({
@@ -73,6 +74,7 @@ class PaintingDrawCommand {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    int screentoneShapeIndex = 0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.brushStamp,
@@ -93,6 +95,7 @@ class PaintingDrawCommand {
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
+      screentoneShapeIndex: screentoneShapeIndex,
     );
   }
 
@@ -109,6 +112,7 @@ class PaintingDrawCommand {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    int screentoneShapeIndex = 0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.line,
@@ -124,6 +128,7 @@ class PaintingDrawCommand {
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
+      screentoneShapeIndex: screentoneShapeIndex,
     );
   }
 
@@ -141,6 +146,7 @@ class PaintingDrawCommand {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    int screentoneShapeIndex = 0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.variableLine,
@@ -157,6 +163,7 @@ class PaintingDrawCommand {
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
+      screentoneShapeIndex: screentoneShapeIndex,
     );
   }
 
@@ -183,6 +190,7 @@ class PaintingDrawCommand {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    int screentoneShapeIndex = 0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.stampSegment,
@@ -208,6 +216,7 @@ class PaintingDrawCommand {
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
+      screentoneShapeIndex: screentoneShapeIndex,
     );
   }
 
@@ -229,6 +238,7 @@ class PaintingDrawCommand {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    int screentoneShapeIndex = 0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.vectorStroke,
@@ -249,6 +259,7 @@ class PaintingDrawCommand {
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
+      screentoneShapeIndex: screentoneShapeIndex,
     );
   }
 
@@ -262,6 +273,7 @@ class PaintingDrawCommand {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    int screentoneShapeIndex = 0,
   }) {
     return PaintingDrawCommand._(
       type: PaintingDrawCommandType.filledPolygon,
@@ -274,6 +286,7 @@ class PaintingDrawCommand {
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
+      screentoneShapeIndex: screentoneShapeIndex,
     );
   }
 
@@ -307,6 +320,7 @@ class PaintingDrawCommand {
   final double? screentoneDotSize;
   final double? screentoneRotation;
   final double? screentoneSoftness;
+  final int? screentoneShapeIndex;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -340,6 +354,7 @@ class PaintingDrawCommand {
       'screentoneDotSize': screentoneDotSize,
       'screentoneRotation': screentoneRotation,
       'screentoneSoftness': screentoneSoftness,
+      'screentoneShape': screentoneShapeIndex,
     };
   }
 }
@@ -1014,6 +1029,11 @@ void _paintingWorkerApplyCommand({
       (command['screentoneRotation'] as num? ?? 45.0).toDouble();
   final double screentoneSoftness =
       (command['screentoneSoftness'] as num? ?? 0.0).toDouble();
+  final int screentoneShapeIndex = command['screentoneShape'] as int? ?? 0;
+  final BrushShape screentoneShape = BrushShape.values[screentoneShapeIndex.clamp(
+    0,
+    BrushShape.values.length - 1,
+  )];
   switch (type) {
     case PaintingDrawCommandType.brushStamp:
       final List<double>? centerData = (command['center'] as List<dynamic>?)
@@ -1049,6 +1069,7 @@ void _paintingWorkerApplyCommand({
         screentoneDotSize: screentoneDotSize,
         screentoneRotation: screentoneRotation,
         screentoneSoftness: screentoneSoftness,
+        screentoneShape: screentoneShape,
       );
       break;
     case PaintingDrawCommandType.line:
@@ -1072,6 +1093,7 @@ void _paintingWorkerApplyCommand({
         screentoneDotSize: screentoneDotSize,
         screentoneRotation: screentoneRotation,
         screentoneSoftness: screentoneSoftness,
+        screentoneShape: screentoneShape,
       );
       break;
     case PaintingDrawCommandType.variableLine:
@@ -1098,6 +1120,7 @@ void _paintingWorkerApplyCommand({
         screentoneDotSize: screentoneDotSize,
         screentoneRotation: screentoneRotation,
         screentoneSoftness: screentoneSoftness,
+        screentoneShape: screentoneShape,
       );
       break;
     case PaintingDrawCommandType.stampSegment:
@@ -1147,6 +1170,7 @@ void _paintingWorkerApplyCommand({
         screentoneDotSize: screentoneDotSize,
         screentoneRotation: screentoneRotation,
         screentoneSoftness: screentoneSoftness,
+        screentoneShape: screentoneShape,
       );
       break;
     case PaintingDrawCommandType.vectorStroke:
@@ -1413,6 +1437,7 @@ void _paintingWorkerStampSegment({
   required double screentoneDotSize,
   required double screentoneRotation,
   required double screentoneSoftness,
+  required BrushShape screentoneShape,
 }) {
   if (RustCpuBrushFfi.instance.drawStampSegment(
     pixelsPtr: surface.pointerAddress,
@@ -1439,6 +1464,7 @@ void _paintingWorkerStampSegment({
     softness: softness,
     snapToPixel: snapToPixel,
     screentoneEnabled: screentoneEnabled,
+    screentoneShape: screentoneShape.index,
     screentoneSpacing: screentoneSpacing,
     screentoneDotSize: screentoneDotSize,
     screentoneRotation: screentoneRotation,
@@ -1467,6 +1493,7 @@ void _paintingWorkerStampSegment({
       rotationJitter: rotationJitter,
       snapToPixel: snapToPixel,
       screentoneEnabled: screentoneEnabled,
+      screentoneShape: screentoneShape,
       screentoneSpacing: screentoneSpacing,
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
@@ -1510,6 +1537,7 @@ void _paintingWorkerStampSegment({
       rotationJitter: rotationJitter,
       snapToPixel: snapToPixel,
       screentoneEnabled: screentoneEnabled,
+      screentoneShape: screentoneShape,
       screentoneSpacing: screentoneSpacing,
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,

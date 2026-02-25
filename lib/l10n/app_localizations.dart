@@ -2120,6 +2120,12 @@ abstract class AppLocalizations {
   /// **'Screentone'**
   String get screentoneEnabled;
 
+  /// No description provided for @screentoneShape.
+  ///
+  /// In en, this message translates to:
+  /// **'Dot Shape'**
+  String get screentoneShape;
+
   /// No description provided for @screentoneSpacing.
   ///
   /// In en, this message translates to:

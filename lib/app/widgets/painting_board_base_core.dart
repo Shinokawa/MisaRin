@@ -77,6 +77,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   double _brushScreentoneDotSize = 0.6;
   double _brushScreentoneRotation = 45.0;
   double _brushScreentoneSoftness = 0.0;
+  BrushShape _brushScreentoneShape = BrushShape.circle;
   bool _hollowStrokeEnabled = AppPreferences.defaultHollowStrokeEnabled;
   double _hollowStrokeRatio = AppPreferences.defaultHollowStrokeRatio;
   bool _hollowStrokeEraseOccludedParts =

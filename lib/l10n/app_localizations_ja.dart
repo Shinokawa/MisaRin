@@ -1091,6 +1091,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get screentoneEnabled => 'スクリーントーン';
 
   @override
+  String get screentoneShape => 'ドット形状';
+
+  @override
   String get screentoneSpacing => 'ドット間隔';
 
   @override

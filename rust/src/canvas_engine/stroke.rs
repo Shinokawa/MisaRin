@@ -27,6 +27,7 @@ pub(crate) struct EngineBrushSettings {
     pub(crate) screentone_dot_size: f32,
     pub(crate) screentone_rotation: f32,
     pub(crate) screentone_softness: f32,
+    pub(crate) screentone_shape: BrushShape,
     pub(crate) hollow_enabled: bool,
     pub(crate) hollow_ratio: f32,
     pub(crate) hollow_erase_occluded: bool,
@@ -59,6 +60,7 @@ impl Default for EngineBrushSettings {
             screentone_dot_size: 0.6,
             screentone_rotation: 45.0,
             screentone_softness: 0.0,
+            screentone_shape: BrushShape::Circle,
             hollow_enabled: false,
             hollow_ratio: 0.0,
             hollow_erase_occluded: false,
@@ -1100,6 +1102,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
         brush_settings.screentone_dot_size,
         brush_settings.screentone_rotation.to_radians(),
         brush_settings.screentone_softness,
+        brush_settings.screentone_shape,
     );
 
     let hollow_enabled = brush_settings.hollow_enabled

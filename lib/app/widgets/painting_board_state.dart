@@ -343,6 +343,7 @@ class PaintingBoardState extends _PaintingBoardBase
         timestampMillis: startTimestampMs,
         antialiasLevel: 0,
         brushShape: BrushShape.circle,
+        screentoneShape: _brushScreentoneShape,
         randomRotation: false,
         erase: false,
       );
@@ -1199,6 +1200,7 @@ class PaintingBoardState extends _PaintingBoardBase
       _brushScreentoneDotSize = sanitized.screentoneDotSize;
       _brushScreentoneRotation = sanitized.screentoneRotation;
       _brushScreentoneSoftness = sanitized.screentoneSoftness;
+      _brushScreentoneShape = sanitized.screentoneShape;
       _penAntialiasLevel = sanitized.antialiasLevel;
       _hollowStrokeEnabled = sanitized.hollowEnabled;
       _hollowStrokeRatio = sanitized.hollowRatio;

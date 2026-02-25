@@ -83,6 +83,7 @@ class ToolSettingsCard extends StatefulWidget {
     required this.brushToolsEraserMode,
     required this.onBrushToolsEraserModeChanged,
     required this.strokeStabilizerMaxLevel,
+    required this.streamlineMaxLevel,
     required this.textFontSize,
     required this.onTextFontSizeChanged,
     required this.textLineHeight,
@@ -167,6 +168,7 @@ class ToolSettingsCard extends StatefulWidget {
   final bool brushToolsEraserMode;
   final ValueChanged<bool> onBrushToolsEraserModeChanged;
   final int strokeStabilizerMaxLevel;
+  final int streamlineMaxLevel;
   final bool compactLayout;
   final double textFontSize;
   final ValueChanged<double> onTextFontSizeChanged;
@@ -1814,23 +1816,23 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
   Widget _buildStreamlineRow(FluentThemeData theme) {
     final l10n = context.l10n;
     final double value = widget.streamlineStrength.clamp(0.0, 1.0);
-    final double projected = (value * widget.strokeStabilizerMaxLevel).clamp(
+    final double projected = (value * widget.streamlineMaxLevel).clamp(
       0.0,
-      widget.strokeStabilizerMaxLevel.toDouble(),
+      widget.streamlineMaxLevel.toDouble(),
     );
     final int level = projected.round().clamp(
       0,
-      widget.strokeStabilizerMaxLevel,
+      widget.streamlineMaxLevel,
     );
     final double sliderValue = level.toDouble();
     final String label = level == 0 ? l10n.off : l10n.levelLabel(level);
     final Widget slider = _buildPointerFriendlySlider(
       value: sliderValue,
       min: 0,
-      max: widget.strokeStabilizerMaxLevel.toDouble(),
-      divisions: widget.strokeStabilizerMaxLevel,
+      max: widget.streamlineMaxLevel.toDouble(),
+      divisions: widget.streamlineMaxLevel,
       onChanged: (raw) => widget.onStreamlineChanged(
-        (raw / widget.strokeStabilizerMaxLevel).clamp(0.0, 1.0),
+        (raw / widget.streamlineMaxLevel).clamp(0.0, 1.0),
       ),
     );
     if (!widget.compactLayout) {

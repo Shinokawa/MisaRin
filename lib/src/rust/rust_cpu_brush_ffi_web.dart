@@ -82,6 +82,7 @@ class RustCpuBrushFfi {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    int screentoneShape = 0,
     required bool snapToPixel,
     Uint8List? customMask,
     int customMaskWidth = 0,
@@ -120,6 +121,7 @@ class RustCpuBrushFfi {
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
+      screentoneShape: screentoneShape,
       snapToPixel: snapToPixel,
       customMaskWidth: customMaskWidth,
       customMaskHeight: customMaskHeight,
@@ -157,6 +159,7 @@ class RustCpuBrushFfi {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    int screentoneShape = 0,
     Uint8List? selectionMask,
   }) {
     final Uint32List? pixels = _lookupPixels(pixelsPtr, pixelsLen);
@@ -189,6 +192,7 @@ class RustCpuBrushFfi {
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
+      screentoneShape: screentoneShape,
       selection: selectionMask,
     );
     if (!result.ok) {
@@ -277,6 +281,7 @@ class RustCpuBrushFfi {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    int screentoneShape = 0,
     required double spacing,
     required double scatter,
     required double softness,
@@ -322,6 +327,7 @@ class RustCpuBrushFfi {
       screentoneDotSize: screentoneDotSize,
       screentoneRotation: screentoneRotation,
       screentoneSoftness: screentoneSoftness,
+      screentoneShape: screentoneShape,
       spacing: spacing,
       scatter: scatter,
       softness: softness,

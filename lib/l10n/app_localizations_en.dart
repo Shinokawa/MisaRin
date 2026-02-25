@@ -1114,6 +1114,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get screentoneEnabled => 'Screentone';
 
   @override
+  String get screentoneShape => 'Dot Shape';
+
+  @override
   String get screentoneSpacing => 'Dot Spacing';
 
   @override

@@ -570,6 +570,7 @@ mixin _PaintingBoardShapeMixin on _PaintingBoardBase {
       screentoneDotSize: _brushScreentoneDotSize,
       screentoneRotation: _brushScreentoneRotation,
       screentoneSoftness: _brushScreentoneSoftness,
+      screentoneShape: _brushScreentoneShape,
       erase: erase,
     );
     if (simulatePressure) {

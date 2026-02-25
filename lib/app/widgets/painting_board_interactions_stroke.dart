@@ -152,6 +152,7 @@ extension _PaintingBoardInteractionStrokeExtension on _PaintingBoardInteractionM
         screentoneDotSize: _brushScreentoneDotSize,
         screentoneRotation: _brushScreentoneRotation,
         screentoneSoftness: _brushScreentoneSoftness,
+        screentoneShape: _brushScreentoneShape,
         streamlineStrength: _streamlineStrength,
         erase: erase,
         hollow: hollow,

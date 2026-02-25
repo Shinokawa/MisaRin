@@ -335,6 +335,7 @@ typedef _EngineSetBrushNative =
       ffi.Float screentoneDotSize,
       ffi.Float screentoneRotation,
       ffi.Float screentoneSoftness,
+      ffi.Uint32 screentoneShape,
       ffi.Uint8 hollow,
       ffi.Float hollowRatio,
       ffi.Uint8 hollowEraseOccludedParts,
@@ -365,6 +366,7 @@ typedef _EngineSetBrushDart =
       double screentoneDotSize,
       double screentoneRotation,
       double screentoneSoftness,
+      int screentoneShape,
       int hollow,
       double hollowRatio,
       int hollowEraseOccludedParts,
@@ -1366,6 +1368,7 @@ class CanvasEngineFfi {
     double screentoneDotSize = 0.6,
     double screentoneRotation = 45.0,
     double screentoneSoftness = 0.0,
+    int screentoneShape = 0,
     bool hollow = false,
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,
@@ -1431,6 +1434,12 @@ class CanvasEngineFfi {
       screentoneSoftnessValue = 0.0;
     }
     screentoneSoftnessValue = screentoneSoftnessValue.clamp(0.0, 1.0);
+    int screentoneShapeValue = screentoneShape;
+    if (screentoneShapeValue < 0) {
+      screentoneShapeValue = 0;
+    } else if (screentoneShapeValue > 3) {
+      screentoneShapeValue = 3;
+    }
     double ratio = hollowRatio;
     if (!ratio.isFinite) {
       ratio = 0.0;
@@ -1475,6 +1484,7 @@ class CanvasEngineFfi {
       screentoneDotSizeValue,
       screentoneRotationValue,
       screentoneSoftnessValue,
+      screentoneShapeValue,
       hollow ? 1 : 0,
       ratio,
       hollowEraseOccludedParts ? 1 : 0,

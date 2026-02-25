@@ -530,6 +530,7 @@
   "brushRotationJitter": "Rotation Jitter",
   "brushSnapToPixel": "Snap to Pixel",
   "screentoneEnabled": "Screentone",
+  "screentoneShape": "Dot Shape",
   "screentoneSpacing": "Dot Spacing",
   "screentoneDotSize": "Dot Size",
   "screentoneRotation": "Dot Rotation",

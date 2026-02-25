@@ -1085,6 +1085,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get screentoneEnabled => '网点';
 
   @override
+  String get screentoneShape => '网点形状';
+
+  @override
   String get screentoneSpacing => '网点间距';
 
   @override
@@ -2847,6 +2850,9 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get screentoneEnabled => '网点';
 
   @override
+  String get screentoneShape => '网点形状';
+
+  @override
   String get screentoneSpacing => '网点间距';
 
   @override
@@ -3845,6 +3851,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get screentoneEnabled => '網點';
+
+  @override
+  String get screentoneShape => '網點形狀';
 
   @override
   String get screentoneSpacing => '網點間距';

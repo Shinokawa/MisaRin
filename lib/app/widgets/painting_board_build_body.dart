@@ -259,6 +259,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           brushToolsEraserMode: _brushToolsEraserMode,
           onBrushToolsEraserModeChanged: _updateBrushToolsEraserMode,
           strokeStabilizerMaxLevel: _strokeStabilizerMaxLevel,
+          streamlineMaxLevel: _streamlineMaxLevel,
           compactLayout: isSai2Layout,
           textFontSize: _textFontSize,
           onTextFontSizeChanged: _updateTextFontSize,
@@ -564,6 +565,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     _brushScreentoneRotation,
                                                 brushScreentoneSoftness:
                                                     _brushScreentoneSoftness,
+                                                brushScreentoneShape:
+                                                    _brushScreentoneShape,
                                                 hollowStrokeEnabled:
                                                     _hollowStrokeEnabled,
                                                 hollowStrokeRatio:

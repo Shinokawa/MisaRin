@@ -10,6 +10,7 @@ import 'package:misa_rin/canvas/canvas_engine_bridge.dart';
 
 import '../debug/backend_canvas_timeline.dart';
 import '../../canvas/canvas_tools.dart';
+import '../../painting/stroke_stabilizer_curve.dart';
 import '../utils/tablet_input_bridge.dart';
 
 const MethodChannel _backendCanvasChannel = MethodChannel(
@@ -324,6 +325,7 @@ class BackendCanvasSurface extends StatefulWidget {
     required this.brushScreentoneDotSize,
     required this.brushScreentoneRotation,
     required this.brushScreentoneSoftness,
+    required this.brushScreentoneShape,
     this.hollowStrokeEnabled = false,
     this.hollowStrokeRatio = 0.0,
     this.hollowStrokeEraseOccludedParts = false,
@@ -390,6 +392,7 @@ class BackendCanvasSurface extends StatefulWidget {
   final double brushScreentoneDotSize;
   final double brushScreentoneRotation;
   final double brushScreentoneSoftness;
+  final BrushShape brushScreentoneShape;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
   final bool hollowStrokeEraseOccludedParts;
@@ -494,6 +497,7 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
         (oldWidget.brushScreentoneSoftness - widget.brushScreentoneSoftness)
                 .abs() >
             1e-6 ||
+        oldWidget.brushScreentoneShape != widget.brushScreentoneShape ||
         oldWidget.hollowStrokeEnabled != widget.hollowStrokeEnabled ||
         (oldWidget.hollowStrokeRatio - widget.hollowStrokeRatio).abs() > 1e-6 ||
         oldWidget.hollowStrokeEraseOccludedParts !=
@@ -730,7 +734,7 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
       }
     }
     final double stabilizer =
-        widget.strokeStabilizerStrength.clamp(0.0, 1.0);
+        mapStrokeStabilizerStrength(widget.strokeStabilizerStrength);
     final int smoothingMode = stabilizer > 0.0001 ? 3 : 1;
     CanvasBackendFacade.instance.setBrush(
       handle: handle,
@@ -754,6 +758,7 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
       screentoneDotSize: widget.brushScreentoneDotSize,
       screentoneRotation: widget.brushScreentoneRotation,
       screentoneSoftness: widget.brushScreentoneSoftness,
+      screentoneShape: widget.brushScreentoneShape.index,
       hollow: widget.hollowStrokeEnabled,
       hollowRatio: widget.hollowStrokeRatio,
       hollowEraseOccludedParts: widget.hollowStrokeEraseOccludedParts,

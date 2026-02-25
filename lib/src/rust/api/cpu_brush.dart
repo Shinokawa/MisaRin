@@ -29,6 +29,7 @@ CpuBrushResult cpuBrushDrawStampRgba({
   required double screentoneDotSize,
   required double screentoneRotation,
   required double screentoneSoftness,
+  required int screentoneShape,
   required bool snapToPixel,
   required int customMaskWidth,
   required int customMaskHeight,
@@ -55,6 +56,7 @@ CpuBrushResult cpuBrushDrawStampRgba({
   screentoneDotSize: screentoneDotSize,
   screentoneRotation: screentoneRotation,
   screentoneSoftness: screentoneSoftness,
+  screentoneShape: screentoneShape,
   snapToPixel: snapToPixel,
   customMaskWidth: customMaskWidth,
   customMaskHeight: customMaskHeight,
@@ -81,6 +83,7 @@ CpuBrushResult cpuBrushDrawCapsuleSegmentRgba({
   required double screentoneDotSize,
   required double screentoneRotation,
   required double screentoneSoftness,
+  required int screentoneShape,
   Uint8List? selection,
 }) => RustLib.instance.api.crateApiCpuBrushCpuBrushDrawCapsuleSegmentRgba(
   pixels: pixels,
@@ -101,6 +104,7 @@ CpuBrushResult cpuBrushDrawCapsuleSegmentRgba({
   screentoneDotSize: screentoneDotSize,
   screentoneRotation: screentoneRotation,
   screentoneSoftness: screentoneSoftness,
+  screentoneShape: screentoneShape,
   selection: selection,
 );
 
@@ -152,6 +156,7 @@ CpuBrushResult cpuBrushDrawStampSegmentRgba({
   required double screentoneDotSize,
   required double screentoneRotation,
   required double screentoneSoftness,
+  required int screentoneShape,
   required double spacing,
   required double scatter,
   required double softness,
@@ -185,6 +190,7 @@ CpuBrushResult cpuBrushDrawStampSegmentRgba({
   screentoneDotSize: screentoneDotSize,
   screentoneRotation: screentoneRotation,
   screentoneSoftness: screentoneSoftness,
+  screentoneShape: screentoneShape,
   spacing: spacing,
   scatter: scatter,
   softness: softness,
@@ -273,6 +279,7 @@ class CpuBrushCommand {
   final double screentoneDotSize;
   final double screentoneRotation;
   final double screentoneSoftness;
+  final int screentoneShape;
   final bool snapToPixel;
 
   const CpuBrushCommand({
@@ -304,6 +311,7 @@ class CpuBrushCommand {
     required this.screentoneDotSize,
     required this.screentoneRotation,
     required this.screentoneSoftness,
+    required this.screentoneShape,
     required this.snapToPixel,
   });
 
@@ -337,6 +345,7 @@ class CpuBrushCommand {
       screentoneDotSize.hashCode ^
       screentoneRotation.hashCode ^
       screentoneSoftness.hashCode ^
+      screentoneShape.hashCode ^
       snapToPixel.hashCode;
 
   @override
@@ -372,6 +381,7 @@ class CpuBrushCommand {
           screentoneDotSize == other.screentoneDotSize &&
           screentoneRotation == other.screentoneRotation &&
           screentoneSoftness == other.screentoneSoftness &&
+          screentoneShape == other.screentoneShape &&
           snapToPixel == other.snapToPixel;
 }
 

@@ -530,6 +530,7 @@
   "brushRotationJitter": "回転ジッター",
   "brushSnapToPixel": "ピクセルにスナップ",
   "screentoneEnabled": "スクリーントーン",
+  "screentoneShape": "ドット形状",
   "screentoneSpacing": "ドット間隔",
   "screentoneDotSize": "ドットサイズ",
   "screentoneRotation": "ドット回転",

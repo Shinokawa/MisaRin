@@ -32,6 +32,7 @@ class _RustWgpuStrokeDrawData {
     required this.screentoneDotSize,
     required this.screentoneRotation,
     required this.screentoneSoftness,
+    required this.screentoneShape,
     required this.hollow,
     required this.hollowRatio,
     required this.eraseOccludedParts,
@@ -57,6 +58,7 @@ class _RustWgpuStrokeDrawData {
   final double screentoneDotSize;
   final double screentoneRotation;
   final double screentoneSoftness;
+  final BrushShape screentoneShape;
   final bool hollow;
   final double hollowRatio;
   final bool eraseOccludedParts;
@@ -101,6 +103,10 @@ _RustWgpuStrokeDrawData? _controllerRustWgpuStrokeFromCommand(
         screentoneDotSize: command.screentoneDotSize ?? 0.6,
         screentoneRotation: command.screentoneRotation ?? 45.0,
         screentoneSoftness: command.screentoneSoftness ?? 0.0,
+        screentoneShape: BrushShape.values[
+          (command.screentoneShapeIndex ?? 0)
+              .clamp(0, BrushShape.values.length - 1)
+        ],
         hollow: hollow && !erase,
         hollowRatio: hollowRatio,
         eraseOccludedParts: hollow && !erase && eraseOccludedParts,
@@ -135,6 +141,10 @@ _RustWgpuStrokeDrawData? _controllerRustWgpuStrokeFromCommand(
         screentoneDotSize: command.screentoneDotSize ?? 0.6,
         screentoneRotation: command.screentoneRotation ?? 45.0,
         screentoneSoftness: command.screentoneSoftness ?? 0.0,
+        screentoneShape: BrushShape.values[
+          (command.screentoneShapeIndex ?? 0)
+              .clamp(0, BrushShape.values.length - 1)
+        ],
         hollow: hollow && !erase,
         hollowRatio: hollowRatio,
         eraseOccludedParts: hollow && !erase && eraseOccludedParts,
@@ -169,6 +179,10 @@ _RustWgpuStrokeDrawData? _controllerRustWgpuStrokeFromCommand(
         screentoneDotSize: command.screentoneDotSize ?? 0.6,
         screentoneRotation: command.screentoneRotation ?? 45.0,
         screentoneSoftness: command.screentoneSoftness ?? 0.0,
+        screentoneShape: BrushShape.values[
+          (command.screentoneShapeIndex ?? 0)
+              .clamp(0, BrushShape.values.length - 1)
+        ],
         hollow: hollow && !erase,
         hollowRatio: hollowRatio,
         eraseOccludedParts: hollow && !erase && eraseOccludedParts,
@@ -209,6 +223,10 @@ _RustWgpuStrokeDrawData? _controllerRustWgpuStrokeFromCommand(
         screentoneDotSize: command.screentoneDotSize ?? 0.6,
         screentoneRotation: command.screentoneRotation ?? 45.0,
         screentoneSoftness: command.screentoneSoftness ?? 0.0,
+        screentoneShape: BrushShape.values[
+          (command.screentoneShapeIndex ?? 0)
+              .clamp(0, BrushShape.values.length - 1)
+        ],
         hollow: hollow && !erase,
         hollowRatio: hollowRatio,
         eraseOccludedParts: hollow && !erase && eraseOccludedParts,
@@ -246,6 +264,10 @@ _RustWgpuStrokeDrawData? _controllerRustWgpuStrokeFromCommand(
         screentoneDotSize: command.screentoneDotSize ?? 0.6,
         screentoneRotation: command.screentoneRotation ?? 45.0,
         screentoneSoftness: command.screentoneSoftness ?? 0.0,
+        screentoneShape: BrushShape.values[
+          (command.screentoneShapeIndex ?? 0)
+              .clamp(0, BrushShape.values.length - 1)
+        ],
         hollow: resolvedHollow,
         hollowRatio: resolvedHollow ? (command.hollowRatio ?? 0.0) : 0.0,
         eraseOccludedParts: resolvedEraseOccludedParts,
@@ -325,6 +347,10 @@ void _controllerFlushDeferredStrokeCommands(
             screentoneDotSize: command.screentoneDotSize ?? 0.6,
             screentoneRotation: command.screentoneRotation ?? 45.0,
             screentoneSoftness: command.screentoneSoftness ?? 0.0,
+            screentoneShape: BrushShape.values[
+              (command.screentoneShapeIndex ?? 0)
+                  .clamp(0, BrushShape.values.length - 1)
+            ],
             hollow: true,
             hollowRatio: command.hollowRatio ?? 0.0,
             eraseOccludedParts: false,
@@ -393,6 +419,7 @@ Future<void> _controllerDrawStrokeOnRustWgpu(
   required double screentoneDotSize,
   required double screentoneRotation,
   required double screentoneSoftness,
+  required BrushShape screentoneShape,
   bool eraseOccludedParts = false,
   bool hollow = false,
   double hollowRatio = 0.0,
@@ -520,6 +547,7 @@ Future<void> _controllerDrawStrokeOnRustWgpu(
           rotationJitter: rotationJitter,
           snapToPixel: snapToPixel,
           screentoneEnabled: screentoneEnabled,
+          screentoneShape: screentoneShape,
           screentoneSpacing: screentoneSpacing,
           screentoneDotSize: screentoneDotSize,
           screentoneRotation: screentoneRotation,
@@ -551,6 +579,7 @@ Future<void> _controllerDrawStrokeOnRustWgpu(
           softness: softness,
           snapToPixel: snapToPixel,
           screentoneEnabled: screentoneEnabled,
+          screentoneShape: screentoneShape,
           screentoneSpacing: screentoneSpacing,
           screentoneDotSize: screentoneDotSize,
           screentoneRotation: screentoneRotation,
@@ -991,6 +1020,7 @@ bool _controllerApplyPaintingCommandsBatchWeb(
             screentoneDotSize: command.screentoneDotSize ?? 0.6,
             screentoneRotation: command.screentoneRotation ?? 45.0,
             screentoneSoftness: command.screentoneSoftness ?? 0.0,
+            screentoneShape: command.screentoneShapeIndex ?? 0,
             snapToPixel: command.snapToPixel ?? false,
           ),
         );
@@ -1039,6 +1069,7 @@ bool _controllerApplyPaintingCommandsBatchWeb(
             screentoneDotSize: command.screentoneDotSize ?? 0.6,
             screentoneRotation: command.screentoneRotation ?? 45.0,
             screentoneSoftness: command.screentoneSoftness ?? 0.0,
+            screentoneShape: command.screentoneShapeIndex ?? 0,
             snapToPixel: command.snapToPixel ?? false,
           ),
         );
@@ -1086,6 +1117,7 @@ bool _controllerApplyPaintingCommandsBatchWeb(
             screentoneDotSize: command.screentoneDotSize ?? 0.6,
             screentoneRotation: command.screentoneRotation ?? 45.0,
             screentoneSoftness: command.screentoneSoftness ?? 0.0,
+            screentoneShape: command.screentoneShapeIndex ?? 0,
             snapToPixel: false,
           ),
         );
@@ -1239,6 +1271,7 @@ void _controllerCommitDeferredStrokeCommandsAsRaster(
         softness: stroke.softness,
         snapToPixel: stroke.snapToPixel,
         screentoneEnabled: stroke.screentoneEnabled,
+        screentoneShape: stroke.screentoneShape,
         screentoneSpacing: stroke.screentoneSpacing,
         screentoneDotSize: stroke.screentoneDotSize,
         screentoneRotation: stroke.screentoneRotation,
@@ -1310,6 +1343,7 @@ void _controllerDispatchDirectPaintCommand(
       softness: stroke.softness,
       snapToPixel: stroke.snapToPixel,
       screentoneEnabled: stroke.screentoneEnabled,
+      screentoneShape: stroke.screentoneShape,
       screentoneSpacing: stroke.screentoneSpacing,
       screentoneDotSize: stroke.screentoneDotSize,
       screentoneRotation: stroke.screentoneRotation,
@@ -1874,6 +1908,10 @@ void _controllerApplyPaintingCommandsSynchronously(
         if (center == null || radius == null || shapeIndex == null) {
           continue;
         }
+        final int screentoneShapeIndex = (command.screentoneShapeIndex ?? 0)
+            .clamp(0, BrushShape.values.length - 1);
+        final BrushShape screentoneShape =
+            BrushShape.values[screentoneShapeIndex];
         final int clampedShape = shapeIndex.clamp(
           0,
           BrushShape.values.length - 1,
@@ -1899,6 +1937,7 @@ void _controllerApplyPaintingCommandsSynchronously(
             screentoneDotSize: command.screentoneDotSize ?? 0.6,
             screentoneRotation: command.screentoneRotation ?? 45.0,
             screentoneSoftness: command.screentoneSoftness ?? 0.0,
+            screentoneShape: screentoneShape,
             customMask: customMask,
             customMaskWidth: customShape.width,
             customMaskHeight: customShape.height,
@@ -1923,6 +1962,7 @@ void _controllerApplyPaintingCommandsSynchronously(
             screentoneDotSize: command.screentoneDotSize ?? 0.6,
             screentoneRotation: command.screentoneRotation ?? 45.0,
             screentoneSoftness: command.screentoneSoftness ?? 0.0,
+            screentoneShape: screentoneShape,
           );
         }
         anyChange = true;
@@ -1934,6 +1974,10 @@ void _controllerApplyPaintingCommandsSynchronously(
         if (start == null || end == null || radius == null) {
           continue;
         }
+        final int screentoneShapeIndex = (command.screentoneShapeIndex ?? 0)
+            .clamp(0, BrushShape.values.length - 1);
+        final BrushShape screentoneShape =
+            BrushShape.values[screentoneShapeIndex];
         surface.drawLine(
           a: start,
           b: end,
@@ -1948,6 +1992,7 @@ void _controllerApplyPaintingCommandsSynchronously(
           screentoneDotSize: command.screentoneDotSize ?? 0.6,
           screentoneRotation: command.screentoneRotation ?? 45.0,
           screentoneSoftness: command.screentoneSoftness ?? 0.0,
+          screentoneShape: screentoneShape,
         );
         anyChange = true;
         break;
@@ -1962,6 +2007,10 @@ void _controllerApplyPaintingCommandsSynchronously(
             endRadius == null) {
           continue;
         }
+        final int screentoneShapeIndex = (command.screentoneShapeIndex ?? 0)
+            .clamp(0, BrushShape.values.length - 1);
+        final BrushShape screentoneShape =
+            BrushShape.values[screentoneShapeIndex];
         surface.drawVariableLine(
           a: start,
           b: end,
@@ -1977,6 +2026,7 @@ void _controllerApplyPaintingCommandsSynchronously(
           screentoneDotSize: command.screentoneDotSize ?? 0.6,
           screentoneRotation: command.screentoneRotation ?? 45.0,
           screentoneSoftness: command.screentoneSoftness ?? 0.0,
+          screentoneShape: screentoneShape,
         );
         anyChange = true;
         break;
@@ -1993,6 +2043,10 @@ void _controllerApplyPaintingCommandsSynchronously(
             shapeIndex == null) {
           continue;
         }
+        final int screentoneShapeIndex = (command.screentoneShapeIndex ?? 0)
+            .clamp(0, BrushShape.values.length - 1);
+        final BrushShape screentoneShape =
+            BrushShape.values[screentoneShapeIndex];
         final int clampedShape = shapeIndex.clamp(
           0,
           BrushShape.values.length - 1,
@@ -2022,6 +2076,7 @@ void _controllerApplyPaintingCommandsSynchronously(
           screentoneDotSize: command.screentoneDotSize ?? 0.6,
           screentoneRotation: command.screentoneRotation ?? 45.0,
           screentoneSoftness: command.screentoneSoftness ?? 0.0,
+          screentoneShape: screentoneShape,
           customShape: customShape,
         );
         anyChange = true;
@@ -2110,6 +2165,10 @@ void _controllerApplyPaintingCommandsSynchronouslyTiled(
         if (center == null || radius == null || shapeIndex == null) {
           return false;
         }
+        final int screentoneShapeIndex = (command.screentoneShapeIndex ?? 0)
+            .clamp(0, BrushShape.values.length - 1);
+        final BrushShape screentoneShape =
+            BrushShape.values[screentoneShapeIndex];
         final Offset localCenter = center - tileOrigin;
         final int clampedShape = shapeIndex.clamp(
           0,
@@ -2136,6 +2195,7 @@ void _controllerApplyPaintingCommandsSynchronouslyTiled(
             screentoneDotSize: command.screentoneDotSize ?? 0.6,
             screentoneRotation: command.screentoneRotation ?? 45.0,
             screentoneSoftness: command.screentoneSoftness ?? 0.0,
+            screentoneShape: screentoneShape,
             customMask: customMask,
             customMaskWidth: customShape.width,
             customMaskHeight: customShape.height,
@@ -2160,6 +2220,7 @@ void _controllerApplyPaintingCommandsSynchronouslyTiled(
             screentoneDotSize: command.screentoneDotSize ?? 0.6,
             screentoneRotation: command.screentoneRotation ?? 45.0,
             screentoneSoftness: command.screentoneSoftness ?? 0.0,
+            screentoneShape: screentoneShape,
           );
         }
         return true;
@@ -2170,6 +2231,10 @@ void _controllerApplyPaintingCommandsSynchronouslyTiled(
         if (start == null || end == null || radius == null) {
           return false;
         }
+        final int screentoneShapeIndex = (command.screentoneShapeIndex ?? 0)
+            .clamp(0, BrushShape.values.length - 1);
+        final BrushShape screentoneShape =
+            BrushShape.values[screentoneShapeIndex];
         surface.drawLine(
           a: start - tileOrigin,
           b: end - tileOrigin,
@@ -2184,6 +2249,7 @@ void _controllerApplyPaintingCommandsSynchronouslyTiled(
           screentoneDotSize: command.screentoneDotSize ?? 0.6,
           screentoneRotation: command.screentoneRotation ?? 45.0,
           screentoneSoftness: command.screentoneSoftness ?? 0.0,
+          screentoneShape: screentoneShape,
         );
         return true;
       case PaintingDrawCommandType.variableLine:
@@ -2197,6 +2263,10 @@ void _controllerApplyPaintingCommandsSynchronouslyTiled(
             endRadius == null) {
           return false;
         }
+        final int screentoneShapeIndex = (command.screentoneShapeIndex ?? 0)
+            .clamp(0, BrushShape.values.length - 1);
+        final BrushShape screentoneShape =
+            BrushShape.values[screentoneShapeIndex];
         surface.drawVariableLine(
           a: start - tileOrigin,
           b: end - tileOrigin,
@@ -2212,6 +2282,7 @@ void _controllerApplyPaintingCommandsSynchronouslyTiled(
           screentoneDotSize: command.screentoneDotSize ?? 0.6,
           screentoneRotation: command.screentoneRotation ?? 45.0,
           screentoneSoftness: command.screentoneSoftness ?? 0.0,
+          screentoneShape: screentoneShape,
         );
         return true;
       case PaintingDrawCommandType.stampSegment:
@@ -2227,6 +2298,10 @@ void _controllerApplyPaintingCommandsSynchronouslyTiled(
             shapeIndex == null) {
           return false;
         }
+        final int screentoneShapeIndex = (command.screentoneShapeIndex ?? 0)
+            .clamp(0, BrushShape.values.length - 1);
+        final BrushShape screentoneShape =
+            BrushShape.values[screentoneShapeIndex];
         final int clampedShape = shapeIndex.clamp(
           0,
           BrushShape.values.length - 1,
@@ -2256,6 +2331,7 @@ void _controllerApplyPaintingCommandsSynchronouslyTiled(
           screentoneDotSize: command.screentoneDotSize ?? 0.6,
           screentoneRotation: command.screentoneRotation ?? 45.0,
           screentoneSoftness: command.screentoneSoftness ?? 0.0,
+          screentoneShape: screentoneShape,
           customShape: customShape,
         );
         return true;
@@ -2416,6 +2492,7 @@ void _controllerApplyStampSegmentFallback({
   double screentoneDotSize = 0.6,
   double screentoneRotation = 45.0,
   double screentoneSoftness = 0.0,
+  BrushShape screentoneShape = BrushShape.circle,
   BrushShapeRaster? customShape,
 }) {
   final Uint8List? customMask = customShape?.packedMask;
@@ -2446,6 +2523,7 @@ void _controllerApplyStampSegmentFallback({
         screentoneDotSize: screentoneDotSize,
         screentoneRotation: screentoneRotation,
         screentoneSoftness: screentoneSoftness,
+        screentoneShape: screentoneShape.index,
         spacing: spacing,
         scatter: scatter,
         softness: softness,
@@ -2481,6 +2559,13 @@ void _controllerApplyStampSegmentFallback({
         rotation: rotation,
         snapToPixel: snapToPixel,
         mask: mask,
+        antialiasLevel: antialias,
+        screentoneEnabled: screentoneEnabled,
+        screentoneSpacing: screentoneSpacing,
+        screentoneDotSize: screentoneDotSize,
+        screentoneRotation: screentoneRotation,
+        screentoneSoftness: screentoneSoftness,
+        screentoneShape: screentoneShape,
       );
     } else {
       surface.drawBrushStamp(
@@ -2502,6 +2587,7 @@ void _controllerApplyStampSegmentFallback({
         screentoneDotSize: screentoneDotSize,
         screentoneRotation: screentoneRotation,
         screentoneSoftness: screentoneSoftness,
+        screentoneShape: screentoneShape,
       );
     }
     return;
@@ -2549,6 +2635,13 @@ void _controllerApplyStampSegmentFallback({
         rotation: rotation,
         snapToPixel: snapToPixel,
         mask: mask,
+        antialiasLevel: antialias,
+        screentoneEnabled: screentoneEnabled,
+        screentoneSpacing: screentoneSpacing,
+        screentoneDotSize: screentoneDotSize,
+        screentoneRotation: screentoneRotation,
+        screentoneSoftness: screentoneSoftness,
+        screentoneShape: screentoneShape,
       );
     } else {
       surface.drawBrushStamp(
@@ -2570,6 +2663,7 @@ void _controllerApplyStampSegmentFallback({
         screentoneDotSize: screentoneDotSize,
         screentoneRotation: screentoneRotation,
         screentoneSoftness: screentoneSoftness,
+        screentoneShape: screentoneShape,
       );
     }
   }

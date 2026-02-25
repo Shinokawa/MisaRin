@@ -238,6 +238,7 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
       screentoneDotSize: preset.screentoneDotSize,
       screentoneRotation: preset.screentoneRotation,
       screentoneSoftness: preset.screentoneSoftness,
+      screentoneShape: preset.screentoneShape,
       author: preset.author,
       version: preset.version,
       shapeId: preset.shapeId,

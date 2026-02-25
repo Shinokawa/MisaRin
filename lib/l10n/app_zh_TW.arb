@@ -504,6 +504,7 @@
   "brushRotationJitter": "旋轉抖動",
   "brushSnapToPixel": "像素對齊",
   "screentoneEnabled": "網點",
+  "screentoneShape": "網點形狀",
   "screentoneSpacing": "網點間距",
   "screentoneDotSize": "網點大小",
   "screentoneRotation": "網點旋轉",

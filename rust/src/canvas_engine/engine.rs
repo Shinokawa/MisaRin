@@ -168,6 +168,7 @@ pub(crate) enum EngineCommand {
         screentone_dot_size: f32,
         screentone_rotation: f32,
         screentone_softness: f32,
+        screentone_shape: u32,
         hollow_enabled: bool,
         hollow_ratio: f32,
         hollow_erase_occluded: bool,
@@ -2921,6 +2922,7 @@ fn handle_engine_command(
             screentone_dot_size,
             screentone_rotation,
             screentone_softness,
+            screentone_shape,
             hollow_enabled,
             hollow_ratio,
             hollow_erase_occluded,
@@ -2948,6 +2950,7 @@ fn handle_engine_command(
             brush_settings.screentone_dot_size = screentone_dot_size;
             brush_settings.screentone_rotation = screentone_rotation;
             brush_settings.screentone_softness = screentone_softness;
+            brush_settings.screentone_shape = map_brush_shape(screentone_shape);
             brush_settings.hollow_enabled = hollow_enabled;
             brush_settings.hollow_ratio = hollow_ratio;
             brush_settings.hollow_erase_occluded = hollow_erase_occluded;

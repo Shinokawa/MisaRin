@@ -115,6 +115,7 @@ void _strokeBegin(
   double screentoneDotSize = 0.6,
   double screentoneRotation = 45.0,
   double screentoneSoftness = 0.0,
+  BrushShape screentoneShape = BrushShape.circle,
   double streamlineStrength = 0.0,
   bool erase = false,
   bool hollow = false,
@@ -231,6 +232,7 @@ void _strokeBegin(
       screentoneRotation.isFinite ? screentoneRotation.clamp(-180.0, 180.0) : 45.0;
   controller._currentStrokeScreentoneSoftness =
       screentoneSoftness.isFinite ? screentoneSoftness.clamp(0.0, 1.0) : 0.0;
+  controller._currentStrokeScreentoneShape = screentoneShape;
   final double streamlineValue =
       streamlineStrength.isFinite ? streamlineStrength.clamp(0.0, 1.0) : 0.0;
   controller._currentStrokeStreamlineStrength = streamlineValue;
@@ -431,6 +433,7 @@ void _strokeEnd(BitmapCanvasController controller) {
             screentoneDotSize: controller._currentStrokeScreentoneDotSize,
             screentoneRotation: controller._currentStrokeScreentoneRotation,
             screentoneSoftness: controller._currentStrokeScreentoneSoftness,
+            screentoneShapeIndex: controller._currentStrokeScreentoneShape.index,
           ),
         );
       } else if (tailInstruction.isPoint) {
@@ -458,6 +461,7 @@ void _strokeEnd(BitmapCanvasController controller) {
             screentoneDotSize: controller._currentStrokeScreentoneDotSize,
             screentoneRotation: controller._currentStrokeScreentoneRotation,
             screentoneSoftness: controller._currentStrokeScreentoneSoftness,
+            screentoneShapeIndex: controller._currentStrokeScreentoneShape.index,
           ),
         );
       }
@@ -504,6 +508,7 @@ void _strokeEnd(BitmapCanvasController controller) {
   controller._currentStrokeScreentoneDotSize = 0.6;
   controller._currentStrokeScreentoneRotation = 45.0;
   controller._currentStrokeScreentoneSoftness = 0.0;
+  controller._currentStrokeScreentoneShape = BrushShape.circle;
   controller._currentStrokeSpacing = 0.15;
   controller._currentStrokeSoftness = 0.0;
   controller._currentStrokeScatter = 0.0;
@@ -543,6 +548,7 @@ void _strokeCancel(BitmapCanvasController controller) {
   controller._currentStrokeScreentoneDotSize = 0.6;
   controller._currentStrokeScreentoneRotation = 45.0;
   controller._currentStrokeScreentoneSoftness = 0.0;
+  controller._currentStrokeScreentoneShape = BrushShape.circle;
   controller._currentStrokeSpacing = 0.15;
   controller._currentStrokeSoftness = 0.0;
   controller._currentStrokeScatter = 0.0;
@@ -671,6 +677,7 @@ bool _strokeApplyStreamline(BitmapCanvasController controller) {
         screentoneDotSize: controller._currentStrokeScreentoneDotSize,
         screentoneRotation: controller._currentStrokeScreentoneRotation,
         screentoneSoftness: controller._currentStrokeScreentoneSoftness,
+        screentoneShapeIndex: controller._currentStrokeScreentoneShape.index,
       ),
     );
     return true;
@@ -711,6 +718,7 @@ bool _strokeApplyStreamline(BitmapCanvasController controller) {
         screentoneDotSize: controller._currentStrokeScreentoneDotSize,
         screentoneRotation: controller._currentStrokeScreentoneRotation,
         screentoneSoftness: controller._currentStrokeScreentoneSoftness,
+        screentoneShapeIndex: controller._currentStrokeScreentoneShape.index,
       ),
     );
   }
@@ -851,6 +859,7 @@ void _strokeDrawPoint(
       screentoneDotSize: controller._currentStrokeScreentoneDotSize,
       screentoneRotation: controller._currentStrokeScreentoneRotation,
       screentoneSoftness: controller._currentStrokeScreentoneSoftness,
+      screentoneShapeIndex: controller._currentStrokeScreentoneShape.index,
     ),
   );
   controller._flushRealtimeStrokeCommands();
@@ -895,6 +904,7 @@ void _strokeStampSegment(
       screentoneDotSize: controller._currentStrokeScreentoneDotSize,
       screentoneRotation: controller._currentStrokeScreentoneRotation,
       screentoneSoftness: controller._currentStrokeScreentoneSoftness,
+      screentoneShapeIndex: controller._currentStrokeScreentoneShape.index,
     ),
   );
   controller._flushRealtimeStrokeCommands();

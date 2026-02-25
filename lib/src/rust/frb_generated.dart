@@ -161,6 +161,7 @@ abstract class RustLibApi extends BaseApi {
     required double screentoneDotSize,
     required double screentoneRotation,
     required double screentoneSoftness,
+    required int screentoneShape,
     Uint8List? selection,
   });
 
@@ -199,6 +200,7 @@ abstract class RustLibApi extends BaseApi {
     required double screentoneDotSize,
     required double screentoneRotation,
     required double screentoneSoftness,
+    required int screentoneShape,
     required bool snapToPixel,
     required int customMaskWidth,
     required int customMaskHeight,
@@ -230,6 +232,7 @@ abstract class RustLibApi extends BaseApi {
     required double screentoneDotSize,
     required double screentoneRotation,
     required double screentoneSoftness,
+    required int screentoneShape,
     required double spacing,
     required double scatter,
     required double softness,
@@ -760,6 +763,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required double screentoneDotSize,
     required double screentoneRotation,
     required double screentoneSoftness,
+    required int screentoneShape,
     Uint8List? selection,
   }) {
     return handler.executeSync(
@@ -784,6 +788,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_f_32(screentoneDotSize, serializer);
           sse_encode_f_32(screentoneRotation, serializer);
           sse_encode_f_32(screentoneSoftness, serializer);
+          sse_encode_u_32(screentoneShape, serializer);
           sse_encode_opt_list_prim_u_8_strict(selection, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
         },
@@ -811,6 +816,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           screentoneDotSize,
           screentoneRotation,
           screentoneSoftness,
+          screentoneShape,
           selection,
         ],
         apiImpl: this,
@@ -840,6 +846,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "screentoneDotSize",
           "screentoneRotation",
           "screentoneSoftness",
+          "screentoneShape",
           "selection",
         ],
       );
@@ -938,6 +945,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required double screentoneDotSize,
     required double screentoneRotation,
     required double screentoneSoftness,
+    required int screentoneShape,
     required bool snapToPixel,
     required int customMaskWidth,
     required int customMaskHeight,
@@ -968,6 +976,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_f_32(screentoneDotSize, serializer);
           sse_encode_f_32(screentoneRotation, serializer);
           sse_encode_f_32(screentoneSoftness, serializer);
+          sse_encode_u_32(screentoneShape, serializer);
           sse_encode_bool(snapToPixel, serializer);
           sse_encode_u_32(customMaskWidth, serializer);
           sse_encode_u_32(customMaskHeight, serializer);
@@ -1001,6 +1010,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           screentoneDotSize,
           screentoneRotation,
           screentoneSoftness,
+          screentoneShape,
           snapToPixel,
           customMaskWidth,
           customMaskHeight,
@@ -1036,6 +1046,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "screentoneDotSize",
           "screentoneRotation",
           "screentoneSoftness",
+          "screentoneShape",
           "snapToPixel",
           "customMaskWidth",
           "customMaskHeight",
@@ -1069,6 +1080,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required double screentoneDotSize,
     required double screentoneRotation,
     required double screentoneSoftness,
+    required int screentoneShape,
     required double spacing,
     required double scatter,
     required double softness,
@@ -1106,6 +1118,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_f_32(screentoneDotSize, serializer);
           sse_encode_f_32(screentoneRotation, serializer);
           sse_encode_f_32(screentoneSoftness, serializer);
+          sse_encode_u_32(screentoneShape, serializer);
           sse_encode_f_32(spacing, serializer);
           sse_encode_f_32(scatter, serializer);
           sse_encode_f_32(softness, serializer);
@@ -1146,6 +1159,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           screentoneDotSize,
           screentoneRotation,
           screentoneSoftness,
+          screentoneShape,
           spacing,
           scatter,
           softness,
@@ -1188,6 +1202,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "screentoneDotSize",
           "screentoneRotation",
           "screentoneSoftness",
+          "screentoneShape",
           "spacing",
           "scatter",
           "softness",
@@ -2578,8 +2593,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   CpuBrushCommand dco_decode_cpu_brush_command(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 29)
-      throw Exception('unexpected arr length: expect 29 but see ${arr.length}');
+    if (arr.length != 30)
+      throw Exception('unexpected arr length: expect 30 but see ${arr.length}');
     return CpuBrushCommand(
       kind: dco_decode_u_32(arr[0]),
       ax: dco_decode_f_32(arr[1]),
@@ -2609,7 +2624,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       screentoneDotSize: dco_decode_f_32(arr[25]),
       screentoneRotation: dco_decode_f_32(arr[26]),
       screentoneSoftness: dco_decode_f_32(arr[27]),
-      snapToPixel: dco_decode_bool(arr[28]),
+      screentoneShape: dco_decode_u_32(arr[28]),
+      snapToPixel: dco_decode_bool(arr[29]),
     );
   }
 
@@ -3071,6 +3087,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_screentoneDotSize = sse_decode_f_32(deserializer);
     var var_screentoneRotation = sse_decode_f_32(deserializer);
     var var_screentoneSoftness = sse_decode_f_32(deserializer);
+    var var_screentoneShape = sse_decode_u_32(deserializer);
     var var_snapToPixel = sse_decode_bool(deserializer);
     return CpuBrushCommand(
       kind: var_kind,
@@ -3101,6 +3118,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       screentoneDotSize: var_screentoneDotSize,
       screentoneRotation: var_screentoneRotation,
       screentoneSoftness: var_screentoneSoftness,
+      screentoneShape: var_screentoneShape,
       snapToPixel: var_snapToPixel,
     );
   }
@@ -3623,6 +3641,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_32(self.screentoneDotSize, serializer);
     sse_encode_f_32(self.screentoneRotation, serializer);
     sse_encode_f_32(self.screentoneSoftness, serializer);
+    sse_encode_u_32(self.screentoneShape, serializer);
     sse_encode_bool(self.snapToPixel, serializer);
   }
 
