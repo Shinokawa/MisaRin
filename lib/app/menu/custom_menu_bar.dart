@@ -16,7 +16,18 @@ class CustomMenuBarOverlay {
   static final ValueNotifier<Widget?> centerOverlay = ValueNotifier<Widget?>(
     null,
   );
+  static final ValueNotifier<PointerDeviceKind?> lastPointerKind =
+      ValueNotifier<PointerDeviceKind?>(null);
+
+  static void reportPointerKind(PointerDeviceKind kind) {
+    if (lastPointerKind.value == kind) {
+      return;
+    }
+    lastPointerKind.value = kind;
+  }
 }
+
+enum _MenuInteractionMode { mouse, touch }
 
 class CustomMenuBar extends StatefulWidget {
   const CustomMenuBar({
@@ -95,14 +106,88 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
   MenuDefinition? _touchMenuDefinition;
   Rect _touchMenuAnchor = Rect.zero;
   double _menuBarHeight = 0;
+  _MenuInteractionMode _interactionMode = _MenuInteractionMode.mouse;
+  late final VoidCallback _pointerKindListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _interactionMode = _defaultInteractionMode();
+    final PointerDeviceKind? initialKind =
+        CustomMenuBarOverlay.lastPointerKind.value;
+    final _MenuInteractionMode? initialMode =
+        initialKind == null ? null : _modeForPointerKind(initialKind);
+    if (initialMode != null) {
+      _interactionMode = initialMode;
+    }
+    _pointerKindListener = () {
+      final PointerDeviceKind? kind =
+          CustomMenuBarOverlay.lastPointerKind.value;
+      if (kind == null) {
+        return;
+      }
+      _handlePointerKind(kind);
+    };
+    CustomMenuBarOverlay.lastPointerKind.addListener(_pointerKindListener);
+  }
+
+  _MenuInteractionMode _defaultInteractionMode() {
+    if (kIsWeb) {
+      return _MenuInteractionMode.mouse;
+    }
+    return defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.fuchsia
+        ? _MenuInteractionMode.touch
+        : _MenuInteractionMode.mouse;
+  }
 
   bool get _useTouchMenu {
     if (kIsWeb) {
       return false;
     }
-    return defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.fuchsia;
+    return _interactionMode == _MenuInteractionMode.touch;
+  }
+
+  _MenuInteractionMode? _modeForPointerKind(PointerDeviceKind kind) {
+    switch (kind) {
+      case PointerDeviceKind.mouse:
+      case PointerDeviceKind.trackpad:
+        return _MenuInteractionMode.mouse;
+      case PointerDeviceKind.touch:
+      case PointerDeviceKind.stylus:
+      case PointerDeviceKind.invertedStylus:
+        return _MenuInteractionMode.touch;
+      case PointerDeviceKind.unknown:
+        return null;
+    }
+  }
+
+  void _handlePointerKind(PointerDeviceKind kind) {
+    final _MenuInteractionMode? mode = _modeForPointerKind(kind);
+    if (mode == null || mode == _interactionMode) {
+      return;
+    }
+    setState(() => _interactionMode = mode);
+    if (mode == _MenuInteractionMode.touch) {
+      _closeHoverMenu();
+    } else {
+      _closeTouchMenu();
+    }
+  }
+
+  void _closeHoverMenu() {
+    final FlyoutController? controller = _openController;
+    if (controller == null) {
+      return;
+    }
+    if (controller.isOpen) {
+      controller.forceClose();
+    }
+    _openController = null;
+    if (_menuOpenNotifier.value) {
+      _menuOpenNotifier.value = false;
+    }
   }
 
   void _handleMenuWillOpen(FlyoutController controller) {
@@ -131,6 +216,7 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
   void dispose() {
     _touchMenuEntry?.remove();
     _menuOpenNotifier.dispose();
+    CustomMenuBarOverlay.lastPointerKind.removeListener(_pointerKindListener);
     super.dispose();
   }
 
@@ -228,6 +314,7 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
                   onTouchMenuRequested: _openTouchMenu,
                   onTouchMenuClose: _closeTouchMenu,
                   isTouchMenuOpen: _isTouchMenuOpenFor,
+                  useTouchMenu: _useTouchMenu,
                 ),
                 if (i != visibleMenus.length - 1) const SizedBox(width: 4),
               ],
@@ -313,6 +400,7 @@ class _MenuButton extends StatefulWidget {
     this.onTouchMenuRequested,
     this.onTouchMenuClose,
     this.isTouchMenuOpen,
+    required this.useTouchMenu,
   });
 
   final MenuDefinition definition;
@@ -324,6 +412,7 @@ class _MenuButton extends StatefulWidget {
       onTouchMenuRequested;
   final VoidCallback? onTouchMenuClose;
   final bool Function(MenuDefinition definition)? isTouchMenuOpen;
+  final bool useTouchMenu;
 
   @override
   State<_MenuButton> createState() => _MenuButtonState();
@@ -332,15 +421,6 @@ class _MenuButton extends StatefulWidget {
 class _MenuButtonState extends State<_MenuButton> {
   late final FlyoutController _flyoutController = FlyoutController();
   bool _hovered = false;
-
-  bool get _isTouchPlatform {
-    if (kIsWeb) {
-      return false;
-    }
-    return defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.fuchsia;
-  }
 
   @override
   void dispose() {
@@ -357,7 +437,14 @@ class _MenuButtonState extends State<_MenuButton> {
     return global & renderObject.size;
   }
 
+  void _notePointerKind(PointerDeviceKind kind) {
+    CustomMenuBarOverlay.reportPointerKind(kind);
+  }
+
   void _openMenu({bool toggleIfOpen = true}) {
+    if (widget.useTouchMenu) {
+      return;
+    }
     if (widget.definition.entries.isEmpty) {
       return;
     }
@@ -398,8 +485,11 @@ class _MenuButtonState extends State<_MenuButton> {
   }
 
   void _handlePointerEnter(PointerEnterEvent event) {
+    _notePointerKind(event.kind);
     setState(() => _hovered = true);
-    if (widget.isAnyMenuOpen && !_flyoutController.isOpen) {
+    if (!widget.useTouchMenu &&
+        widget.isAnyMenuOpen &&
+        !_flyoutController.isOpen) {
       _openMenu(toggleIfOpen: false);
     }
   }
@@ -416,69 +506,74 @@ class _MenuButtonState extends State<_MenuButton> {
 
     return FlyoutTarget(
       controller: _flyoutController,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: _handlePointerEnter,
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _isTouchPlatform
-              ? null
-              : () {
-                  if (kDebugMode) {
-                    debugPrint(
-                      '[menu_bar] tap label=${widget.definition.label}',
-                    );
-                  }
-                  _openMenu(toggleIfOpen: true);
-                },
-          onTapDown: (details) {
-            if (kDebugMode) {
-              debugPrint(
-                '[menu_bar] tap_down label=${widget.definition.label} local=${details.localPosition} global=${details.globalPosition}',
-              );
-            }
-          },
-          onTapUp: (details) {
-            if (kDebugMode) {
-              debugPrint(
-                '[menu_bar] tap_up label=${widget.definition.label} local=${details.localPosition} global=${details.globalPosition}',
-              );
-            }
-            if (_isTouchPlatform) {
-              final Rect? rect = _resolveButtonRect();
-              if (rect == null) {
-                return;
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (event) => _notePointerKind(event.kind),
+        onPointerHover: (event) => _notePointerKind(event.kind),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: _handlePointerEnter,
+          onExit: (_) => setState(() => _hovered = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.useTouchMenu
+                ? null
+                : () {
+                    if (kDebugMode) {
+                      debugPrint(
+                        '[menu_bar] tap label=${widget.definition.label}',
+                      );
+                    }
+                    _openMenu(toggleIfOpen: true);
+                  },
+            onTapDown: (details) {
+              if (kDebugMode) {
+                debugPrint(
+                  '[menu_bar] tap_down label=${widget.definition.label} local=${details.localPosition} global=${details.globalPosition}',
+                );
               }
-              final bool isOpen =
-                  widget.isTouchMenuOpen?.call(widget.definition) ?? false;
-              if (isOpen) {
-                widget.onTouchMenuClose?.call();
-              } else {
-                widget.onTouchMenuRequested?.call(widget.definition, rect);
+            },
+            onTapUp: (details) {
+              if (kDebugMode) {
+                debugPrint(
+                  '[menu_bar] tap_up label=${widget.definition.label} local=${details.localPosition} global=${details.globalPosition}',
+                );
               }
-            }
-          },
-          onTapCancel: () {
-            if (kDebugMode) {
-              debugPrint(
-                '[menu_bar] tap_cancel label=${widget.definition.label}',
-              );
-            }
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: _hovered
-                  ? theme.resources.subtleFillColorSecondary
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              widget.definition.label,
-              style: textStyle.copyWith(color: textColor),
+              if (widget.useTouchMenu) {
+                final Rect? rect = _resolveButtonRect();
+                if (rect == null) {
+                  return;
+                }
+                final bool isOpen =
+                    widget.isTouchMenuOpen?.call(widget.definition) ?? false;
+                if (isOpen) {
+                  widget.onTouchMenuClose?.call();
+                } else {
+                  widget.onTouchMenuRequested?.call(widget.definition, rect);
+                }
+              }
+            },
+            onTapCancel: () {
+              if (kDebugMode) {
+                debugPrint(
+                  '[menu_bar] tap_cancel label=${widget.definition.label}',
+                );
+              }
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: _hovered
+                    ? theme.resources.subtleFillColorSecondary
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                widget.definition.label,
+                style: textStyle.copyWith(color: textColor),
+              ),
             ),
           ),
         ),
@@ -548,8 +643,9 @@ class _MenuButtonState extends State<_MenuButton> {
       return MenuFlyoutSubItem(
         text: Text(entry.label),
         items: (context) => _buildMenuItems(context, children),
-        showBehavior:
-            _isTouchPlatform ? SubItemShowAction.press : SubItemShowAction.hover,
+        showBehavior: widget.useTouchMenu
+            ? SubItemShowAction.press
+            : SubItemShowAction.hover,
       );
     }
     return null;

@@ -39,6 +39,8 @@ class AppPreferences {
     required this.stylusPressureCurve,
     required this.autoSharpPeakEnabled,
     required this.penStrokeSliderRange,
+    this.sprayStrokeSliderRange = _defaultSprayStrokeSliderRange,
+    this.eraserStrokeSliderRange = _defaultEraserStrokeSliderRange,
     required this.strokeStabilizerStrength,
     this.streamlineStrength = _defaultStreamlineStrength,
     required this.brushShape,
@@ -87,6 +89,10 @@ class AppPreferences {
   static const bool defaultAutoSharpPeakEnabled = _defaultAutoSharpPeakEnabled;
   static const PenStrokeSliderRange defaultPenStrokeSliderRange =
       _defaultPenStrokeSliderRange;
+  static const PenStrokeSliderRange defaultSprayStrokeSliderRange =
+      _defaultSprayStrokeSliderRange;
+  static const PenStrokeSliderRange defaultEraserStrokeSliderRange =
+      _defaultEraserStrokeSliderRange;
   static const double defaultStrokeStabilizerStrength =
       _defaultStrokeStabilizerStrength;
   static const double defaultStreamlineStrength = _defaultStreamlineStrength;
@@ -146,6 +152,8 @@ class AppPreferences {
   double stylusPressureCurve;
   bool autoSharpPeakEnabled;
   PenStrokeSliderRange penStrokeSliderRange;
+  PenStrokeSliderRange sprayStrokeSliderRange;
+  PenStrokeSliderRange eraserStrokeSliderRange;
   double strokeStabilizerStrength;
   double streamlineStrength;
   BrushShape brushShape;

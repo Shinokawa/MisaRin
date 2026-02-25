@@ -92,15 +92,13 @@ class PaintingBoardState extends _PaintingBoardBase
     _shapeFillEnabled = prefs.shapeToolFillEnabled;
     _layerAdjustCropOutside = prefs.layerAdjustCropOutside;
     _penStrokeSliderRange = prefs.penStrokeSliderRange;
+    _sprayStrokeSliderRange = prefs.sprayStrokeSliderRange;
+    _eraserStrokeSliderRange = prefs.eraserStrokeSliderRange;
     _penStrokeWidth = _penStrokeSliderRange.clamp(prefs.penStrokeWidth);
-    _sprayStrokeWidth = prefs.sprayStrokeWidth.clamp(
-      kSprayStrokeMin,
-      kSprayStrokeMax,
-    );
-    _eraserStrokeWidth = prefs.eraserStrokeWidth.clamp(
-      kEraserStrokeMin,
-      kEraserStrokeMax,
-    );
+    _sprayStrokeWidth =
+        _sprayStrokeSliderRange.clamp(prefs.sprayStrokeWidth);
+    _eraserStrokeWidth =
+        _eraserStrokeSliderRange.clamp(prefs.eraserStrokeWidth);
     _sprayMode = prefs.sprayMode;
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
     _streamlineStrength = prefs.streamlineStrength;
@@ -1052,6 +1050,8 @@ class PaintingBoardState extends _PaintingBoardBase
       eraserStrokeWidth: _eraserStrokeWidth,
       sprayMode: _sprayMode,
       penStrokeSliderRange: _penStrokeSliderRange,
+      sprayStrokeSliderRange: _sprayStrokeSliderRange,
+      eraserStrokeSliderRange: _eraserStrokeSliderRange,
       brushPresetId:
           _activeBrushPreset?.id ?? _brushLibrary?.selectedId ?? 'pencil',
       strokeStabilizerStrength: _strokeStabilizerStrength,
@@ -1104,9 +1104,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateSprayStrokeWidth(snapshot.sprayStrokeWidth);
     _updateEraserStrokeWidth(snapshot.eraserStrokeWidth);
     _updateSprayMode(snapshot.sprayMode);
-    if (_penStrokeSliderRange != snapshot.penStrokeSliderRange) {
-      setState(() => _penStrokeSliderRange = snapshot.penStrokeSliderRange);
-    }
+    _updatePenStrokeSliderRange(snapshot.penStrokeSliderRange);
+    _updateSprayStrokeSliderRange(snapshot.sprayStrokeSliderRange);
+    _updateEraserStrokeSliderRange(snapshot.eraserStrokeSliderRange);
     _selectBrushPreset(snapshot.brushPresetId);
     _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
     _updateStreamlineStrength(snapshot.streamlineStrength);

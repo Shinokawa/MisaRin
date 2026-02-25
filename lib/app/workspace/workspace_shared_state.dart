@@ -63,6 +63,8 @@ class ToolSettingsSnapshot {
     required this.eraserStrokeWidth,
     required this.sprayMode,
     required this.penStrokeSliderRange,
+    required this.sprayStrokeSliderRange,
+    required this.eraserStrokeSliderRange,
     required this.brushPresetId,
     required this.strokeStabilizerStrength,
     required this.streamlineStrength,
@@ -103,6 +105,8 @@ class ToolSettingsSnapshot {
   final double eraserStrokeWidth;
   final SprayMode sprayMode;
   final PenStrokeSliderRange penStrokeSliderRange;
+  final PenStrokeSliderRange sprayStrokeSliderRange;
+  final PenStrokeSliderRange eraserStrokeSliderRange;
   final String brushPresetId;
   final double strokeStabilizerStrength;
   final double streamlineStrength;

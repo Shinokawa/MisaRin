@@ -93,7 +93,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late _AppLocaleOption _localeOption;
   late bool _stylusPressureEnabled;
   late double _stylusCurve;
-  late PenStrokeSliderRange _penSliderRange;
   late bool _fpsOverlayEnabled;
   late int _autoSaveCleanupThresholdMb;
   late _SettingsSection _selectedSection;
@@ -107,7 +106,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     _localeOption = _optionForLocale(AppPreferences.instance.localeOverride);
     _stylusPressureEnabled = AppPreferences.instance.stylusPressureEnabled;
     _stylusCurve = AppPreferences.instance.stylusPressureCurve;
-    _penSliderRange = AppPreferences.instance.penStrokeSliderRange;
     _fpsOverlayEnabled = AppPreferences.instance.showFpsOverlay;
     _autoSaveCleanupThresholdMb =
         AppPreferences.instance.autoSaveCleanupThresholdMb;
@@ -325,57 +323,31 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
           ),
         );
       case _SettingsSection.brush:
-        return InfoLabel(
-          label: l10n.brushSizeSliderRangeLabel,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ComboBox<PenStrokeSliderRange>(
-                isExpanded: true,
-                value: _penSliderRange,
-                items: PenStrokeSliderRange.values
-                    .map(
-                      (range) => ComboBoxItem<PenStrokeSliderRange>(
-                        value: range,
-                        child: Text(_sliderRangeLabel(range)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (range) {
-                  if (range == null) {
-                    return;
-                  }
-                  _updatePenSliderRange(range);
-                },
-              ),
-              const SizedBox(height: 8),
+        if (kIsWeb) {
+          return const SizedBox.shrink();
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.brushShapeFolderLabel,
+              style: theme.typography.bodyStrong,
+            ),
+            const SizedBox(height: 8),
+            Button(
+              onPressed: _brushShapeFolderPath == null
+                  ? null
+                  : () => revealInFileManager(_brushShapeFolderPath!),
+              child: Text(l10n.openBrushShapesFolder),
+            ),
+            if (_brushShapeFolderPath != null) ...[
+              const SizedBox(height: 6),
               Text(
-                l10n.brushSizeSliderRangeDesc,
+                _brushShapeFolderPath!,
                 style: theme.typography.caption,
               ),
-              if (!kIsWeb) ...[
-                const SizedBox(height: 16),
-                Text(
-                  l10n.brushShapeFolderLabel,
-                  style: theme.typography.bodyStrong,
-                ),
-                const SizedBox(height: 8),
-                Button(
-                  onPressed: _brushShapeFolderPath == null
-                      ? null
-                      : () => revealInFileManager(_brushShapeFolderPath!),
-                  child: Text(l10n.openBrushShapesFolder),
-                ),
-                if (_brushShapeFolderPath != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    _brushShapeFolderPath!,
-                    style: theme.typography.caption,
-                  ),
-                ],
-              ],
             ],
-          ),
+          ],
         );
       case _SettingsSection.history:
         final int minHistory = AppPreferences.minHistoryLimit;
@@ -568,36 +540,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     }
   }
 
-  void _updatePenSliderRange(PenStrokeSliderRange range) {
-    setState(() => _penSliderRange = range);
-    final AppPreferences prefs = AppPreferences.instance;
-    prefs.penStrokeSliderRange = range;
-    _clampPenWidthForRange(prefs, range);
-    unawaited(AppPreferences.save());
-  }
-
-  void _clampPenWidthForRange(
-    AppPreferences prefs,
-    PenStrokeSliderRange range,
-  ) {
-    final double adjusted = range.clamp(prefs.penStrokeWidth);
-    if ((adjusted - prefs.penStrokeWidth).abs() > 0.0001) {
-      prefs.penStrokeWidth = adjusted;
-    }
-  }
-
-  String _sliderRangeLabel(PenStrokeSliderRange range) {
-    final l10n = context.l10n;
-    switch (range) {
-      case PenStrokeSliderRange.compact:
-        return l10n.penSliderRangeCompact;
-      case PenStrokeSliderRange.medium:
-        return l10n.penSliderRangeMedium;
-      case PenStrokeSliderRange.full:
-        return l10n.penSliderRangeFull;
-    }
-  }
-
   String _localeOptionLabel(_AppLocaleOption option) {
     final l10n = context.l10n;
     switch (option) {
@@ -663,7 +605,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       _localeOption = _optionForLocale(defaultLocale);
       _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
       _stylusCurve = AppPreferences.defaultStylusCurve;
-      _penSliderRange = AppPreferences.defaultPenStrokeSliderRange;
       _fpsOverlayEnabled = AppPreferences.defaultShowFpsOverlay;
       _autoSaveCleanupThresholdMb =
           AppPreferences.defaultAutoSaveCleanupThresholdMb;
@@ -673,10 +614,8 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     prefs.localeOverride = defaultLocale;
     prefs.stylusPressureEnabled = _stylusPressureEnabled;
     prefs.stylusPressureCurve = _stylusCurve;
-    prefs.penStrokeSliderRange = _penSliderRange;
     prefs.updateShowFpsOverlay(_fpsOverlayEnabled);
     prefs.autoSaveCleanupThresholdMb = _autoSaveCleanupThresholdMb;
-    _clampPenWidthForRange(prefs, _penSliderRange);
     unawaited(AppPreferences.save());
   }
 

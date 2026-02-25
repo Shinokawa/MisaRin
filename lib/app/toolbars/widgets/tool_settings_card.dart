@@ -18,8 +18,6 @@ import '../../dialogs/font_family_picker_dialog.dart';
 import '../../l10n/l10n.dart';
 import '../../preferences/app_preferences.dart'
     show BucketSwallowColorLineMode, PenStrokeSliderRange;
-import '../../constants/pen_constants.dart'
-    show kSprayStrokeMin, kSprayStrokeMax, kEraserStrokeMin, kEraserStrokeMax;
 import '../../tooltips/hover_detail_tooltip.dart';
 import '../../widgets/brush_preset_stroke_preview.dart';
 import 'measured_size.dart';
@@ -34,9 +32,14 @@ class ToolSettingsCard extends StatefulWidget {
     required this.eraserStrokeWidth,
     required this.sprayMode,
     required this.penStrokeSliderRange,
+    required this.sprayStrokeSliderRange,
+    required this.eraserStrokeSliderRange,
     required this.onPenStrokeWidthChanged,
     required this.onSprayStrokeWidthChanged,
     required this.onEraserStrokeWidthChanged,
+    required this.onPenStrokeSliderRangeChanged,
+    required this.onSprayStrokeSliderRangeChanged,
+    required this.onEraserStrokeSliderRangeChanged,
     required this.onSprayModeChanged,
     required this.brushPresets,
     required this.activeBrushPresetId,
@@ -118,9 +121,14 @@ class ToolSettingsCard extends StatefulWidget {
   final double eraserStrokeWidth;
   final SprayMode sprayMode;
   final PenStrokeSliderRange penStrokeSliderRange;
+  final PenStrokeSliderRange sprayStrokeSliderRange;
+  final PenStrokeSliderRange eraserStrokeSliderRange;
   final ValueChanged<double> onPenStrokeWidthChanged;
   final ValueChanged<double> onSprayStrokeWidthChanged;
   final ValueChanged<double> onEraserStrokeWidthChanged;
+  final ValueChanged<PenStrokeSliderRange> onPenStrokeSliderRangeChanged;
+  final ValueChanged<PenStrokeSliderRange> onSprayStrokeSliderRangeChanged;
+  final ValueChanged<PenStrokeSliderRange> onEraserStrokeSliderRangeChanged;
   final ValueChanged<SprayMode> onSprayModeChanged;
   final List<BrushPreset> brushPresets;
   final String activeBrushPresetId;
@@ -212,33 +220,28 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
       ];
   int? _pointerSliderActivePointer;
 
-  double get _sliderMin => widget.penStrokeSliderRange.min;
-  double get _sliderMax => widget.penStrokeSliderRange.max;
   bool get _isSprayTool => widget.activeTool == CanvasTool.spray;
   bool get _isEraserTool => widget.activeTool == CanvasTool.eraser;
-  double get _activeSliderMin => _isSprayTool
-      ? kSprayStrokeMin
+  PenStrokeSliderRange get _activeStrokeSliderRange => _isSprayTool
+      ? widget.sprayStrokeSliderRange
       : _isEraserTool
-          ? kEraserStrokeMin
-          : _sliderMin;
-  double get _activeSliderMax => _isSprayTool
-      ? kSprayStrokeMax
-      : _isEraserTool
-          ? kEraserStrokeMax
-          : _sliderMax;
+          ? widget.eraserStrokeSliderRange
+          : widget.penStrokeSliderRange;
+  double get _activeSliderMin => _activeStrokeSliderRange.min;
+  double get _activeSliderMax => _activeStrokeSliderRange.max;
   bool get _sliderUsesIntegers =>
       _isSprayTool ||
       _isEraserTool ||
-      widget.penStrokeSliderRange == PenStrokeSliderRange.compact;
+      _activeStrokeSliderRange == PenStrokeSliderRange.compact;
   double get _activeBrushValue =>
       _resolveBrushValue(widget.activeTool, widget);
 
   double _resolveBrushValue(CanvasTool tool, ToolSettingsCard widget) {
     if (tool == CanvasTool.spray) {
-      return widget.sprayStrokeWidth.clamp(kSprayStrokeMin, kSprayStrokeMax);
+      return widget.sprayStrokeSliderRange.clamp(widget.sprayStrokeWidth);
     }
     if (tool == CanvasTool.eraser) {
-      return widget.eraserStrokeWidth.clamp(kEraserStrokeMin, kEraserStrokeMax);
+      return widget.eraserStrokeSliderRange.clamp(widget.eraserStrokeWidth);
     }
     return widget.penStrokeSliderRange.clamp(widget.penStrokeWidth);
   }
@@ -1437,14 +1440,14 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
 
   double _clampBrushValue(double value) {
     if (_isSprayTool) {
-      final double clamped = value.clamp(kSprayStrokeMin, kSprayStrokeMax);
+      final double clamped = _activeStrokeSliderRange.clamp(value);
       return clamped.roundToDouble();
     }
     if (_isEraserTool) {
-      final double clamped = value.clamp(kEraserStrokeMin, kEraserStrokeMax);
+      final double clamped = _activeStrokeSliderRange.clamp(value);
       return clamped.roundToDouble();
     }
-    return widget.penStrokeSliderRange.clamp(value);
+    return _activeStrokeSliderRange.clamp(value);
   }
 
   void _notifyBrushSizeChanged(double value) {
@@ -1557,6 +1560,33 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
     );
   }
 
+  void _toggleStrokeRange() {
+    final PenStrokeSliderRange nextRange = _activeStrokeSliderRange.next();
+    if (_isSprayTool) {
+      widget.onSprayStrokeSliderRangeChanged(nextRange);
+    } else if (_isEraserTool) {
+      widget.onEraserStrokeSliderRangeChanged(nextRange);
+    } else {
+      widget.onPenStrokeSliderRangeChanged(nextRange);
+    }
+  }
+
+  String _strokeRangeLabel(PenStrokeSliderRange range) {
+    return '${range.min.round()}-${range.max.round()}';
+  }
+
+  Widget _buildStrokeRangeToggleButton(FluentThemeData theme) {
+    final String label = _strokeRangeLabel(_activeStrokeSliderRange);
+    return HoverDetailTooltip(
+      message: context.l10n.brushSizeSliderRangeLabel,
+      detail: context.l10n.brushSizeSliderRangeDesc,
+      child: Button(
+        onPressed: _toggleStrokeRange,
+        child: Text(label, style: theme.typography.caption),
+      ),
+    );
+  }
+
   Widget _buildBrushSizeRow(FluentThemeData theme) {
     final l10n = context.l10n;
     final double brushSize = _clampBrushValue(_activeBrushValue);
@@ -1664,6 +1694,7 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
         valueText: '$brushLabel px',
         child: SizedBox(width: _defaultSliderWidth, child: slider),
       );
+      final Widget rangeButton = _buildStrokeRangeToggleButton(theme);
       return Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1673,6 +1704,8 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           sliderControl,
           const SizedBox(width: 8),
           buildStandardAdjustRow(),
+          const SizedBox(width: 8),
+          rangeButton,
         ],
       );
     }
@@ -1689,7 +1722,13 @@ class _ToolSettingsCardState extends State<ToolSettingsCard> {
           detail: detailText,
         ),
         const SizedBox(height: 8),
-        buildCompactAdjustRow(),
+        Row(
+          children: [
+            Expanded(child: buildCompactAdjustRow()),
+            const SizedBox(width: 8),
+            _buildStrokeRangeToggleButton(theme),
+          ],
+        ),
       ],
     );
   }

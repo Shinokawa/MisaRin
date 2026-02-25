@@ -84,6 +84,10 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       AppPreferences.defaultHollowStrokeEraseOccludedParts;
   PenStrokeSliderRange _penStrokeSliderRange =
       AppPreferences.defaultPenStrokeSliderRange;
+  PenStrokeSliderRange _sprayStrokeSliderRange =
+      AppPreferences.defaultSprayStrokeSliderRange;
+  PenStrokeSliderRange _eraserStrokeSliderRange =
+      AppPreferences.defaultEraserStrokeSliderRange;
   bool _bucketSampleAllLayers = false;
   bool _bucketContiguous = true;
   bool _bucketSwallowColorLine = AppPreferences.defaultBucketSwallowColorLine;
