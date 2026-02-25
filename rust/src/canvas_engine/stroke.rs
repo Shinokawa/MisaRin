@@ -1438,7 +1438,9 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
 }
 
 const RUST_PRESSURE_MIN_FACTOR: f32 = 0.09;
-const MAX_SEGMENT_SAMPLES: usize = 64;
+// Allow dense resampling on long straight segments (e.g., line/perspective tools)
+// so small brushes don't turn into dashed strokes.
+const MAX_SEGMENT_SAMPLES: usize = 4096;
 const MAX_EMITTED_POINTS: usize = 4096;
 
 fn brush_radius_from_pressure(pressure: f32, base_radius: f32, use_pressure: bool) -> f32 {
