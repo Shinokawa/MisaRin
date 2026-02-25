@@ -750,7 +750,7 @@ fn build_preview_segments(
     } else {
         1.0
     };
-    let mut segments: Vec<PreviewSegment> = Vec::with_capacity(points.len());
+    let mut segments: Vec<PreviewSegment> = Vec::with_capacity(points.len() + 2);
     if points.len() == 1 {
         let p0 = points[0];
         let radius = radii[0];
@@ -766,6 +766,26 @@ fn build_preview_segments(
             rot_sin: rotation.sin(),
             rot_cos: rotation.cos(),
         }];
+    }
+    {
+        let p0 = points[0];
+        let radius = radii[0];
+        let mut rotation = if use_smooth {
+            (points[1].y - p0.y).atan2(points[1].x - p0.x)
+        } else {
+            0.0
+        };
+        if use_random {
+            rotation += brush_random_rotation_radians(p0, brush_settings.rotation_seed) * jitter;
+        }
+        segments.push(PreviewSegment {
+            p0: [p0.x, p0.y],
+            p1: [p0.x, p0.y],
+            r0: radius,
+            r1: radius,
+            rot_sin: rotation.sin(),
+            rot_cos: rotation.cos(),
+        });
     }
     for i in 0..points.len().saturating_sub(1) {
         let p0 = points[i];
@@ -785,6 +805,27 @@ fn build_preview_segments(
             p1: [p1.x, p1.y],
             r0,
             r1,
+            rot_sin: rotation.sin(),
+            rot_cos: rotation.cos(),
+        });
+    }
+    {
+        let last = points.len() - 1;
+        let p0 = points[last];
+        let radius = radii[last];
+        let mut rotation = if use_smooth {
+            (p0.y - points[last - 1].y).atan2(p0.x - points[last - 1].x)
+        } else {
+            0.0
+        };
+        if use_random {
+            rotation += brush_random_rotation_radians(p0, brush_settings.rotation_seed) * jitter;
+        }
+        segments.push(PreviewSegment {
+            p0: [p0.x, p0.y],
+            p1: [p0.x, p0.y],
+            r0: radius,
+            r1: radius,
             rot_sin: rotation.sin(),
             rot_cos: rotation.cos(),
         });

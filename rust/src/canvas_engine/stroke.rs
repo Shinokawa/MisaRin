@@ -1671,25 +1671,19 @@ pub(crate) fn apply_streamline(
     if strength <= 0.0001 || points.len() < 3 {
         return points.to_vec();
     }
-    let eased = strength.powf(0.45);
+    let eased = strength.powf(0.32);
     let avg_dist = average_segment_length(points);
     if avg_dist <= 1.0e-4 {
         return points.to_vec();
     }
     let avg_dist = avg_dist.clamp(0.25, 50.0);
-    let target_px = 2.0 + 24.0 * eased;
+    let target_px = 3.0 + 45.0 * eased;
     let mut radius = (target_px / avg_dist).round() as usize;
-    let max_radius = (points.len().saturating_sub(1) / 2).clamp(1, 32);
-    radius = radius.clamp(1, max_radius);
-    let sigma = radius as f32 * 0.6 + 0.35;
+    let max_radius = (points.len().saturating_sub(1) / 2).clamp(2, 96);
+    radius = radius.clamp(2, max_radius);
+    let sigma = radius as f32 * 0.8 + 0.5;
     let kernel = gaussian_kernel(radius, sigma);
-    let passes = if eased < 0.35 {
-        1
-    } else if eased < 0.7 {
-        2
-    } else {
-        3
-    };
+    let passes = if eased < 0.25 { 2 } else if eased < 0.6 { 3 } else { 4 };
     let mut smoothed = points.to_vec();
     for _ in 0..passes {
         smoothed = gaussian_smooth_points(&smoothed, &kernel);
@@ -1701,18 +1695,16 @@ pub(crate) fn apply_streamline(
     let last_idx = resampled.len() - 1;
     resampled[0] = points[0];
     resampled[last_idx] = points[points.len() - 1];
+    for (idx, sample) in resampled.iter_mut().enumerate() {
+        let pres = points[idx].1;
+        sample.1 = if pres.is_finite() { pres.clamp(0.0, 1.0) } else { 0.0 };
+    }
     let mut output: Vec<(Point2D, f32)> = Vec::with_capacity(points.len());
     let pos_mix = eased;
-    let pres_mix = eased * 0.4;
     for (orig, smooth) in points.iter().zip(resampled.iter()) {
         let x = orig.0.x + (smooth.0.x - orig.0.x) * pos_mix;
         let y = orig.0.y + (smooth.0.y - orig.0.y) * pos_mix;
-        let blended = orig.1 + (smooth.1 - orig.1) * pres_mix;
-        let pres = if blended.is_finite() {
-            blended.clamp(0.0, 1.0)
-        } else {
-            orig.1
-        };
+        let pres = orig.1;
         output.push((Point2D { x, y }, pres));
     }
     output
