@@ -1968,6 +1968,15 @@ class CanvasPageState extends State<CanvasPage> {
         setState(() {});
       },
       viewMirrorEnabled: _activeBoard?.isViewMirrorEnabled ?? false,
+      toggleViewTiled: () {
+        final board = _activeBoard;
+        if (board == null) {
+          return;
+        }
+        board.toggleViewTiledCanvas();
+        setState(() {});
+      },
+      viewTiledEnabled: _activeBoard?.isViewTiledEnabled ?? false,
       togglePerspectiveGuide: () {
         final board = _activeBoard;
         if (board == null) {
@@ -2232,7 +2241,7 @@ class CanvasPageState extends State<CanvasPage> {
           content: Column(
             children: [
               titleBar,
-              Expanded(child: workspace),
+              Expanded(child: ClipRect(child: workspace)),
             ],
           ),
         ),
@@ -2283,6 +2292,7 @@ class _CanvasStatusOverlay extends StatelessWidget {
             ? l10n.on
             : l10n.off;
         final String mirror = info.viewMirrorEnabled ? l10n.on : l10n.off;
+        final String tile = info.viewTiledEnabled ? l10n.on : l10n.off;
         final String perspective = (() {
           final PerspectiveGuideMode mode = info.perspectiveMode;
           if (!info.perspectiveEnabled || mode == PerspectiveGuideMode.off) {
@@ -2307,6 +2317,7 @@ class _CanvasStatusOverlay extends StatelessWidget {
           l10n.gridLabel(grid),
           l10n.blackWhiteLabel(blackWhite),
           l10n.mirrorLabel(mirror),
+          l10n.tileLabel(tile),
           l10n.perspectiveLabel(perspective),
         ];
         final TextAlign textAlign = alignStatusLeft

@@ -539,6 +539,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuDisableMirror => 'Disable Mirror';
 
   @override
+  String get menuTiledPreview => 'Tiled Preview';
+
+  @override
+  String get menuDisableTiledPreview => 'Disable Tiled Preview';
+
+  @override
   String get menuShowPerspectiveGuide => 'Show Perspective Guide';
 
   @override
@@ -2211,6 +2217,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String mirrorLabel(Object state) {
     return 'Mirror: $state';
+  }
+
+  @override
+  String tileLabel(Object state) {
+    return 'Tile: $state';
   }
 
   @override

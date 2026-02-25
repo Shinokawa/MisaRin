@@ -384,6 +384,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                     child: Container(
                       color: workspaceColor,
                       child: Stack(
+                        clipBehavior: Clip.hardEdge,
                         children: [
                           Positioned(
                             left: boardRect.left,
@@ -598,6 +599,49 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     _handleBackendCanvasEngineInfoChanged,
                                               ),
                                             );
+                                            final bool tiledViewEnabled =
+                                                _viewTiledCanvas;
+                                            final int? backendTextureId =
+                                                _backendCanvasTextureId;
+                                            final bool canRepeatSurface =
+                                                !_backend.isReady ||
+                                                backendTextureId != null;
+
+                                            Widget buildRepeatSurface() {
+                                              if (_backend.isReady) {
+                                                return Texture(
+                                                  textureId: backendTextureId!,
+                                                  filterQuality: FilterQuality.none,
+                                                );
+                                              }
+                                              return BitmapCanvasSurface(
+                                                canvasSize: _canvasSize,
+                                                frame: _controller.frame,
+                                              );
+                                            }
+
+                                            Widget buildRepeatTile() {
+                                              Widget surface = IgnorePointer(
+                                                ignoring: true,
+                                                child: buildRepeatSurface(),
+                                              );
+                                              Widget tile = SizedBox(
+                                                width: _canvasSize.width,
+                                                height: _canvasSize.height,
+                                                child: Stack(
+                                                  fit: StackFit.expand,
+                                                  clipBehavior: Clip.hardEdge,
+                                                  children: [
+                                                    const _CheckboardBackground(),
+                                                    surface,
+                                                  ],
+                                                ),
+                                              );
+                                              if (!_backend.isReady) {
+                                                tile = applyViewOverlay(tile);
+                                              }
+                                              return tile;
+                                            }
 
                                             final _FilterSession? filterSession =
                                                 _filterSession;
@@ -875,13 +919,96 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               ),
                                             );
 
-                                            return Stack(
+                                            final Widget centralContent = Stack(
                                               fit: StackFit.expand,
                                               clipBehavior: Clip.none,
                                               children: [
                                                 clippedContent,
                                                 if (transformHandlesViewOverlay != null)
                                                   transformHandlesViewOverlay,
+                                              ],
+                                            );
+
+                                            final Widget keyedCentralContent =
+                                                KeyedSubtree(
+                                              key: const ValueKey<String>(
+                                                'tiled-preview-central',
+                                              ),
+                                              child: centralContent,
+                                            );
+                                            final bool canBuildTiledView =
+                                                tiledViewEnabled &&
+                                                canRepeatSurface &&
+                                                _canvasSize.width > 0 &&
+                                                _canvasSize.height > 0;
+                                            if (!canBuildTiledView) {
+                                              return Stack(
+                                                fit: StackFit.expand,
+                                                clipBehavior: Clip.none,
+                                                children: [keyedCentralContent],
+                                              );
+                                            }
+                                            const int maxTileRadius = 6;
+                                            int tileRadius(
+                                              double viewportExtent,
+                                              double tileExtent,
+                                            ) {
+                                              if (tileExtent <= 0 ||
+                                                  !tileExtent.isFinite ||
+                                                  viewportExtent <= 0 ||
+                                                  !viewportExtent.isFinite) {
+                                                return 1;
+                                              }
+                                              final double adjustedExtent =
+                                                  _viewport.rotation == 0.0
+                                                  ? viewportExtent
+                                                  : viewportExtent * 1.5;
+                                              final double coverage =
+                                                  adjustedExtent / tileExtent;
+                                              final int needed = coverage.isFinite
+                                                  ? coverage.ceil()
+                                                  : 1;
+                                              final int radius = needed + 2;
+                                              return radius.clamp(1, maxTileRadius);
+                                            }
+
+                                            final int radiusX = tileRadius(
+                                              _workspaceSize.width,
+                                              _canvasSize.width * _viewport.scale,
+                                            );
+                                            final int radiusY = tileRadius(
+                                              _workspaceSize.height,
+                                              _canvasSize.height * _viewport.scale,
+                                            );
+                                            final List<Widget> tiledChildren =
+                                                <Widget>[];
+                                            for (int ty = -radiusY;
+                                                ty <= radiusY;
+                                                ty++) {
+                                              for (int tx = -radiusX;
+                                                  tx <= radiusX;
+                                                  tx++) {
+                                                if (tx == 0 && ty == 0) {
+                                                  continue;
+                                                }
+                                                tiledChildren.add(
+                                                  Positioned(
+                                                    left:
+                                                        tx * _canvasSize.width,
+                                                    top:
+                                                        ty * _canvasSize.height,
+                                                    child: buildRepeatTile(),
+                                                  ),
+                                                );
+                                              }
+                                            }
+
+                                            return Stack(
+                                              fit: StackFit.expand,
+                                              clipBehavior: Clip.none,
+                                              children: [
+                                                ...tiledChildren,
+                                                keyedCentralContent,
                                               ],
                                             );
 	                                          },

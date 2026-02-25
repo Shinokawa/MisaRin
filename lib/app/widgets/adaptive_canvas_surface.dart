@@ -88,6 +88,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
     int? handle,
     ui.Size? engineSize,
     bool isNewEngine,
+    int? textureId,
   )? onEngineInfoChanged;
 
   @override

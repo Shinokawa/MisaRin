@@ -234,6 +234,8 @@
   "menuDisableBlackWhite": "\u53d6\u6d88\u9ed1\u767d",
   "menuMirrorPreview": "\u93e1\u50cf\u9810\u89bd",
   "menuDisableMirror": "\u53d6\u6d88\u93e1\u50cf",
+  "menuTiledPreview": "\u5e73\u92ea\u9810\u89bd",
+  "menuDisableTiledPreview": "\u95dc\u9589\u5e73\u92ea\u9810\u89bd",
   "menuShowPerspectiveGuide": "\u986f\u793a\u900f\u8996\u7dda",
   "menuHidePerspectiveGuide": "\u96b1\u85cf\u900f\u8996\u7dda",
   "menuPerspectiveMode": "\u900f\u8996\u6a21\u5f0f",
@@ -440,6 +442,12 @@
   },
   "mirrorLabel": "鏡像：{state}",
   "@mirrorLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "tileLabel": "平鋪：{state}",
+  "@tileLabel": {
     "placeholders": {
       "state": {}
     }

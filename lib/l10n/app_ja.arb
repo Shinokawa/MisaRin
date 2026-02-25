@@ -245,6 +245,8 @@
   "menuDisableBlackWhite": "白黒を解除",
   "menuMirrorPreview": "ミラープレビュー",
   "menuDisableMirror": "ミラーを解除",
+  "menuTiledPreview": "タイルプレビュー",
+  "menuDisableTiledPreview": "タイルプレビューを無効化",
   "menuShowPerspectiveGuide": "透視線を表示",
   "menuHidePerspectiveGuide": "透視線を非表示",
   "menuPerspectiveMode": "透視モード",
@@ -1049,6 +1051,12 @@
   },
   "mirrorLabel": "ミラー: {state}",
   "@mirrorLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "tileLabel": "タイル: {state}",
+  "@tileLabel": {
     "placeholders": {
       "state": {}
     }

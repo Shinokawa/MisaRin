@@ -1064,6 +1064,18 @@ abstract class AppLocalizations {
   /// **'Disable Mirror'**
   String get menuDisableMirror;
 
+  /// No description provided for @menuTiledPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Tiled Preview'**
+  String get menuTiledPreview;
+
+  /// No description provided for @menuDisableTiledPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable Tiled Preview'**
+  String get menuDisableTiledPreview;
+
   /// No description provided for @menuShowPerspectiveGuide.
   ///
   /// In en, this message translates to:
@@ -4033,6 +4045,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Mirror: {state}'**
   String mirrorLabel(Object state);
+
+  /// No description provided for @tileLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Tile: {state}'**
+  String tileLabel(Object state);
 
   /// No description provided for @perspectiveLabel.
   ///

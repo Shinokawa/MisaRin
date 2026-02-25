@@ -524,6 +524,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuDisableMirror => 'ミラーを解除';
 
   @override
+  String get menuTiledPreview => 'タイルプレビュー';
+
+  @override
+  String get menuDisableTiledPreview => 'タイルプレビューを無効化';
+
+  @override
   String get menuShowPerspectiveGuide => '透視線を表示';
 
   @override
@@ -2133,6 +2139,11 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String mirrorLabel(Object state) {
     return 'ミラー: $state';
+  }
+
+  @override
+  String tileLabel(Object state) {
+    return 'タイル: $state';
   }
 
   @override

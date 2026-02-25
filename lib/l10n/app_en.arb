@@ -245,6 +245,8 @@
   "menuDisableBlackWhite": "Disable Black & White",
   "menuMirrorPreview": "Mirror Preview",
   "menuDisableMirror": "Disable Mirror",
+  "menuTiledPreview": "Tiled Preview",
+  "menuDisableTiledPreview": "Disable Tiled Preview",
   "menuShowPerspectiveGuide": "Show Perspective Guide",
   "menuHidePerspectiveGuide": "Hide Perspective Guide",
   "menuPerspectiveMode": "Perspective Mode",
@@ -1049,6 +1051,12 @@
   },
   "mirrorLabel": "Mirror: {state}",
   "@mirrorLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "tileLabel": "Tile: {state}",
+  "@tileLabel": {
     "placeholders": {
       "state": {}
     }

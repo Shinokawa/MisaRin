@@ -523,6 +523,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuDisableMirror => '取消镜像';
 
   @override
+  String get menuTiledPreview => '平铺预览';
+
+  @override
+  String get menuDisableTiledPreview => '关闭平铺预览';
+
+  @override
   String get menuShowPerspectiveGuide => '显示透视线';
 
   @override
@@ -2124,6 +2130,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String tileLabel(Object state) {
+    return '平铺：$state';
+  }
+
+  @override
   String perspectiveLabel(Object perspective) {
     return 'Perspective: $perspective';
   }
@@ -2703,6 +2714,12 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get menuDisableMirror => '取消镜像';
 
   @override
+  String get menuTiledPreview => '平铺预览';
+
+  @override
+  String get menuDisableTiledPreview => '关闭平铺预览';
+
+  @override
   String get menuShowPerspectiveGuide => '显示透视线';
 
   @override
@@ -3145,6 +3162,11 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   @override
   String mirrorLabel(Object state) {
     return '镜像：$state';
+  }
+
+  @override
+  String tileLabel(Object state) {
+    return '平铺：$state';
   }
 
   @override
@@ -3685,6 +3707,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get menuDisableMirror => '取消鏡像';
 
   @override
+  String get menuTiledPreview => '平鋪預覽';
+
+  @override
+  String get menuDisableTiledPreview => '關閉平鋪預覽';
+
+  @override
   String get menuShowPerspectiveGuide => '顯示透視線';
 
   @override
@@ -4188,6 +4216,11 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   @override
   String mirrorLabel(Object state) {
     return '鏡像：$state';
+  }
+
+  @override
+  String tileLabel(Object state) {
+    return '平鋪：$state';
   }
 
   @override

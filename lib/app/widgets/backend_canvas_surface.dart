@@ -407,6 +407,7 @@ class BackendCanvasSurface extends StatefulWidget {
     int? handle,
     Size? engineSize,
     bool isNewEngine,
+    int? textureId,
   )? onEngineInfoChanged;
 
   @override
@@ -429,6 +430,7 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
   bool _activeStrokeUsesPressure = true;
   int? _lastNotifiedEngineHandle;
   Size? _lastNotifiedEngineSize;
+  int? _lastNotifiedTextureId;
 
   @override
   void initState() {
@@ -661,14 +663,17 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
   void _notifyEngineInfoChanged({bool isNewEngine = false}) {
     final int? handle = _engineHandle;
     final Size? size = _engineSize;
+    final int? textureId = _textureId;
     if (!isNewEngine &&
         _lastNotifiedEngineHandle == handle &&
-        _lastNotifiedEngineSize == size) {
+        _lastNotifiedEngineSize == size &&
+        _lastNotifiedTextureId == textureId) {
       return;
     }
     _lastNotifiedEngineHandle = handle;
     _lastNotifiedEngineSize = size;
-    widget.onEngineInfoChanged?.call(handle, size, isNewEngine);
+    _lastNotifiedTextureId = textureId;
+    widget.onEngineInfoChanged?.call(handle, size, isNewEngine, textureId);
   }
 
   @override
@@ -681,7 +686,7 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
     _BackendSurfaceWarmupCache.instance.drop(_surfaceId);
     unawaited(_disposeSurface());
     if (_lastNotifiedEngineHandle != null || _lastNotifiedEngineSize != null) {
-      widget.onEngineInfoChanged?.call(null, null, false);
+      widget.onEngineInfoChanged?.call(null, null, false, null);
     }
     super.dispose();
   }

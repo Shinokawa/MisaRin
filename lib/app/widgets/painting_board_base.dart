@@ -1260,6 +1260,7 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
   bool get isPixelGridVisible => _pixelGridVisible;
   bool get isViewBlackWhiteEnabled => _viewBlackWhiteOverlay;
   bool get isViewMirrorEnabled => _viewMirrorOverlay;
+  bool get isViewTiledEnabled => _viewTiledCanvas;
   bool get isPerspectiveGuideEnabled => _perspectiveEnabled;
   bool get isPerspectiveGuideVisible => _perspectiveVisible;
   PerspectiveGuideMode get perspectiveGuideMode => _perspectiveMode;
@@ -1301,6 +1302,13 @@ abstract class _PaintingBoardBase extends _PaintingBoardBaseCore {
       _viewMirrorOverlay = !_viewMirrorOverlay;
     });
     _syncBackendCanvasViewFlags();
+    _notifyViewInfoChanged();
+  }
+
+  void toggleViewTiledCanvas() {
+    setState(() {
+      _viewTiledCanvas = !_viewTiledCanvas;
+    });
     _notifyViewInfoChanged();
   }
 

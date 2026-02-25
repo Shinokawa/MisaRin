@@ -245,6 +245,8 @@
   "menuDisableBlackWhite": "取消黑白",
   "menuMirrorPreview": "镜像预览",
   "menuDisableMirror": "取消镜像",
+  "menuTiledPreview": "平铺预览",
+  "menuDisableTiledPreview": "关闭平铺预览",
   "menuShowPerspectiveGuide": "显示透视线",
   "menuHidePerspectiveGuide": "隐藏透视线",
   "menuPerspectiveMode": "透视模式",
@@ -446,6 +448,12 @@
   },
   "mirrorLabel": "镜像：{state}",
   "@mirrorLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
+  "tileLabel": "平铺：{state}",
+  "@tileLabel": {
     "placeholders": {
       "state": {}
     }

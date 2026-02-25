@@ -525,6 +525,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get menuDisableMirror => '미러 해제';
 
   @override
+  String get menuTiledPreview => '타일 미리보기';
+
+  @override
+  String get menuDisableTiledPreview => '타일 미리보기 끄기';
+
+  @override
   String get menuShowPerspectiveGuide => '원근 가이드 표시';
 
   @override
@@ -2144,6 +2150,11 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String mirrorLabel(Object state) {
     return '미러: $state';
+  }
+
+  @override
+  String tileLabel(Object state) {
+    return '타일: $state';
   }
 
   @override

@@ -10,6 +10,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   bool _boardReadyNotified = false;
   int? _backendCanvasEngineHandle;
   Size? _backendCanvasEngineSize;
+  int? _backendCanvasTextureId;
   int _backendCanvasSyncedLayerCount = 0;
   final Map<String, Uint32List> _backendLayerSnapshots = <String, Uint32List>{};
   bool _backendLayerSnapshotDirty = false;
@@ -29,6 +30,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   bool _pixelGridVisible = false;
   bool _viewBlackWhiteOverlay = false;
   bool _viewMirrorOverlay = false;
+  bool _viewTiledCanvas = false;
   double _scaleGestureInitialScale = 1.0;
   double _scaleGestureInitialRotation = 0.0;
   Offset? _scaleGestureAnchorBoardLocal;
@@ -994,6 +996,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
       pixelGridVisible: _pixelGridVisible,
       viewBlackWhiteEnabled: _viewBlackWhiteOverlay,
       viewMirrorEnabled: _viewMirrorOverlay,
+      viewTiledEnabled: _viewTiledCanvas,
       perspectiveMode: _perspectiveMode,
       perspectiveEnabled: _perspectiveEnabled,
       perspectiveVisible: _perspectiveVisible,
@@ -1038,7 +1041,15 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
     int? handle,
     Size? engineSize,
     bool isNewEngine,
+    int? textureId,
   ) {
+    final bool textureChanged = _backendCanvasTextureId != textureId;
+    if (textureChanged) {
+      _backendCanvasTextureId = textureId;
+      if (_viewTiledCanvas && mounted) {
+        setState(() {});
+      }
+    }
     final int? prevHandle = _backendCanvasEngineHandle;
     final Size? prevSize = _backendCanvasEngineSize;
     final bool handleChanged = _backendCanvasEngineHandle != handle;
