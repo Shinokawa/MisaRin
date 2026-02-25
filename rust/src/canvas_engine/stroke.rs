@@ -1576,6 +1576,89 @@ fn downsample_emitted(points: &[(Point2D, f32)], target_count: usize) -> Vec<(Po
     output
 }
 
+fn average_segment_length(points: &[(Point2D, f32)]) -> f32 {
+    if points.len() < 2 {
+        return 0.0;
+    }
+    let mut total = 0.0f32;
+    let mut count = 0u32;
+    for i in 1..points.len() {
+        let dist = point_distance(points[i - 1].0, points[i].0);
+        if dist.is_finite() {
+            total += dist;
+            count += 1;
+        }
+    }
+    if count == 0 {
+        0.0
+    } else {
+        total / count as f32
+    }
+}
+
+fn gaussian_kernel(radius: usize, sigma: f32) -> Vec<f32> {
+    let sigma = if sigma.is_finite() { sigma.max(0.1) } else { 1.0 };
+    let size = radius.saturating_mul(2).saturating_add(1);
+    if size == 0 {
+        return Vec::new();
+    }
+    let mut kernel = Vec::with_capacity(size);
+    let mut sum = 0.0f32;
+    let two_sigma2 = 2.0 * sigma * sigma;
+    for i in 0..size {
+        let x = i as i32 - radius as i32;
+        let v = (-(x as f32 * x as f32) / two_sigma2).exp();
+        kernel.push(v);
+        sum += v;
+    }
+    if sum > 1.0e-6 {
+        for k in kernel.iter_mut() {
+            *k /= sum;
+        }
+    }
+    kernel
+}
+
+fn gaussian_smooth_points(
+    points: &[(Point2D, f32)],
+    kernel: &[f32],
+) -> Vec<(Point2D, f32)> {
+    if points.len() < 3 || kernel.is_empty() {
+        return points.to_vec();
+    }
+    let radius = kernel.len() / 2;
+    let len = points.len();
+    let mut output: Vec<(Point2D, f32)> = Vec::with_capacity(len);
+    for i in 0..len {
+        let mut sum_w = 0.0f32;
+        let mut x = 0.0f32;
+        let mut y = 0.0f32;
+        let mut p = 0.0f32;
+        for (k, &w) in kernel.iter().enumerate() {
+            let offset = k as isize - radius as isize;
+            let idx = if offset < 0 {
+                i.saturating_sub((-offset) as usize)
+            } else {
+                (i + offset as usize).min(len - 1)
+            };
+            let (pos, pres) = points[idx];
+            x += pos.x * w;
+            y += pos.y * w;
+            p += pres * w;
+            sum_w += w;
+        }
+        if sum_w > 1.0e-6 {
+            x /= sum_w;
+            y /= sum_w;
+            p /= sum_w;
+        }
+        output.push((Point2D { x, y }, p));
+    }
+    output[0] = points[0];
+    output[len - 1] = points[len - 1];
+    output
+}
+
 pub(crate) fn apply_streamline(
     points: &[(Point2D, f32)],
     strength: f32,
@@ -1588,20 +1671,43 @@ pub(crate) fn apply_streamline(
     if strength <= 0.0001 || points.len() < 3 {
         return points.to_vec();
     }
-    let eased = strength.powf(0.7);
-    let passes = ((eased * 2.0).ceil() as usize).clamp(1, 3);
-    let mut smoothed = adaptive_resample_spline(points, points.len());
-    for _ in 1..passes {
-        smoothed = adaptive_resample_spline(&smoothed, smoothed.len());
-    }
-    if smoothed.len() != points.len() {
+    let eased = strength.powf(0.45);
+    let avg_dist = average_segment_length(points);
+    if avg_dist <= 1.0e-4 {
         return points.to_vec();
     }
+    let avg_dist = avg_dist.clamp(0.25, 50.0);
+    let target_px = 2.0 + 24.0 * eased;
+    let mut radius = (target_px / avg_dist).round() as usize;
+    let max_radius = (points.len().saturating_sub(1) / 2).clamp(1, 32);
+    radius = radius.clamp(1, max_radius);
+    let sigma = radius as f32 * 0.6 + 0.35;
+    let kernel = gaussian_kernel(radius, sigma);
+    let passes = if eased < 0.35 {
+        1
+    } else if eased < 0.7 {
+        2
+    } else {
+        3
+    };
+    let mut smoothed = points.to_vec();
+    for _ in 0..passes {
+        smoothed = gaussian_smooth_points(&smoothed, &kernel);
+    }
+    let mut resampled = adaptive_resample_spline(&smoothed, points.len());
+    if resampled.len() != points.len() {
+        return points.to_vec();
+    }
+    let last_idx = resampled.len() - 1;
+    resampled[0] = points[0];
+    resampled[last_idx] = points[points.len() - 1];
     let mut output: Vec<(Point2D, f32)> = Vec::with_capacity(points.len());
-    for (orig, smooth) in points.iter().zip(smoothed.iter()) {
-        let x = orig.0.x + (smooth.0.x - orig.0.x) * eased;
-        let y = orig.0.y + (smooth.0.y - orig.0.y) * eased;
-        let blended = orig.1 + (smooth.1 - orig.1) * (eased * 0.5);
+    let pos_mix = eased;
+    let pres_mix = eased * 0.4;
+    for (orig, smooth) in points.iter().zip(resampled.iter()) {
+        let x = orig.0.x + (smooth.0.x - orig.0.x) * pos_mix;
+        let y = orig.0.y + (smooth.0.y - orig.0.y) * pos_mix;
+        let blended = orig.1 + (smooth.1 - orig.1) * pres_mix;
         let pres = if blended.is_finite() {
             blended.clamp(0.0, 1.0)
         } else {

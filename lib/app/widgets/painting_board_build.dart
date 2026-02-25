@@ -251,6 +251,15 @@ mixin _PaintingBoardBuildMixin
         session.gaussianBlur.radius,
       );
       if (sigma > 0) {
+        if (!useFilteredPreviewImage) {
+          final ui.Image? premulImage = _previewActiveLayerPremulImage;
+          if (premulImage != null) {
+            activeLayerWidget = RawImage(
+              image: premulImage,
+              filterQuality: FilterQuality.none,
+            );
+          }
+        }
         activeLayerWidget = ImageFiltered(
           imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
           child: activeLayerWidget,
@@ -393,6 +402,14 @@ mixin _PaintingBoardBuildMixin
 
     if (session.type == _FilterPanelType.gaussianBlur) {
       if (!useFilteredPreviewImage) {
+        final ui.Image? premulImage = _previewActiveLayerPremulImage;
+        if (premulImage != null) {
+          activeImage = premulImage;
+          activeLayerWidget = RawImage(
+            image: activeImage,
+            filterQuality: FilterQuality.none,
+          );
+        }
         final double sigma = _gaussianBlurSigmaForRadius(
           session.gaussianBlur.radius,
         );

@@ -192,10 +192,12 @@ mixin _PaintingBoardFilterMixin
   bool _filterLoading = false;
   ui.Image? _previewBackground;
   ui.Image? _previewActiveLayerImage;
+  ui.Image? _previewActiveLayerPremulImage;
   ui.Image? _previewFilteredActiveLayerImage;
   _FilterPanelType? _previewFilteredImageType;
   ui.Image? _previewForeground;
   Uint8List? _previewActiveLayerPixels;
+  Uint8List? _previewActiveLayerStraightPixels;
   bool _previewHueSaturationUpdateScheduled = false;
   bool _previewHueSaturationUpdateInFlight = false;
   int _previewHueSaturationUpdateToken = 0;

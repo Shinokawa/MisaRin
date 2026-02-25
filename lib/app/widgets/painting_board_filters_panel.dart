@@ -66,6 +66,8 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     _previewFilteredActiveLayerImage = null;
     _previewFilteredImageType = null;
     _previewActiveLayerPixels = null;
+    _previewActiveLayerStraightPixels = null;
+    _previewActiveLayerStraightPixels = null;
     _previewHueSaturationUpdateScheduled = false;
     _previewHueSaturationUpdateInFlight = false;
     _previewHueSaturationUpdateToken++;
@@ -116,11 +118,15 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
       session.activeLayerId,
     );
     if (layer == null) {
+      _previewActiveLayerStraightPixels = null;
       return const _LayerPreviewImages();
     }
     final Uint8List rgba = this._argbPixelsToRgba(layer.pixels);
+    _previewActiveLayerStraightPixels = rgba;
+    final Uint8List premul = Uint8List.fromList(rgba);
+    _filterPremultiplyAlpha(premul);
     final ui.Image active = await _decodeImage(
-      rgba,
+      premul,
       layer.width,
       layer.height,
     );
@@ -143,9 +149,11 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
           );
     _previewBackground?.dispose();
     _previewActiveLayerImage?.dispose();
+    _previewActiveLayerPremulImage?.dispose();
     _previewForeground?.dispose();
     _previewBackground = previews.background;
     _previewActiveLayerImage = previews.active;
+    _previewActiveLayerPremulImage = null;
     _previewForeground = previews.foreground;
     _previewFilteredActiveLayerImage?.dispose();
     _previewFilteredActiveLayerImage = null;
@@ -187,7 +195,24 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
     final ui.Image? image = _previewActiveLayerImage;
     if (image == null) {
       _previewActiveLayerPixels = null;
+      _previewActiveLayerPremulImage?.dispose();
+      _previewActiveLayerPremulImage = null;
       return;
+    }
+    final Uint8List? straightPixels = _previewActiveLayerStraightPixels;
+    final int expectedLength = image.width * image.height * 4;
+    if (straightPixels != null && straightPixels.length == expectedLength) {
+      final Uint8List rgba = Uint8List.fromList(straightPixels);
+      _previewActiveLayerPixels = rgba;
+      await _prepareGaussianBlurPremulPreviewImage(
+        rgba,
+        image.width,
+        image.height,
+      );
+      return;
+    }
+    if (straightPixels != null) {
+      _previewActiveLayerStraightPixels = null;
     }
     try {
       final ByteData? byteData = await image.toByteData(
@@ -195,14 +220,55 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
       );
       if (byteData == null) {
         _previewActiveLayerPixels = null;
+        _previewActiveLayerPremulImage?.dispose();
+        _previewActiveLayerPremulImage = null;
         return;
       }
-      _previewActiveLayerPixels = Uint8List.fromList(
-        byteData.buffer.asUint8List(),
+      final Uint8List rgba = Uint8List.fromList(byteData.buffer.asUint8List());
+      _previewActiveLayerPixels = rgba;
+      await _prepareGaussianBlurPremulPreviewImage(
+        rgba,
+        image.width,
+        image.height,
       );
     } catch (error, stackTrace) {
       debugPrint('Failed to prepare preview pixels: $error');
       _previewActiveLayerPixels = null;
+      _previewActiveLayerPremulImage?.dispose();
+      _previewActiveLayerPremulImage = null;
+    }
+  }
+
+  Future<void> _prepareGaussianBlurPremulPreviewImage(
+    Uint8List rgba,
+    int width,
+    int height,
+  ) async {
+    final _FilterSession? session = _filterSession;
+    if (session == null || session.type != _FilterPanelType.gaussianBlur) {
+      _previewActiveLayerPremulImage?.dispose();
+      _previewActiveLayerPremulImage = null;
+      return;
+    }
+    if (!_shouldUseBackendFilterPreview(session)) {
+      _previewActiveLayerPremulImage?.dispose();
+      _previewActiveLayerPremulImage = null;
+      return;
+    }
+    final Uint8List premul = Uint8List.fromList(rgba);
+    _filterPremultiplyAlpha(premul);
+    try {
+      final ui.Image image = await _decodeImage(premul, width, height);
+      if (!mounted || _filterSession != session) {
+        image.dispose();
+        return;
+      }
+      _previewActiveLayerPremulImage?.dispose();
+      _previewActiveLayerPremulImage = image;
+    } catch (error) {
+      debugPrint('Failed to build premultiplied preview image: $error');
+      _previewActiveLayerPremulImage?.dispose();
+      _previewActiveLayerPremulImage = null;
     }
   }
 
@@ -490,11 +556,13 @@ extension _PaintingBoardFilterPanelExtension on _PaintingBoardFilterMixin {
         debugPrint('Failed to compute gaussian blur preview: $error');
         break;
       }
+      final Uint8List premul = Uint8List.fromList(processed);
+      _filterPremultiplyAlpha(premul);
       if (!mounted || token != _previewGaussianBlurUpdateToken) {
         break;
       }
       final ui.Image image = await _decodeImage(
-        processed,
+        premul,
         baseImage.width,
         baseImage.height,
       );

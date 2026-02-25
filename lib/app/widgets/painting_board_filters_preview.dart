@@ -644,12 +644,15 @@ extension _PaintingBoardFilterPreviewExtension on _PaintingBoardFilterMixin {
     _previewBackground = null;
     _previewActiveLayerImage?.dispose();
     _previewActiveLayerImage = null;
+    _previewActiveLayerPremulImage?.dispose();
+    _previewActiveLayerPremulImage = null;
     _previewFilteredActiveLayerImage?.dispose();
     _previewFilteredActiveLayerImage = null;
     _previewFilteredImageType = null;
     _previewForeground?.dispose();
     _previewForeground = null;
     _previewActiveLayerPixels = null;
+    _previewActiveLayerStraightPixels = null;
     _previewHueSaturationUpdateScheduled = false;
     _previewHueSaturationUpdateInFlight = false;
     _previewHueSaturationUpdateToken++;
