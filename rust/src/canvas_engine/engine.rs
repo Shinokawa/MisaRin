@@ -42,6 +42,7 @@ use super::undo::UndoManager;
 const INITIAL_LAYER_CAPACITY: usize = 4;
 const VIEW_FLAG_MIRROR: u32 = 1;
 const VIEW_FLAG_BLACK_WHITE: u32 = 2;
+const ENABLE_STREAMLINE_VECTOR_PREVIEW: bool = false;
 static PIXEL_SAMPLE_LAST_MS: AtomicU64 = AtomicU64::new(0);
 const RESAMPLE_BACKLOG_SMALL: u64 = 24;
 const RESAMPLE_BACKLOG_MEDIUM: u64 = 64;
@@ -673,6 +674,9 @@ fn can_use_vector_preview(
     view_flags: u32,
     has_visible_above: bool,
 ) -> bool {
+    if !ENABLE_STREAMLINE_VECTOR_PREVIEW {
+        return false;
+    }
     if brush_settings.streamline_strength <= 0.0001 {
         return false;
     }
