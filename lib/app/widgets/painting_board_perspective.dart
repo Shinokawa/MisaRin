@@ -490,6 +490,7 @@ class _PerspectiveGuidePainter extends CustomPainter {
     required this.vp3,
     required this.mode,
     required this.activeHandle,
+    required this.viewportScale,
   });
 
   final Size canvasSize;
@@ -498,17 +499,15 @@ class _PerspectiveGuidePainter extends CustomPainter {
   final Offset? vp3;
   final PerspectiveGuideMode mode;
   final _PerspectiveHandle? activeHandle;
+  final double viewportScale;
 
-  static final Paint _linePaint = Paint()
-    ..color = const Color(0xFF6BA6FF)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.5;
-  static final Paint _handlePaint = Paint()
-    ..color = const Color(0xFF0F6FFF)
-    ..style = PaintingStyle.fill;
-  static final Paint _handleActivePaint = Paint()
-    ..color = const Color(0xFF7CC4FF)
-    ..style = PaintingStyle.fill;
+  static const Color _lineColor = Color(0xFF6BA6FF);
+  static const Color _handleColor = Color(0xFF0F6FFF);
+  static const Color _handleActiveColor = Color(0xFF7CC4FF);
+  static const double _kLineScreenWidth = 1.5;
+  static const double _kHandleFillRadius = 5.0;
+  static const double _kHandleOutlineRadius = 8.0;
+  static const double _kHandleOutlineWidth = 1.0;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -522,6 +521,24 @@ class _PerspectiveGuidePainter extends CustomPainter {
   }
 
   void _drawGuide(Canvas canvas, Offset vp, Size size) {
+    final double resolvedScale =
+        viewportScale.abs() < 0.0001 ? 1.0 : viewportScale.abs();
+    final Paint linePaint = Paint()
+      ..color = _lineColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _kLineScreenWidth / resolvedScale;
+
+    final Paint handlePaint = Paint()
+      ..color = _handleColor
+      ..style = PaintingStyle.fill;
+    final Paint handleActivePaint = Paint()
+      ..color = _handleActiveColor
+      ..style = PaintingStyle.fill;
+
+    final double handleFillRadius = _kHandleFillRadius / resolvedScale;
+    final double handleOutlineRadius = _kHandleOutlineRadius / resolvedScale;
+    final double handleOutlineWidth = _kHandleOutlineWidth / resolvedScale;
+
     final List<Offset> targets = <Offset>[
       Offset.zero,
       Offset(size.width, 0),
@@ -529,8 +546,14 @@ class _PerspectiveGuidePainter extends CustomPainter {
       Offset(0, size.height),
       Offset(size.width * 0.5, size.height * 0.5),
     ];
-    final double extent =
-        (math.max(size.width, size.height) * 4.0).clamp(1024.0, 16000.0);
+    double maxDistance = 0.0;
+    for (final Offset target in targets) {
+      final double distance = (target - vp).distance;
+      if (distance > maxDistance) {
+        maxDistance = distance;
+      }
+    }
+    final double extent = math.max(1.0, maxDistance * 1.1);
     for (final Offset target in targets) {
       final Offset dir = target - vp;
       final double length = dir.distance;
@@ -540,15 +563,19 @@ class _PerspectiveGuidePainter extends CustomPainter {
       final Offset norm = dir / length;
       final Offset start = vp - norm * extent;
       final Offset end = vp + norm * extent;
-      canvas.drawLine(start, end, _linePaint);
+      canvas.drawLine(start, end, linePaint);
     }
     final bool isActive = _isHandleActive(vp);
     final Paint outline = Paint()
-      ..color = isActive ? _handlePaint.color : _handleActivePaint.color
+      ..color = isActive ? handlePaint.color : handleActivePaint.color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawCircle(vp, 5, isActive ? _handleActivePaint : _handlePaint);
-    canvas.drawCircle(vp, 8, outline);
+      ..strokeWidth = handleOutlineWidth;
+    canvas.drawCircle(
+      vp,
+      handleFillRadius,
+      isActive ? handleActivePaint : handlePaint,
+    );
+    canvas.drawCircle(vp, handleOutlineRadius, outline);
   }
 
   bool _isHandleActive(Offset vp) {
@@ -571,7 +598,8 @@ class _PerspectiveGuidePainter extends CustomPainter {
         oldDelegate.vp2 != vp2 ||
         oldDelegate.vp3 != vp3 ||
         oldDelegate.mode != mode ||
-        oldDelegate.activeHandle != activeHandle;
+        oldDelegate.activeHandle != activeHandle ||
+        oldDelegate.viewportScale != viewportScale;
   }
 }
 
@@ -592,29 +620,34 @@ class _PerspectivePenPreviewPainter extends CustomPainter {
 
   static const Color _validColor = Color(0xFF2ECC71);
   static const Color _invalidColor = Color(0xFFE74C3C);
+  static const double _kPreviewLineScreenWidth = 2.0;
+  static const double _kPreviewAnchorRadius = 4.0;
+  static const double _kPreviewAnchorOutlineWidth = 1.5;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final double resolvedScale =
+        viewportScale.abs() < 0.0001 ? 1.0 : viewportScale.abs();
     final Paint linePaint = Paint()
       ..color = (isValid ? _validColor : _invalidColor).withOpacity(0.85)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = (2.0 / viewportScale).clamp(1.0, 3.0);
+      ..strokeWidth = _kPreviewLineScreenWidth / resolvedScale;
     final Paint anchorPaint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.fill;
     final Paint anchorOutline = Paint()
       ..color = (isValid ? _validColor : _invalidColor)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = (1.5 / viewportScale).clamp(1.0, 2.0);
+      ..strokeWidth = _kPreviewAnchorOutlineWidth / resolvedScale;
 
     final Offset end = isValid ? snapped : target;
     canvas.drawLine(anchor, end, linePaint);
 
-    final double r = (4.0 / viewportScale).clamp(3.0, 6.0);
+    final double r = _kPreviewAnchorRadius / resolvedScale;
     canvas.drawCircle(anchor, r, anchorPaint);
-    canvas.drawCircle(anchor, r + 1.0 / viewportScale, anchorOutline);
+    canvas.drawCircle(anchor, r + 1.0 / resolvedScale, anchorOutline);
     canvas.drawCircle(end, r, anchorPaint);
-    canvas.drawCircle(end, r + 1.0 / viewportScale, anchorOutline);
+    canvas.drawCircle(end, r + 1.0 / resolvedScale, anchorOutline);
   }
 
   @override

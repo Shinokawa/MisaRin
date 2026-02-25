@@ -1080,14 +1080,15 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
 		                                        builder: (context) {
 		                                        Widget overlay = CustomPaint(
 		                                          size: _canvasSize,
-		                                          painter: _PerspectiveGuidePainter(
-		                                            canvasSize: _canvasSize,
+                                          painter: _PerspectiveGuidePainter(
+                                            canvasSize: _canvasSize,
                                             vp1: _perspectiveVp1,
                                             vp2: _perspectiveVp2,
                                             vp3: _perspectiveVp3,
                                             mode: _perspectiveMode,
                                             activeHandle:
                                                 _activePerspectiveHandle,
+                                            viewportScale: _viewport.scale,
                                           ),
                                         );
                                         if (_viewMirrorOverlay) {

@@ -848,6 +848,7 @@ class PaintingBoardState extends _PaintingBoardBase
       unawaited(_captureBackendLayerSnapshotIfNeeded());
     } else if (!oldWidget.isActive && widget.isActive) {
       _restoreBackendLayerSnapshotIfNeeded();
+      _requestWorkspaceFocus();
     }
     final bool sizeChanged = widget.settings.size != oldWidget.settings.size;
     final bool backgroundChanged =
@@ -929,6 +930,28 @@ class PaintingBoardState extends _PaintingBoardBase
         'newLayers=${widget.initialLayers?.length ?? 0}',
       );
     }
+  }
+
+  void _requestWorkspaceFocus() {
+    if (!mounted || !widget.isActive || _isTextEditingActive) {
+      return;
+    }
+    if (_focusNode.hasFocus) {
+      return;
+    }
+    final SchedulerPhase phase = SchedulerBinding.instance.schedulerPhase;
+    final bool safeToRequest =
+        phase == SchedulerPhase.idle || phase == SchedulerPhase.postFrameCallbacks;
+    if (safeToRequest) {
+      _focusNode.requestFocus();
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.isActive || _isTextEditingActive) {
+        return;
+      }
+      _focusNode.requestFocus();
+    });
   }
 
   void _handleControllerChanged() {
