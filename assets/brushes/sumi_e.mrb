@@ -12,7 +12,7 @@ length:1341
   "shapeFile": "bristles_circle_random.png",
   "shapeType": "png",
   "spacing": 0.06,
-  "hardness": 0.2,
+  "hardness": 1.0,
   "flow": 1.0,
   "scatter": 0.0,
   "randomRotation": false,
