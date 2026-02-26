@@ -325,6 +325,7 @@ const SPEED_NORMALIZE_REF: f32 = 1.5;
 const MAX_BRISTLES: usize = 512;
 const MIN_BRISTLES: usize = 8;
 const MAX_BRISTLE_SEEDS: usize = 8192;
+const MAX_BRISTLE_SAMPLES: usize = 256;
 const MAX_INK_SATURATION: f32 = 2.0;
 
 fn normalize_weight(value: f32, fallback: f32) -> f32 {
@@ -1346,7 +1347,8 @@ impl StrokeResampler {
         );
 
         let bristle_count = state.bristles.len().max(1);
-        let max_samples = (MAX_POINTS / bristle_count).max(1);
+        let mut max_samples = (MAX_POINTS / bristle_count).max(1);
+        max_samples = (max_samples.saturating_mul(2)).min(MAX_BRISTLE_SAMPLES).max(1);
         let mut downsampled: Vec<(Point2D, f32)> = Vec::new();
         let samples: &[(Point2D, f32)] = if emitted.len() > max_samples {
             downsampled = downsample_emitted(emitted, max_samples);
@@ -1355,13 +1357,15 @@ impl StrokeResampler {
             emitted
         };
 
-        let max_per_sample = (MAX_POINTS / samples.len().max(1)).max(1);
-        let mut step = (bristle_count + max_per_sample - 1) / max_per_sample;
+        let segment_count = samples.len().max(1);
+        let min_steps_per_bristle = if segment_count > 1 { 2 } else { 1 };
+        let max_active_bristles =
+            (MAX_POINTS / (segment_count * min_steps_per_bristle)).max(1);
+        let mut step = (bristle_count + max_active_bristles - 1) / max_active_bristles;
         if step == 0 {
             step = 1;
         }
 
-        let base_radius = brush_settings.base_radius.max(0.01);
         let ink_amount = brush_settings.ink_amount.clamp(0.0, 1.0);
         let ink_strength = brush_settings.ink_depletion.clamp(0.0, 1.0);
         let ink_enabled = brush_settings.ink_depletion_enabled;
@@ -1372,15 +1376,15 @@ impl StrokeResampler {
         let weight_length = brush_settings.ink_bristle_length_weight;
         let weight_ink = brush_settings.ink_bristle_ink_weight;
         let weight_depletion = brush_settings.ink_depletion_weight;
-        let step_len = (base_radius * 0.15).max(0.5);
+        let step_len = 1.0f32;
         let active_bristles = (state.bristles.len() + step - 1) / step;
-        let max_steps_per_bristle = (MAX_POINTS / samples.len().max(1) / active_bristles.max(1))
-            .max(1);
+        let max_steps_per_bristle =
+            (MAX_POINTS / segment_count.max(1) / active_bristles.max(1)).max(1);
 
-        let mut points: Vec<Point2D> = Vec::new();
-        let mut radii: Vec<f32> = Vec::new();
-        let mut alphas: Vec<f32> = Vec::new();
-        let mut sats: Vec<f32> = Vec::new();
+        let mut points: Vec<Point2D> = Vec::with_capacity(MAX_POINTS);
+        let mut radii: Vec<f32> = Vec::with_capacity(MAX_POINTS);
+        let mut alphas: Vec<f32> = Vec::with_capacity(MAX_POINTS);
+        let mut sats: Vec<f32> = Vec::with_capacity(MAX_POINTS);
 
         'outer: for (sample_idx, (point, pressure)) in samples.iter().enumerate() {
             let angle = if sample_idx + 1 < samples.len() {
@@ -1403,6 +1407,11 @@ impl StrokeResampler {
             }
             pressure_value = pressure_value.clamp(0.0, 1.0);
             let threshold = (1.0 - pressure_value).clamp(0.0, 1.0);
+            let prev_point = if sample_idx > 0 {
+                samples[sample_idx - 1].0
+            } else {
+                *point
+            };
             for idx in (0..state.bristles.len()).step_by(step) {
                 let bristle = &mut state.bristles[idx];
                 if brush_settings.bristle_threshold && bristle.length < threshold {
@@ -1420,7 +1429,7 @@ impl StrokeResampler {
                     brush_scatter_offset(
                         *point,
                         state.seed,
-                        base_radius * brush_settings.bristle_random,
+                        brush_settings.bristle_random,
                         (sample_idx as u32).wrapping_add(idx as u32 * 17),
                     )
                 } else {
@@ -1433,14 +1442,16 @@ impl StrokeResampler {
                 let start = if brush_settings.bristle_connected {
                     bristle.prev.unwrap_or(pos)
                 } else {
-                    pos
+                    Point2D {
+                        x: prev_point.x + ox + jitter.x,
+                        y: prev_point.y + oy + jitter.y,
+                    }
                 };
                 let dist = point_distance(start, pos).max(0.0);
-                let mut steps = if brush_settings.bristle_connected {
-                    ((dist / step_len).ceil() as usize).max(1)
-                } else {
-                    1
-                };
+                let mut steps = ((dist / step_len).ceil() as usize).max(1);
+                if brush_settings.bristle_antialias && steps > 1 {
+                    steps = steps.saturating_sub(1).max(1);
+                }
                 if steps > max_steps_per_bristle {
                     steps = max_steps_per_bristle;
                 }
@@ -1473,18 +1484,19 @@ impl StrokeResampler {
                             + ink_level * weight_ink
                             + (1.0 - ink_depletion) * weight_depletion;
                     }
-                    let mut alpha = if use_opacity {
-                        if ink_enabled {
+                    let base_alpha = bristle.length;
+                    let mut alpha = if ink_enabled {
+                        if use_opacity {
                             if use_weights {
                                 weighted
                             } else {
-                                bristle.length * ink_level
+                                base_alpha * ink_level
                             }
                         } else {
-                            bristle.length
+                            base_alpha
                         }
                     } else {
-                        1.0
+                        base_alpha
                     };
                     if !alpha.is_finite() {
                         alpha = 0.0;
@@ -1504,7 +1516,11 @@ impl StrokeResampler {
                                     .clamp(0.0, MAX_INK_SATURATION);
                         }
                     }
-                    let radius = (base_radius * 0.12 * (0.3 + 0.7 * bristle.length)).max(0.05);
+                    let radius = if brush_settings.bristle_antialias {
+                        0.7
+                    } else {
+                        0.55
+                    };
                     points.push(pos_step);
                     radii.push(radius);
                     alphas.push(alpha);
@@ -1567,6 +1583,7 @@ impl StrokeResampler {
                 } else {
                     1
                 },
+                Some(0),
             ) {
                 Ok(()) => {
                     any_drawn = true;
@@ -1733,6 +1750,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
                 hollow_enabled,
                 true,
                 0,
+                None,
             ) {
                 Ok(()) => {
                     any_drawn = true;

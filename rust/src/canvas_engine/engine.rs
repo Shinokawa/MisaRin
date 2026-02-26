@@ -3342,6 +3342,7 @@ fn handle_engine_command(
                     false,
                     accumulate,
                     0,
+                    None,
                 ) {
                     debug::log(
                         LogLevel::Warn,

@@ -692,6 +692,7 @@ impl BrushRenderer {
             self.softness,
             BrushStrokeMode::Segments,
             0,
+            None,
         )
     }
 
@@ -714,6 +715,7 @@ impl BrushRenderer {
         use_stroke_mask: bool,
         accumulate: bool,
         composite_mode: u32,
+        custom_mask_mode_override: Option<u32>,
     ) -> Result<(), String> {
         self.draw_stroke_internal(
             layer_view,
@@ -735,6 +737,7 @@ impl BrushRenderer {
             softness,
             BrushStrokeMode::Points,
             composite_mode,
+            custom_mask_mode_override,
         )
     }
 
@@ -759,6 +762,7 @@ impl BrushRenderer {
         softness: f32,
         stroke_mode: BrushStrokeMode,
         composite_mode: u32,
+        custom_mask_mode_override: Option<u32>,
     ) -> Result<(), String> {
         if points.is_empty() {
             return Ok(());
@@ -926,6 +930,16 @@ impl BrushRenderer {
         self.queue
             .write_buffer(points_buffer, 0, bytemuck::cast_slice(&shader_points));
 
+        let custom_mask_mode = match custom_mask_mode_override {
+            Some(mode) => mode.min(1),
+            None => {
+                if self.custom_mask_enabled {
+                    1
+                } else {
+                    0
+                }
+            }
+        };
         let config = BrushShaderConfig {
             canvas_width: self.canvas_width,
             canvas_height: self.canvas_height,
@@ -958,7 +972,7 @@ impl BrushRenderer {
                 BrushStrokeMode::Points => 1,
             },
             selection_mask_mode: if self.selection_mask_enabled { 1 } else { 0 },
-            custom_mask_mode: if self.custom_mask_enabled { 1 } else { 0 },
+            custom_mask_mode,
             screentone_enabled: if self.screentone_enabled { 1 } else { 0 },
             screentone_spacing: self.screentone_spacing,
             screentone_dot_size: self.screentone_dot_size,
