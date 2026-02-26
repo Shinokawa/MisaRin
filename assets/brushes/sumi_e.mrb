@@ -1,6 +1,6 @@
 MRB-TEXT 1
 [brush.json]
-length:1340
+length:1341
 {
   "formatVersion": 1,
   "id": "sumi_e",
@@ -24,7 +24,7 @@ length:1340
   "hollowEraseOccludedParts": false,
   "autoSharpTaper": false,
   "snapToPixel": false,
-  "bristleEnabled": true,
+  "bristleEnabled": false,
   "bristleDensity": 0.34,
   "bristleRandom": 7.47,
   "bristleScale": 1.03,
