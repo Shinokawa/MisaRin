@@ -6,6 +6,11 @@ class CanvasEngineFfi {
   static final CanvasEngineFfi instance = CanvasEngineFfi._();
 
   bool get isSupported => false;
+  bool get canCreateEngine => false;
+
+  int createEngine({required int width, required int height}) => 0;
+
+  void disposeEngine({required int handle}) {}
 
   void pushPointsPacked({
     required int handle,

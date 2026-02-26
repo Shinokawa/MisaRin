@@ -1199,6 +1199,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get brushShape => '笔刷形状';
 
   @override
+  String get brushShapeBristlesCircleRandom => '毛笔刷形（随机）';
+
+  @override
   String get brushAuthorLabel => '作者';
 
   @override
@@ -3062,6 +3065,9 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get inkCurveReset => '重置曲线';
 
   @override
+  String get brushShapeBristlesCircleRandom => '毛笔刷形（随机）';
+
+  @override
   String get brushAuthorLabel => '作者';
 
   @override
@@ -4164,6 +4170,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get inkCurveReset => '重置曲線';
+
+  @override
+  String get brushShapeBristlesCircleRandom => '毛筆刷形（隨機）';
 
   @override
   String get brushAuthorLabel => '作者';

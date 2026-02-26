@@ -2348,6 +2348,12 @@ abstract class AppLocalizations {
   /// **'Brush Shape'**
   String get brushShape;
 
+  /// No description provided for @brushShapeBristlesCircleRandom.
+  ///
+  /// In en, this message translates to:
+  /// **'Bristles (Random)'**
+  String get brushShapeBristlesCircleRandom;
+
   /// No description provided for @brushAuthorLabel.
   ///
   /// In en, this message translates to:

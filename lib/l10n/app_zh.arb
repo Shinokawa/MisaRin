@@ -568,6 +568,7 @@
   "inkCurvePoint": "曲线点",
   "inkCurveReset": "重置曲线",
   "brushShape": "笔刷形状",
+  "brushShapeBristlesCircleRandom": "毛笔刷形（随机）",
   "brushAuthorLabel": "作者",
   "brushVersionLabel": "版本",
   "importBrush": "导入笔刷",

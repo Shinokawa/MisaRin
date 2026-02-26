@@ -16,10 +16,17 @@ import '../../canvas/brush_random_rotation.dart';
 import '../../canvas/brush_shape_geometry.dart';
 import '../../canvas/canvas_tools.dart';
 import '../debug/brush_preset_timeline.dart';
+import '../../src/rust/canvas_engine_ffi.dart' as rust_wgpu_engine;
 import '../../src/rust/rust_cpu_brush_ffi.dart';
 import '../../src/rust/rust_init.dart';
 
 const double _kPreviewPadding = 4.0;
+const double _kPreviewPressureMinFactor = 0.09; // Keep in sync with rust.
+const int _kEnginePointStrideBytes = 32;
+const int _kPointFlagDown = 1;
+const int _kPointFlagMove = 2;
+const int _kPointFlagUp = 4;
+const int _kWgpuPreviewWaitMaxMs = 40;
 const bool _kPreviewLog = bool.fromEnvironment(
   'MISA_RIN_BRUSH_PREVIEW_LOG',
   defaultValue: false,
@@ -65,8 +72,7 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
               : widget.height * 3.0;
           final Size size = Size(width, widget.height);
           _ensurePreview(context, size);
-          final bool rustSupported = RustCpuBrushFfi.instance.isSupported;
-          if (_image != null && rustSupported) {
+          if (_image != null) {
             return RawImage(
               image: _image,
               width: size.width,
@@ -92,7 +98,9 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
   }
 
   void _ensurePreview(BuildContext context, Size size) {
-    if (!RustCpuBrushFfi.instance.isSupported) {
+    final bool canRender = rust_wgpu_engine.CanvasEngineFfi.instance.canCreateEngine ||
+        RustCpuBrushFfi.instance.isSupported;
+    if (!canRender) {
       return;
     }
     if (size.isEmpty) {
@@ -310,6 +318,74 @@ List<_PreviewStrokeSample> _decodePreviewSamples(Float32List data) {
   return samples;
 }
 
+double _maxSampleRadius(List<_PreviewStrokeSample> samples) {
+  double maxRadius = 0.0;
+  for (final _PreviewStrokeSample sample in samples) {
+    final double r = sample.radius;
+    if (r.isFinite && r > maxRadius) {
+      maxRadius = r;
+    }
+  }
+  return maxRadius;
+}
+
+double _pressureFromRadius(double radius, double baseRadius) {
+  if (!radius.isFinite || !baseRadius.isFinite || baseRadius <= 0.0) {
+    return 1.0;
+  }
+  final double normalized = radius / baseRadius;
+  final double denom = 1.0 - _kPreviewPressureMinFactor;
+  if (denom <= 0.0) {
+    return 1.0;
+  }
+  final double pressure = (normalized - _kPreviewPressureMinFactor) / denom;
+  return pressure.clamp(0.0, 1.0);
+}
+
+bool _rgbaHasNonZeroAlpha(Uint8List rgba) {
+  for (int i = 3; i < rgba.length; i += 4) {
+    if (rgba[i] != 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+Uint8List _encodeEnginePoints(
+  List<_PreviewStrokeSample> samples,
+  double baseRadius,
+) {
+  final int count = samples.length;
+  final Uint8List bytes = Uint8List(count * _kEnginePointStrideBytes);
+  final ByteData data = ByteData.view(bytes.buffer);
+  int timestampUs = 0;
+  for (int i = 0; i < count; i++) {
+    final _PreviewStrokeSample sample = samples[i];
+    final int offset = i * _kEnginePointStrideBytes;
+    final double pressure = _pressureFromRadius(sample.radius, baseRadius);
+    final bool isFirst = i == 0;
+    final bool isLast = i == count - 1;
+    int flags = 0;
+    if (isFirst) {
+      flags |= _kPointFlagDown;
+    } else {
+      flags |= _kPointFlagMove;
+    }
+    if (isLast) {
+      flags |= _kPointFlagUp;
+    }
+    data.setFloat32(offset + 0, sample.position.dx, Endian.little);
+    data.setFloat32(offset + 4, sample.position.dy, Endian.little);
+    data.setFloat32(offset + 8, pressure, Endian.little);
+    data.setFloat32(offset + 12, 0.0, Endian.little); // pad
+    data.setUint64(offset + 16, timestampUs, Endian.little);
+    data.setUint32(offset + 24, flags, Endian.little);
+    data.setUint32(offset + 28, 0, Endian.little); // pointerId
+    timestampUs += 16000;
+  }
+  return bytes;
+}
+
 Future<ui.Image?> _buildPreviewImage({
   required BrushPreset preset,
   required Color color,
@@ -317,7 +393,9 @@ Future<ui.Image?> _buildPreviewImage({
   required int pixelHeight,
   required double scale,
 }) async {
-  if (!RustCpuBrushFfi.instance.isSupported) {
+  final bool canRender = rust_wgpu_engine.CanvasEngineFfi.instance.canCreateEngine ||
+      RustCpuBrushFfi.instance.isSupported;
+  if (!canRender) {
     return null;
   }
   final double spacing = _effectiveSpacing(preset.spacing);
@@ -395,7 +473,9 @@ Future<ui.Image?> _buildPreviewImageOnMain({
   required int pixelHeight,
   required double scale,
 }) async {
-  if (!RustCpuBrushFfi.instance.isSupported) {
+  final bool canRender = rust_wgpu_engine.CanvasEngineFfi.instance.canCreateEngine ||
+      RustCpuBrushFfi.instance.isSupported;
+  if (!canRender) {
     return null;
   }
   if (pixelWidth <= 0 || pixelHeight <= 0) {
@@ -1116,7 +1196,7 @@ class _BrushPreviewWorker {
   bool _starting = false;
   Timer? _startTimeout;
 
-  static const Duration _kStartTimeout = Duration(milliseconds: 800);
+  static const Duration _kStartTimeout = Duration(milliseconds: 2000);
 
   Future<void> _ensureStarted() async {
     if (_useMainThread || _sendPort != null || _starting) {
@@ -1285,29 +1365,33 @@ class _BrushPreviewWorker {
 void _brushPreviewWorkerMain(SendPort initialReplyTo) {
   final ReceivePort port = ReceivePort();
   initialReplyTo.send(port.sendPort);
-  port.listen((Object? message) async {
-    if (message == null) {
-      port.close();
-      return;
-    }
-    if (message is! Map<String, Object?>) {
-      return;
-    }
-    final int id = message['id'] as int? ?? -1;
-    final Object? payload = message['payload'];
-    if (payload is! Map<String, Object?>) {
-      initialReplyTo.send(<String, Object?>{'id': id, 'data': null});
-      return;
-    }
-    try {
-      final Object? result = await _brushPreviewWorkerHandlePayload(payload);
-      initialReplyTo.send(<String, Object?>{'id': id, 'data': result});
-    } catch (error, stackTrace) {
-      initialReplyTo.send(<String, Object?>{
-        'id': id,
-        'data': StateError('$error\n$stackTrace'),
-      });
-    }
+  Future<void> chain = Future<void>.value();
+  port.listen((Object? message) {
+    chain = chain.then((_) async {
+      if (message == null) {
+        _WgpuPreviewEngine.instance.dispose();
+        port.close();
+        return;
+      }
+      if (message is! Map<String, Object?>) {
+        return;
+      }
+      final int id = message['id'] as int? ?? -1;
+      final Object? payload = message['payload'];
+      if (payload is! Map<String, Object?>) {
+        initialReplyTo.send(<String, Object?>{'id': id, 'data': null});
+        return;
+      }
+      try {
+        final Object? result = await _brushPreviewWorkerHandlePayload(payload);
+        initialReplyTo.send(<String, Object?>{'id': id, 'data': result});
+      } catch (error, stackTrace) {
+        initialReplyTo.send(<String, Object?>{
+          'id': id,
+          'data': StateError('$error\n$stackTrace'),
+        });
+      }
+    });
   });
 }
 
@@ -1329,12 +1413,94 @@ Future<Object?> _brushPreviewWorkerHandlePayload(
   if (samples.isEmpty) {
     return <String, Object?>{'width': width, 'height': height, 'pixels': null};
   }
-  final TransferableTypedData? customMask =
+  final TransferableTypedData? customMaskData =
       payload['customMask'] as TransferableTypedData?;
   final int customMaskWidth = payload['customMaskWidth'] as int? ?? 0;
   final int customMaskHeight = payload['customMaskHeight'] as int? ?? 0;
-  final BrushShapeRaster? customShape = _decodeCustomMaskRaster(
-    customMask,
+  final Uint8List? customMaskBytes =
+      customMaskData?.materialize().asUint8List();
+
+  final int colorArgb = payload['colorArgb'] as int? ?? 0;
+  final double hardness =
+      (payload['hardness'] as double? ?? 0.8).clamp(0.0, 1.0);
+  final double flow =
+      (payload['flow'] as double? ?? 1.0).clamp(0.0, 1.0);
+  final double opacity =
+      (0.25 + 0.75 * flow * (0.35 + 0.65 * hardness))
+          .clamp(0.18, 1.0);
+  final Color baseColor = Color(colorArgb);
+  final Color strokeColor = baseColor.withOpacity(
+    (baseColor.opacity * opacity).clamp(0.0, 1.0),
+  );
+  final double softness = (1.0 - hardness).clamp(0.0, 1.0);
+  final double spacing = payload['spacing'] as double? ?? 0.15;
+  final double scatter = payload['scatter'] as double? ?? 0.0;
+  final bool randomRotation = payload['randomRotation'] as bool? ?? false;
+  final bool smoothRotation = payload['smoothRotation'] as bool? ?? false;
+  final double rotationJitter =
+      payload['rotationJitter'] as double? ?? 0.0;
+  final int antialias = payload['antialias'] as int? ?? 0;
+  final bool snapToPixel = payload['snapToPixel'] as bool? ?? false;
+  final int shapeIndex = payload['shapeIndex'] as int? ?? 0;
+  final BrushShape shape = _resolveBrushShape(shapeIndex);
+  final bool screentoneEnabled =
+      payload['screentoneEnabled'] as bool? ?? false;
+  final double screentoneSpacing =
+      payload['screentoneSpacing'] as double? ?? 10.0;
+  final double screentoneDotSize =
+      payload['screentoneDotSize'] as double? ?? 0.6;
+  final double screentoneRotation =
+      payload['screentoneRotation'] as double? ?? 45.0;
+  final double screentoneSoftness =
+      payload['screentoneSoftness'] as double? ?? 0.0;
+  final int screentoneShapeIndex =
+      payload['screentoneShapeIndex'] as int? ?? 0;
+  final BrushShape screentoneShape =
+      _resolveBrushShape(screentoneShapeIndex);
+  final bool hollowEnabled = payload['hollowEnabled'] as bool? ?? false;
+  final double hollowRatio = payload['hollowRatio'] as double? ?? 0.0;
+  final int rotationSeed = payload['rotationSeed'] as int? ?? 0;
+
+  final Uint8List? wgpuPixels = await _WgpuPreviewEngine.instance.render(
+    width: width,
+    height: height,
+    samples: samples,
+    colorArgb: colorArgb,
+    hardness: hardness,
+    flow: flow,
+    spacing: spacing,
+    scatter: scatter,
+    randomRotation: randomRotation,
+    smoothRotation: smoothRotation,
+    rotationJitter: rotationJitter,
+    antialias: antialias,
+    snapToPixel: snapToPixel,
+    shapeIndex: shapeIndex,
+    screentoneEnabled: screentoneEnabled,
+    screentoneSpacing: screentoneSpacing,
+    screentoneDotSize: screentoneDotSize,
+    screentoneRotation: screentoneRotation,
+    screentoneSoftness: screentoneSoftness,
+    screentoneShapeIndex: screentoneShapeIndex,
+    hollowEnabled: hollowEnabled,
+    hollowRatio: hollowRatio,
+    rotationSeed: rotationSeed,
+    customMask: customMaskBytes,
+    customMaskWidth: customMaskWidth,
+    customMaskHeight: customMaskHeight,
+  );
+  if (wgpuPixels != null &&
+      wgpuPixels.isNotEmpty &&
+      _rgbaHasNonZeroAlpha(wgpuPixels)) {
+    return <String, Object?>{
+      'width': width,
+      'height': height,
+      'pixels': TransferableTypedData.fromList(<Uint8List>[wgpuPixels]),
+    };
+  }
+
+  final BrushShapeRaster? customShape = _decodeCustomMaskRasterFromBytes(
+    customMaskBytes,
     customMaskWidth,
     customMaskHeight,
   );
@@ -1345,51 +1511,6 @@ Future<Object?> _brushPreviewWorkerHandlePayload(
     fillColor: const Color(0x00000000),
   );
   try {
-    final int colorArgb = payload['colorArgb'] as int? ?? 0;
-    final double hardness =
-        (payload['hardness'] as double? ?? 0.8).clamp(0.0, 1.0);
-    final double flow =
-        (payload['flow'] as double? ?? 1.0).clamp(0.0, 1.0);
-    final double opacity =
-        (0.25 + 0.75 * flow * (0.35 + 0.65 * hardness))
-            .clamp(0.18, 1.0);
-    final Color baseColor = Color(colorArgb);
-    final Color strokeColor = baseColor.withOpacity(
-      (baseColor.opacity * opacity).clamp(0.0, 1.0),
-    );
-    final double softness = (1.0 - hardness).clamp(0.0, 1.0);
-    final double spacing = payload['spacing'] as double? ?? 0.15;
-    final double scatter = payload['scatter'] as double? ?? 0.0;
-    final bool randomRotation =
-        payload['randomRotation'] as bool? ?? false;
-    final bool smoothRotation =
-        payload['smoothRotation'] as bool? ?? false;
-    final double rotationJitter =
-        payload['rotationJitter'] as double? ?? 0.0;
-    final int antialias = payload['antialias'] as int? ?? 0;
-    final bool snapToPixel = payload['snapToPixel'] as bool? ?? false;
-    final int shapeIndex = payload['shapeIndex'] as int? ?? 0;
-    final BrushShape shape = _resolveBrushShape(shapeIndex);
-    final bool screentoneEnabled =
-        payload['screentoneEnabled'] as bool? ?? false;
-    final double screentoneSpacing =
-        payload['screentoneSpacing'] as double? ?? 10.0;
-    final double screentoneDotSize =
-        payload['screentoneDotSize'] as double? ?? 0.6;
-    final double screentoneRotation =
-        payload['screentoneRotation'] as double? ?? 45.0;
-    final double screentoneSoftness =
-        payload['screentoneSoftness'] as double? ?? 0.0;
-    final int screentoneShapeIndex =
-        payload['screentoneShapeIndex'] as int? ?? 0;
-    final BrushShape screentoneShape =
-        _resolveBrushShape(screentoneShapeIndex);
-    final bool hollowEnabled =
-        payload['hollowEnabled'] as bool? ?? false;
-    final double hollowRatio =
-        payload['hollowRatio'] as double? ?? 0.0;
-    final int rotationSeed = payload['rotationSeed'] as int? ?? 0;
-
     _drawStrokeSegments(
       surface: surface,
       samples: samples,
@@ -1464,8 +1585,18 @@ BrushShapeRaster? _decodeCustomMaskRaster(
   if (data == null || width <= 0 || height <= 0) {
     return null;
   }
-  final ByteBuffer buffer = data.materialize();
-  final Uint8List packed = buffer.asUint8List();
+  final Uint8List packed = data.materialize().asUint8List();
+  return _decodeCustomMaskRasterFromBytes(packed, width, height);
+}
+
+BrushShapeRaster? _decodeCustomMaskRasterFromBytes(
+  Uint8List? packed,
+  int width,
+  int height,
+) {
+  if (packed == null || width <= 0 || height <= 0) {
+    return null;
+  }
   final int count = width * height;
   if (count <= 0 || packed.length < count * 2) {
     return null;
@@ -1484,6 +1615,219 @@ BrushShapeRaster? _decodeCustomMaskRaster(
     alpha: alpha,
     softAlpha: softAlpha,
   );
+}
+
+class _WgpuPreviewEngine {
+  _WgpuPreviewEngine._();
+
+  static final _WgpuPreviewEngine instance = _WgpuPreviewEngine._();
+
+  final rust_wgpu_engine.CanvasEngineFfi _ffi =
+      rust_wgpu_engine.CanvasEngineFfi.instance;
+  int _handle = 0;
+  int _width = 0;
+  int _height = 0;
+  int _maskSignature = 0;
+  bool _disabled = false;
+
+  bool get _canUse => !_disabled && _ffi.canCreateEngine;
+
+  void dispose() {
+    if (_handle != 0) {
+      _ffi.disposeEngine(handle: _handle);
+      _handle = 0;
+    }
+    _maskSignature = 0;
+    _width = 0;
+    _height = 0;
+  }
+
+  bool _ensureEngine(int width, int height) {
+    if (!_canUse || width <= 0 || height <= 0) {
+      return false;
+    }
+    if (_handle != 0 && (_width != width || _height != height)) {
+      _ffi.disposeEngine(handle: _handle);
+      _handle = 0;
+    }
+    if (_handle == 0) {
+      final int handle = _ffi.createEngine(width: width, height: height);
+      if (handle == 0) {
+        _disabled = true;
+        return false;
+      }
+      _handle = handle;
+      _width = width;
+      _height = height;
+    }
+    return true;
+  }
+
+  void _syncCustomMask(
+    Uint8List? mask,
+    int width,
+    int height,
+  ) {
+    if (_handle == 0) {
+      return;
+    }
+    if (mask == null || mask.isEmpty || width <= 0 || height <= 0) {
+      if (_maskSignature != 0) {
+        _ffi.clearBrushMask(handle: _handle);
+        _maskSignature = 0;
+      }
+      return;
+    }
+    final int signature = Object.hash(
+      width,
+      height,
+      mask.length,
+      mask.first,
+      mask.last,
+    );
+    if (signature == _maskSignature) {
+      return;
+    }
+    _maskSignature = signature;
+    _ffi.setBrushMask(
+      handle: _handle,
+      width: width,
+      height: height,
+      mask: mask,
+    );
+  }
+
+  Future<void> _waitForInputDrain() async {
+    int waited = 0;
+    while (waited < _kWgpuPreviewWaitMaxMs) {
+      if (_ffi.getInputQueueLen(_handle) == 0) {
+        if (waited == 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+        }
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      waited += 2;
+    }
+  }
+
+  Future<Uint8List?> render({
+    required int width,
+    required int height,
+    required List<_PreviewStrokeSample> samples,
+    required int colorArgb,
+    required double hardness,
+    required double flow,
+    required double spacing,
+    required double scatter,
+    required bool randomRotation,
+    required bool smoothRotation,
+    required double rotationJitter,
+    required int antialias,
+    required bool snapToPixel,
+    required int shapeIndex,
+    required bool screentoneEnabled,
+    required double screentoneSpacing,
+    required double screentoneDotSize,
+    required double screentoneRotation,
+    required double screentoneSoftness,
+    required int screentoneShapeIndex,
+    required bool hollowEnabled,
+    required double hollowRatio,
+    required int rotationSeed,
+    Uint8List? customMask,
+    required int customMaskWidth,
+    required int customMaskHeight,
+  }) async {
+    if (!_ensureEngine(width, height)) {
+      return null;
+    }
+    if (samples.isEmpty) {
+      return null;
+    }
+    _ffi.clearLayer(handle: _handle, layerIndex: 0);
+    _syncCustomMask(customMask, customMaskWidth, customMaskHeight);
+
+    final double baseRadius = _maxSampleRadius(samples);
+    if (!baseRadius.isFinite || baseRadius <= 0.0) {
+      return null;
+    }
+    _ffi.setBrush(
+      handle: _handle,
+      colorArgb: colorArgb,
+      baseRadius: baseRadius,
+      usePressure: true,
+      erase: false,
+      antialiasLevel: antialias,
+      brushShape: shapeIndex,
+      randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
+      rotationSeed: rotationSeed,
+      spacing: spacing,
+      hardness: hardness,
+      flow: flow,
+      scatter: scatter,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
+      screentoneShape: screentoneShapeIndex,
+      hollow: hollowEnabled,
+      hollowRatio: hollowRatio,
+      hollowEraseOccludedParts: false,
+      bristleEnabled: false,
+      bristleDensity: 0.0,
+      bristleRandom: 0.0,
+      bristleScale: 1.0,
+      bristleShear: 0.0,
+      bristleThreshold: false,
+      bristleConnected: false,
+      bristleUsePressure: true,
+      bristleAntialias: false,
+      bristleUseCompositing: true,
+      inkAmount: 1.0,
+      inkDepletion: 0.0,
+      inkUseOpacity: true,
+      inkDepletionEnabled: false,
+      inkUseSaturation: false,
+      inkUseWeights: false,
+      inkPressureWeight: 0.5,
+      inkBristleLengthWeight: 0.5,
+      inkBristleInkAmountWeight: 0.5,
+      inkDepletionWeight: 0.5,
+      inkUseSoak: false,
+      streamlineStrength: 0.0,
+      smoothingMode: 1,
+      stabilizerStrength: 0.0,
+    );
+
+    final Uint8List points = _encodeEnginePoints(samples, baseRadius);
+    _ffi.pushPointsPacked(
+      handle: _handle,
+      bytes: points,
+      pointCount: samples.length,
+    );
+    await _waitForInputDrain();
+    Uint8List? pixels = _ffi.readLayerPreview(
+      handle: _handle,
+      layerIndex: 0,
+      width: width,
+      height: height,
+    );
+    if (pixels != null && pixels.isNotEmpty && !_rgbaHasNonZeroAlpha(pixels)) {
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      pixels = _ffi.readLayerPreview(
+        handle: _handle,
+        layerIndex: 0,
+        width: width,
+        height: height,
+      );
+    }
+    return pixels;
+  }
 }
 
 BrushShape _resolveBrushShape(int index) {

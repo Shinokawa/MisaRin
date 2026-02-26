@@ -534,6 +534,7 @@
   "inkCurvePoint": "\uace1\uc120 \ud3ec\uc778\ud2b8",
   "inkCurveReset": "\uace1\uc120 \ucd08\uae30\ud654",
   "brushShape": "\ube0c\ub7ec\uc2dc \ubaa8\uc591",
+  "brushShapeBristlesCircleRandom": "모필 브러시(랜덤)",
   "brushAuthorLabel": "\uc791\uc131\uc790",
   "brushVersionLabel": "\ubc84\uc804",
   "importBrush": "\ube0c\ub7ec\uc2dc \uac00\uc838\uc624\uae30",

@@ -570,5 +570,6 @@
       "limit": {}
     }
   },
-  "autoSaveCleanupDialogClean": "清理"
+  "autoSaveCleanupDialogClean": "清理",
+  "brushShapeBristlesCircleRandom": "毛笔刷形（随机）"
 }

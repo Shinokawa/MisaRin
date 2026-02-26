@@ -1205,6 +1205,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get brushShape => 'ブラシ形状';
 
   @override
+  String get brushShapeBristlesCircleRandom => '毛筆ブラシ（ランダム）';
+
+  @override
   String get brushAuthorLabel => '作者';
 
   @override

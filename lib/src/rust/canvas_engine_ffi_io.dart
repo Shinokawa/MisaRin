@@ -33,6 +33,13 @@ final class _EnginePointNative extends ffi.Struct {
   external int pointerId;
 }
 
+typedef _EngineCreateNative =
+    ffi.Uint64 Function(ffi.Uint32 width, ffi.Uint32 height);
+typedef _EngineCreateDart = int Function(int width, int height);
+
+typedef _EngineDisposeNative = ffi.Void Function(ffi.Uint64 handle);
+typedef _EngineDisposeDart = void Function(int handle);
+
 typedef _EnginePushPointsNative =
     ffi.Void Function(
       ffi.Uint64 handle,
@@ -520,6 +527,22 @@ class CanvasEngineFfi {
   CanvasEngineFfi._() {
     try {
       _lib = _openLibrary();
+      try {
+        _createEngine = _lib
+            .lookupFunction<_EngineCreateNative, _EngineCreateDart>(
+              'engine_create',
+            );
+      } catch (_) {
+        _createEngine = null;
+      }
+      try {
+        _disposeEngine = _lib
+            .lookupFunction<_EngineDisposeNative, _EngineDisposeDart>(
+              'engine_dispose',
+            );
+      } catch (_) {
+        _disposeEngine = null;
+      }
       _pushPoints = _lib
           .lookupFunction<_EnginePushPointsNative, _EnginePushPointsDart>(
             'engine_push_points',
@@ -828,6 +851,8 @@ class CanvasEngineFfi {
   }
 
   late final ffi.DynamicLibrary _lib;
+  late final _EngineCreateDart? _createEngine;
+  late final _EngineDisposeDart? _disposeEngine;
   late final _EnginePushPointsDart _pushPoints;
   late final _EngineGetInputQueueLenDart _getQueueLen;
   late final _EngineIsValidDart? _isValid;
@@ -869,6 +894,25 @@ class CanvasEngineFfi {
   int _stagingCapacityBytes = 0;
 
   late final bool isSupported;
+
+  bool get canCreateEngine =>
+      isSupported && _createEngine != null && _disposeEngine != null;
+
+  int createEngine({required int width, required int height}) {
+    final fn = _createEngine;
+    if (!isSupported || fn == null || width <= 0 || height <= 0) {
+      return 0;
+    }
+    return fn(width, height);
+  }
+
+  void disposeEngine({required int handle}) {
+    final fn = _disposeEngine;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle);
+  }
 
   void pushPointsPacked({
     required int handle,

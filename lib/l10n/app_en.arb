@@ -568,6 +568,7 @@
   "inkCurvePoint": "Curve Point",
   "inkCurveReset": "Reset Curve",
   "brushShape": "Brush Shape",
+  "brushShapeBristlesCircleRandom": "Bristles (Random)",
   "brushAuthorLabel": "Author",
   "brushVersionLabel": "Version",
   "importBrush": "Import Brush",

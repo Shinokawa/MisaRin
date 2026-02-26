@@ -568,6 +568,7 @@
   "inkCurvePoint": "曲線ポイント",
   "inkCurveReset": "曲線をリセット",
   "brushShape": "ブラシ形状",
+  "brushShapeBristlesCircleRandom": "毛筆ブラシ（ランダム）",
   "brushAuthorLabel": "作者",
   "brushVersionLabel": "バージョン",
   "importBrush": "ブラシをインポート",

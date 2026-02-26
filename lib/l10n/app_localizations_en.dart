@@ -1228,6 +1228,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushShape => 'Brush Shape';
 
   @override
+  String get brushShapeBristlesCircleRandom => 'Bristles (Random)';
+
+  @override
   String get brushAuthorLabel => 'Author';
 
   @override

@@ -91,6 +91,14 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                     _effectiveActiveTool == CanvasTool.selectionPen
                 ? BrushShape.circle
                 : _brushShape;
+        final BrushShapeRaster? overlayBrushRaster =
+            _effectiveActiveTool == CanvasTool.spray ||
+                    _effectiveActiveTool == CanvasTool.selectionPen
+                ? null
+                : (_brushShapeRaster != null &&
+                        _brushShapeRaster!.id == _brushShapeId
+                    ? _brushShapeRaster
+                    : null);
         final Widget? antialiasCard = _buildAntialiasCard();
         final Widget? colorRangeCard = _buildColorRangeCard();
         final Widget? transformPanel = buildLayerTransformPanel();
@@ -1188,23 +1196,43 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                           if (!suppressToolCursorOverlays &&
                               _penRequiresOverlay &&
                               _penCursorWorkspacePosition != null)
-                            PenCursorOverlay(
-                              position: _penCursorWorkspacePosition!,
-                              diameter: overlayBrushDiameter * _viewport.scale,
-                              shape: overlayBrushShape,
-                              rotation:
-                                  _brushRandomRotationEnabled &&
-                                          overlayBrushShape != BrushShape.circle
-                                      ? brushRandomRotationRadians(
-                                          center: _toBoardLocal(
-                                            _penCursorWorkspacePosition!,
-                                          ),
-                                          seed: _isDrawing
-                                              ? _controller.activeStrokeRotationSeed
-                                              : _brushRandomRotationPreviewSeed,
-                                        )
-                                      : 0.0,
-                            ),
+                            overlayBrushRaster != null
+                                ? CustomBrushCursorOverlay(
+                                    position: _penCursorWorkspacePosition!,
+                                    diameter:
+                                        overlayBrushDiameter * _viewport.scale,
+                                    raster: overlayBrushRaster,
+                                    rotation: _brushRandomRotationEnabled
+                                        ? brushRandomRotationRadians(
+                                            center: _toBoardLocal(
+                                              _penCursorWorkspacePosition!,
+                                            ),
+                                            seed: _isDrawing
+                                                ? _controller
+                                                    .activeStrokeRotationSeed
+                                                : _brushRandomRotationPreviewSeed,
+                                          )
+                                        : 0.0,
+                                  )
+                                : PenCursorOverlay(
+                                    position: _penCursorWorkspacePosition!,
+                                    diameter:
+                                        overlayBrushDiameter * _viewport.scale,
+                                    shape: overlayBrushShape,
+                                    rotation: _brushRandomRotationEnabled &&
+                                            overlayBrushShape !=
+                                                BrushShape.circle
+                                        ? brushRandomRotationRadians(
+                                            center: _toBoardLocal(
+                                              _penCursorWorkspacePosition!,
+                                            ),
+                                            seed: _isDrawing
+                                                ? _controller
+                                                    .activeStrokeRotationSeed
+                                                : _brushRandomRotationPreviewSeed,
+                                          )
+                                        : 0.0,
+                                  ),
                           if (!suppressToolCursorOverlays &&
                               _toolCursorPosition != null)
                             Positioned(

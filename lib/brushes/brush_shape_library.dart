@@ -222,6 +222,9 @@ class BrushShapeLibrary {
   }
 
   String labelFor(AppLocalizations l10n, String id) {
+    if (id == 'bristles_circle_random') {
+      return l10n.brushShapeBristlesCircleRandom;
+    }
     final BrushShapeDefinition? shape = resolve(id);
     if (shape?.builtInShape != null) {
       switch (shape!.builtInShape!) {

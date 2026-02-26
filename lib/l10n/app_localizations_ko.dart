@@ -1209,6 +1209,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get brushShape => '브러시 모양';
 
   @override
+  String get brushShapeBristlesCircleRandom => '모필 브러시(랜덤)';
+
+  @override
   String get brushAuthorLabel => '작성자';
 
   @override
