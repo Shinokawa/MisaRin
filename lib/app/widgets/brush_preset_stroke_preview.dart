@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -16,6 +17,7 @@ import '../../canvas/brush_shape_geometry.dart';
 import '../../canvas/canvas_tools.dart';
 import '../debug/brush_preset_timeline.dart';
 import '../../src/rust/rust_cpu_brush_ffi.dart';
+import '../../src/rust/rust_init.dart';
 
 const double _kPreviewPadding = 4.0;
 const bool _kPreviewLog = bool.fromEnvironment(
@@ -191,6 +193,9 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
       image?.dispose();
       return;
     }
+    if (image == null) {
+      return;
+    }
     setState(() {
       _image?.dispose();
       _image = image;
@@ -208,7 +213,182 @@ class _PreviewStrokeSample {
   final double radius;
 }
 
+List<_PreviewStrokeSample> _buildPreviewSamples({
+  required BrushPreset preset,
+  required int pixelWidth,
+  required int pixelHeight,
+  required double scale,
+  required double spacing,
+}) {
+  final double padding = _kPreviewPadding * scale;
+  final double width = pixelWidth - padding * 2.0;
+  final double height = pixelHeight - padding * 2.0;
+  if (width <= 0 || height <= 0) {
+    return <_PreviewStrokeSample>[];
+  }
+
+  final Offset start = Offset(padding, padding + height * 0.65);
+  final Offset control1 =
+      Offset(padding + width * 0.3, padding + height * 0.1);
+  final Offset control2 =
+      Offset(padding + width * 0.65, padding + height * 0.9);
+  final Offset end = Offset(padding + width, padding + height * 0.35);
+
+  final ui.Path path = ui.Path()
+    ..moveTo(start.dx, start.dy)
+    ..cubicTo(
+      control1.dx,
+      control1.dy,
+      control2.dx,
+      control2.dy,
+      end.dx,
+      end.dy,
+    );
+  final ui.PathMetrics metrics = path.computeMetrics();
+  final Iterator<ui.PathMetric> iterator = metrics.iterator;
+  if (!iterator.moveNext()) {
+    return <_PreviewStrokeSample>[];
+  }
+  final ui.PathMetric metric = iterator.current;
+
+  final double baseRadius = math.max(2.2 * scale, height * 0.2);
+  final double step = math.max(0.1 * scale, baseRadius * 2.0 * spacing);
+  final double totalLength = metric.length;
+  final int maxStamps = math.max(6, (totalLength / step).ceil());
+  final List<_PreviewStrokeSample> samples = <_PreviewStrokeSample>[];
+  for (int i = 0; i <= maxStamps; i++) {
+    final double distance = math.min(totalLength, i * step);
+    final ui.Tangent? tangent = metric.getTangentForOffset(distance);
+    if (tangent == null) {
+      continue;
+    }
+    double radius = baseRadius;
+    if (preset.autoSharpTaper && totalLength > 0.0001) {
+      final double t = distance / totalLength;
+      radius *= (0.5 + 0.5 * math.sin(math.pi * t));
+    }
+    if (!radius.isFinite || radius <= 0.0) {
+      continue;
+    }
+    samples.add(_PreviewStrokeSample(position: tangent.position, radius: radius));
+  }
+  return samples;
+}
+
+Float32List _encodePreviewSamples(List<_PreviewStrokeSample> samples) {
+  final int count = samples.length;
+  final Float32List data = Float32List(count * 3);
+  int out = 0;
+  for (final _PreviewStrokeSample sample in samples) {
+    data[out++] = sample.position.dx;
+    data[out++] = sample.position.dy;
+    data[out++] = sample.radius;
+  }
+  return data;
+}
+
+TransferableTypedData _toTransferableFloat32(Float32List data) {
+  return TransferableTypedData.fromList(<Uint8List>[
+    Uint8List.view(
+      data.buffer,
+      data.offsetInBytes,
+      data.lengthInBytes,
+    ),
+  ]);
+}
+
+List<_PreviewStrokeSample> _decodePreviewSamples(Float32List data) {
+  final int count = data.length ~/ 3;
+  final List<_PreviewStrokeSample> samples = <_PreviewStrokeSample>[];
+  int index = 0;
+  for (int i = 0; i < count; i++) {
+    final double x = data[index++];
+    final double y = data[index++];
+    final double radius = data[index++];
+    samples.add(_PreviewStrokeSample(position: Offset(x, y), radius: radius));
+  }
+  return samples;
+}
+
 Future<ui.Image?> _buildPreviewImage({
+  required BrushPreset preset,
+  required Color color,
+  required int pixelWidth,
+  required int pixelHeight,
+  required double scale,
+}) async {
+  if (!RustCpuBrushFfi.instance.isSupported) {
+    return null;
+  }
+  final double spacing = _effectiveSpacing(preset.spacing);
+  final List<_PreviewStrokeSample> samples = _buildPreviewSamples(
+    preset: preset,
+    pixelWidth: pixelWidth,
+    pixelHeight: pixelHeight,
+    scale: scale,
+    spacing: spacing,
+  );
+  if (samples.isEmpty) {
+    return null;
+  }
+
+  final BrushShapeRaster? customShape = await _resolveCustomShape(preset);
+  final int antialias = _effectiveAntialias(preset.antialiasLevel);
+  final int rotationSeed = Object.hash(
+    preset.id,
+    preset.shape,
+    pixelWidth,
+    pixelHeight,
+  );
+  final Float32List sampleData = _encodePreviewSamples(samples);
+  final _BrushPreviewWorkerResult? workerResult =
+      await _BrushPreviewWorker.instance.request(
+    _BrushPreviewRequest(
+      pixelWidth: pixelWidth,
+      pixelHeight: pixelHeight,
+      colorArgb: color.value,
+      hardness: preset.hardness,
+      flow: preset.flow,
+      spacing: spacing,
+      scatter: preset.scatter,
+      randomRotation: preset.randomRotation,
+      smoothRotation: preset.smoothRotation,
+      rotationJitter: preset.rotationJitter,
+      antialias: antialias,
+      snapToPixel: preset.snapToPixel,
+      shapeIndex: preset.shape.index,
+      screentoneEnabled: preset.screentoneEnabled,
+      screentoneSpacing: preset.screentoneSpacing,
+      screentoneDotSize: preset.screentoneDotSize,
+      screentoneRotation: preset.screentoneRotation,
+      screentoneSoftness: preset.screentoneSoftness,
+      screentoneShapeIndex: preset.screentoneShape.index,
+      hollowEnabled:
+          preset.hollowEnabled && preset.hollowRatio > 0.0001,
+      hollowRatio: preset.hollowRatio.clamp(0.0, 1.0),
+      rotationSeed: rotationSeed,
+      samples: _toTransferableFloat32(sampleData),
+      customMask: customShape == null
+          ? null
+          : TransferableTypedData.fromList(<Uint8List>[
+              Uint8List.fromList(customShape.packedMask),
+            ]),
+      customMaskWidth: customShape?.width ?? 0,
+      customMaskHeight: customShape?.height ?? 0,
+    ),
+  );
+  if (workerResult != null) {
+    final Uint8List? rgba = workerResult.pixels;
+    if (rgba != null && rgba.isNotEmpty) {
+      return _decodeRgbaImage(rgba, workerResult.width, workerResult.height);
+    }
+    return null;
+  }
+  return null;
+}
+
+// ignore: unused_element
+Future<ui.Image?> _buildPreviewImageOnMain({
   required BrushPreset preset,
   required Color color,
   required int pixelWidth,
@@ -237,59 +417,14 @@ Future<ui.Image?> _buildPreviewImage({
         't=${shapeTimer.elapsedMilliseconds}ms',
       );
     }
-    final double padding = _kPreviewPadding * scale;
-    final double width = pixelWidth - padding * 2.0;
-    final double height = pixelHeight - padding * 2.0;
-    if (width <= 0 || height <= 0) {
-      return null;
-    }
-
-    final Offset start = Offset(padding, padding + height * 0.65);
-    final Offset control1 =
-        Offset(padding + width * 0.3, padding + height * 0.1);
-    final Offset control2 =
-        Offset(padding + width * 0.65, padding + height * 0.9);
-    final Offset end = Offset(padding + width, padding + height * 0.35);
-
-    final ui.Path path = ui.Path()
-      ..moveTo(start.dx, start.dy)
-      ..cubicTo(
-        control1.dx,
-        control1.dy,
-        control2.dx,
-        control2.dy,
-        end.dx,
-        end.dy,
-      );
-    final ui.PathMetrics metrics = path.computeMetrics();
-    final Iterator<ui.PathMetric> iterator = metrics.iterator;
-    if (!iterator.moveNext()) {
-      return null;
-    }
-    final ui.PathMetric metric = iterator.current;
-
-    final double baseRadius = math.max(2.2 * scale, height * 0.2);
     final double spacing = _effectiveSpacing(preset.spacing);
-    final double step = math.max(0.1 * scale, baseRadius * 2.0 * spacing);
-    final double totalLength = metric.length;
-    final int maxStamps = math.max(6, (totalLength / step).ceil());
-    final List<_PreviewStrokeSample> samples = <_PreviewStrokeSample>[];
-    for (int i = 0; i <= maxStamps; i++) {
-      final double distance = math.min(totalLength, i * step);
-      final ui.Tangent? tangent = metric.getTangentForOffset(distance);
-      if (tangent == null) {
-        continue;
-      }
-      double radius = baseRadius;
-      if (preset.autoSharpTaper && totalLength > 0.0001) {
-        final double t = distance / totalLength;
-        radius *= (0.5 + 0.5 * math.sin(math.pi * t));
-      }
-      if (!radius.isFinite || radius <= 0.0) {
-        continue;
-      }
-      samples.add(_PreviewStrokeSample(position: tangent.position, radius: radius));
-    }
+    final List<_PreviewStrokeSample> samples = _buildPreviewSamples(
+      preset: preset,
+      pixelWidth: pixelWidth,
+      pixelHeight: pixelHeight,
+      scale: scale,
+      spacing: spacing,
+    );
     if (samples.isEmpty) {
       return null;
     }
@@ -313,7 +448,18 @@ Future<ui.Image?> _buildPreviewImage({
     _drawStrokeSegments(
       surface: surface,
       samples: samples,
-      preset: preset,
+      shape: preset.shape,
+      scatter: preset.scatter,
+      randomRotation: preset.randomRotation,
+      smoothRotation: preset.smoothRotation,
+      rotationJitter: preset.rotationJitter,
+      snapToPixel: preset.snapToPixel,
+      screentoneEnabled: preset.screentoneEnabled,
+      screentoneSpacing: preset.screentoneSpacing,
+      screentoneDotSize: preset.screentoneDotSize,
+      screentoneRotation: preset.screentoneRotation,
+      screentoneSoftness: preset.screentoneSoftness,
+      screentoneShape: preset.screentoneShape,
       color: strokeColor,
       softness: softness,
       antialias: antialias,
@@ -330,7 +476,18 @@ Future<ui.Image?> _buildPreviewImage({
       _drawStrokeSegments(
         surface: surface,
         samples: samples,
-        preset: preset,
+        shape: preset.shape,
+        scatter: preset.scatter,
+        randomRotation: preset.randomRotation,
+        smoothRotation: preset.smoothRotation,
+        rotationJitter: preset.rotationJitter,
+        snapToPixel: preset.snapToPixel,
+        screentoneEnabled: preset.screentoneEnabled,
+        screentoneSpacing: preset.screentoneSpacing,
+        screentoneDotSize: preset.screentoneDotSize,
+        screentoneRotation: preset.screentoneRotation,
+        screentoneSoftness: preset.screentoneSoftness,
+        screentoneShape: preset.screentoneShape,
         color: strokeColor,
         softness: softness,
         antialias: antialias,
@@ -386,7 +543,18 @@ int _effectiveAntialias(int level) {
 void _drawStrokeSegments({
   required BitmapSurface surface,
   required List<_PreviewStrokeSample> samples,
-  required BrushPreset preset,
+  required BrushShape shape,
+  required double scatter,
+  required bool randomRotation,
+  required bool smoothRotation,
+  required double rotationJitter,
+  required bool snapToPixel,
+  required bool screentoneEnabled,
+  required double screentoneSpacing,
+  required double screentoneDotSize,
+  required double screentoneRotation,
+  required double screentoneSoftness,
+  required BrushShape screentoneShape,
   required Color color,
   required double softness,
   required int antialias,
@@ -399,18 +567,6 @@ void _drawStrokeSegments({
   if (samples.isEmpty) {
     return;
   }
-  final double scatter = preset.scatter;
-  final bool randomRotation = preset.randomRotation;
-  final bool smoothRotation = preset.smoothRotation;
-  final double rotationJitter = preset.rotationJitter;
-  final bool snapToPixel = preset.snapToPixel;
-  final BrushShape shape = preset.shape;
-  final bool screentoneEnabled = preset.screentoneEnabled;
-  final double screentoneSpacing = preset.screentoneSpacing;
-  final double screentoneDotSize = preset.screentoneDotSize;
-  final double screentoneRotation = preset.screentoneRotation;
-  final double screentoneSoftness = preset.screentoneSoftness;
-  final BrushShape screentoneShape = preset.screentoneShape;
 
   final _PreviewStrokeSample first = samples.first;
   _drawStampSegment(
@@ -824,6 +980,517 @@ Future<ui.Image> _decodeRgbaImage(
     completer.complete,
   );
   return completer.future;
+}
+
+class _BrushPreviewRequest {
+  const _BrushPreviewRequest({
+    required this.pixelWidth,
+    required this.pixelHeight,
+    required this.colorArgb,
+    required this.hardness,
+    required this.flow,
+    required this.spacing,
+    required this.scatter,
+    required this.randomRotation,
+    required this.smoothRotation,
+    required this.rotationJitter,
+    required this.antialias,
+    required this.snapToPixel,
+    required this.shapeIndex,
+    required this.screentoneEnabled,
+    required this.screentoneSpacing,
+    required this.screentoneDotSize,
+    required this.screentoneRotation,
+    required this.screentoneSoftness,
+    required this.screentoneShapeIndex,
+    required this.hollowEnabled,
+    required this.hollowRatio,
+    required this.rotationSeed,
+    required this.samples,
+    this.customMask,
+    required this.customMaskWidth,
+    required this.customMaskHeight,
+  });
+
+  final int pixelWidth;
+  final int pixelHeight;
+  final int colorArgb;
+  final double hardness;
+  final double flow;
+  final double spacing;
+  final double scatter;
+  final bool randomRotation;
+  final bool smoothRotation;
+  final double rotationJitter;
+  final int antialias;
+  final bool snapToPixel;
+  final int shapeIndex;
+  final bool screentoneEnabled;
+  final double screentoneSpacing;
+  final double screentoneDotSize;
+  final double screentoneRotation;
+  final double screentoneSoftness;
+  final int screentoneShapeIndex;
+  final bool hollowEnabled;
+  final double hollowRatio;
+  final int rotationSeed;
+  final TransferableTypedData samples;
+  final TransferableTypedData? customMask;
+  final int customMaskWidth;
+  final int customMaskHeight;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'pixelWidth': pixelWidth,
+    'pixelHeight': pixelHeight,
+    'colorArgb': colorArgb,
+    'hardness': hardness,
+    'flow': flow,
+    'spacing': spacing,
+    'scatter': scatter,
+    'randomRotation': randomRotation,
+    'smoothRotation': smoothRotation,
+    'rotationJitter': rotationJitter,
+    'antialias': antialias,
+    'snapToPixel': snapToPixel,
+    'shapeIndex': shapeIndex,
+    'screentoneEnabled': screentoneEnabled,
+    'screentoneSpacing': screentoneSpacing,
+    'screentoneDotSize': screentoneDotSize,
+    'screentoneRotation': screentoneRotation,
+    'screentoneSoftness': screentoneSoftness,
+    'screentoneShapeIndex': screentoneShapeIndex,
+    'hollowEnabled': hollowEnabled,
+    'hollowRatio': hollowRatio,
+    'rotationSeed': rotationSeed,
+    'samples': samples,
+    'customMask': customMask,
+    'customMaskWidth': customMaskWidth,
+    'customMaskHeight': customMaskHeight,
+  };
+}
+
+class _BrushPreviewWorkerResult {
+  const _BrushPreviewWorkerResult({
+    required this.width,
+    required this.height,
+    this.pixels,
+  });
+
+  final int width;
+  final int height;
+  final Uint8List? pixels;
+}
+
+class _QueuedPreviewRequest {
+  _QueuedPreviewRequest(this.request, this.completer);
+
+  final _BrushPreviewRequest request;
+  final Completer<_BrushPreviewWorkerResult?> completer;
+}
+
+class _BrushPreviewWorker {
+  _BrushPreviewWorker._()
+    : _receivePort = ReceivePort(),
+      _pending = <int, Completer<_BrushPreviewWorkerResult?>>{},
+      _useMainThread = kIsWeb {
+    _subscription = _receivePort.listen(
+      _handleMessage,
+      onError: (Object error, StackTrace stackTrace) {
+        _resetWorker();
+        _failPending();
+        _failQueued();
+      },
+    );
+  }
+
+  static final _BrushPreviewWorker instance = _BrushPreviewWorker._();
+
+  final ReceivePort _receivePort;
+  final Map<int, Completer<_BrushPreviewWorkerResult?>> _pending;
+  final List<_QueuedPreviewRequest> _queued = <_QueuedPreviewRequest>[];
+  late final StreamSubscription<Object?> _subscription;
+  Isolate? _isolate;
+  SendPort? _sendPort;
+  int _nextRequestId = 0;
+  bool _useMainThread;
+  bool _starting = false;
+  Timer? _startTimeout;
+
+  static const Duration _kStartTimeout = Duration(milliseconds: 800);
+
+  Future<void> _ensureStarted() async {
+    if (_useMainThread || _sendPort != null || _starting) {
+      return;
+    }
+    _starting = true;
+    if (_isolate == null) {
+      try {
+        _isolate = await Isolate.spawn<SendPort>(
+          _brushPreviewWorkerMain,
+          _receivePort.sendPort,
+          debugName: 'BrushPreviewWorker',
+          errorsAreFatal: false,
+        );
+      } on Object {
+        _resetWorker();
+        _starting = false;
+        return;
+      }
+    }
+    _startTimeout?.cancel();
+    _startTimeout = Timer(_kStartTimeout, () {
+      if (_sendPort == null) {
+        _resetWorker();
+        _failQueued();
+      }
+    });
+    _starting = false;
+  }
+
+  Future<_BrushPreviewWorkerResult?> request(_BrushPreviewRequest request) async {
+    if (_useMainThread) {
+      return null;
+    }
+    _ensureStarted();
+    final SendPort? port = _sendPort;
+    final int id = _nextRequestId++;
+    final Completer<_BrushPreviewWorkerResult?> completer =
+        Completer<_BrushPreviewWorkerResult?>();
+    if (port == null) {
+      _queueRequest(request, completer);
+      return completer.future;
+    }
+    _pending[id] = completer;
+    port.send(<String, Object?>{'id': id, 'payload': request.toJson()});
+    return completer.future;
+  }
+
+  void _handleMessage(Object? message) {
+    if (message is SendPort) {
+      _sendPort = message;
+      _startTimeout?.cancel();
+      _flushQueued();
+      return;
+    }
+    if (message is! Map<String, Object?>) {
+      return;
+    }
+    final int id = message['id'] as int? ?? -1;
+    final Completer<_BrushPreviewWorkerResult?>? completer = _pending.remove(id);
+    if (completer == null) {
+      return;
+    }
+    final Object? data = message['data'];
+    if (data is Map<String, Object?>) {
+      final int width = data['width'] as int? ?? 0;
+      final int height = data['height'] as int? ?? 0;
+      Uint8List? pixels;
+      final TransferableTypedData? pixelData =
+          data['pixels'] as TransferableTypedData?;
+      if (pixelData != null) {
+        pixels = pixelData.materialize().asUint8List();
+      }
+      completer.complete(
+        _BrushPreviewWorkerResult(
+          width: width,
+          height: height,
+          pixels: pixels,
+        ),
+      );
+      return;
+    }
+    if (data is Error || data is Exception) {
+      completer.complete(null);
+      return;
+    }
+    completer.complete(null);
+  }
+
+  Future<void> dispose() async {
+    final Isolate? isolate = _isolate;
+    if (isolate != null) {
+      _sendPort?.send(null);
+      isolate.kill(priority: Isolate.immediate);
+      _isolate = null;
+    }
+    await _subscription.cancel();
+    _receivePort.close();
+    _failPending();
+    _failQueued();
+  }
+
+  void _resetWorker() {
+    final Isolate? isolate = _isolate;
+    if (isolate != null) {
+      isolate.kill(priority: Isolate.immediate);
+    }
+    _isolate = null;
+    _sendPort = null;
+    _starting = false;
+    _startTimeout?.cancel();
+  }
+
+  void _queueRequest(
+    _BrushPreviewRequest request,
+    Completer<_BrushPreviewWorkerResult?> completer,
+  ) {
+    for (final _QueuedPreviewRequest queued in _queued) {
+      if (!queued.completer.isCompleted) {
+        queued.completer.complete(null);
+      }
+    }
+    _queued
+      ..clear()
+      ..add(_QueuedPreviewRequest(request, completer));
+  }
+
+  void _flushQueued() {
+    final SendPort? port = _sendPort;
+    if (port == null || _queued.isEmpty) {
+      return;
+    }
+    final List<_QueuedPreviewRequest> queued = List<_QueuedPreviewRequest>.from(
+      _queued,
+      growable: false,
+    );
+    _queued.clear();
+    for (final _QueuedPreviewRequest item in queued) {
+      final int id = _nextRequestId++;
+      _pending[id] = item.completer;
+      port.send(<String, Object?>{'id': id, 'payload': item.request.toJson()});
+    }
+  }
+
+  void _failPending() {
+    for (final Completer<_BrushPreviewWorkerResult?> pending
+        in _pending.values) {
+      if (!pending.isCompleted) {
+        pending.complete(null);
+      }
+    }
+    _pending.clear();
+  }
+
+  void _failQueued() {
+    for (final _QueuedPreviewRequest queued in _queued) {
+      if (!queued.completer.isCompleted) {
+        queued.completer.complete(null);
+      }
+    }
+    _queued.clear();
+  }
+}
+
+@pragma('vm:entry-point')
+void _brushPreviewWorkerMain(SendPort initialReplyTo) {
+  final ReceivePort port = ReceivePort();
+  initialReplyTo.send(port.sendPort);
+  port.listen((Object? message) async {
+    if (message == null) {
+      port.close();
+      return;
+    }
+    if (message is! Map<String, Object?>) {
+      return;
+    }
+    final int id = message['id'] as int? ?? -1;
+    final Object? payload = message['payload'];
+    if (payload is! Map<String, Object?>) {
+      initialReplyTo.send(<String, Object?>{'id': id, 'data': null});
+      return;
+    }
+    try {
+      final Object? result = await _brushPreviewWorkerHandlePayload(payload);
+      initialReplyTo.send(<String, Object?>{'id': id, 'data': result});
+    } catch (error, stackTrace) {
+      initialReplyTo.send(<String, Object?>{
+        'id': id,
+        'data': StateError('$error\n$stackTrace'),
+      });
+    }
+  });
+}
+
+Future<Object?> _brushPreviewWorkerHandlePayload(
+  Map<String, Object?> payload,
+) async {
+  await ensureRustInitialized();
+  final int width = payload['pixelWidth'] as int? ?? 0;
+  final int height = payload['pixelHeight'] as int? ?? 0;
+  final TransferableTypedData? sampleData =
+      payload['samples'] as TransferableTypedData?;
+  if (width <= 0 || height <= 0 || sampleData == null) {
+    return <String, Object?>{'width': width, 'height': height, 'pixels': null};
+  }
+  final ByteBuffer buffer = sampleData.materialize();
+  final Float32List sampleList = buffer.asFloat32List();
+  final List<_PreviewStrokeSample> samples =
+      _decodePreviewSamples(sampleList);
+  if (samples.isEmpty) {
+    return <String, Object?>{'width': width, 'height': height, 'pixels': null};
+  }
+  final TransferableTypedData? customMask =
+      payload['customMask'] as TransferableTypedData?;
+  final int customMaskWidth = payload['customMaskWidth'] as int? ?? 0;
+  final int customMaskHeight = payload['customMaskHeight'] as int? ?? 0;
+  final BrushShapeRaster? customShape = _decodeCustomMaskRaster(
+    customMask,
+    customMaskWidth,
+    customMaskHeight,
+  );
+
+  final BitmapSurface surface = BitmapSurface(
+    width: width,
+    height: height,
+    fillColor: const Color(0x00000000),
+  );
+  try {
+    final int colorArgb = payload['colorArgb'] as int? ?? 0;
+    final double hardness =
+        (payload['hardness'] as double? ?? 0.8).clamp(0.0, 1.0);
+    final double flow =
+        (payload['flow'] as double? ?? 1.0).clamp(0.0, 1.0);
+    final double opacity =
+        (0.25 + 0.75 * flow * (0.35 + 0.65 * hardness))
+            .clamp(0.18, 1.0);
+    final Color baseColor = Color(colorArgb);
+    final Color strokeColor = baseColor.withOpacity(
+      (baseColor.opacity * opacity).clamp(0.0, 1.0),
+    );
+    final double softness = (1.0 - hardness).clamp(0.0, 1.0);
+    final double spacing = payload['spacing'] as double? ?? 0.15;
+    final double scatter = payload['scatter'] as double? ?? 0.0;
+    final bool randomRotation =
+        payload['randomRotation'] as bool? ?? false;
+    final bool smoothRotation =
+        payload['smoothRotation'] as bool? ?? false;
+    final double rotationJitter =
+        payload['rotationJitter'] as double? ?? 0.0;
+    final int antialias = payload['antialias'] as int? ?? 0;
+    final bool snapToPixel = payload['snapToPixel'] as bool? ?? false;
+    final int shapeIndex = payload['shapeIndex'] as int? ?? 0;
+    final BrushShape shape = _resolveBrushShape(shapeIndex);
+    final bool screentoneEnabled =
+        payload['screentoneEnabled'] as bool? ?? false;
+    final double screentoneSpacing =
+        payload['screentoneSpacing'] as double? ?? 10.0;
+    final double screentoneDotSize =
+        payload['screentoneDotSize'] as double? ?? 0.6;
+    final double screentoneRotation =
+        payload['screentoneRotation'] as double? ?? 45.0;
+    final double screentoneSoftness =
+        payload['screentoneSoftness'] as double? ?? 0.0;
+    final int screentoneShapeIndex =
+        payload['screentoneShapeIndex'] as int? ?? 0;
+    final BrushShape screentoneShape =
+        _resolveBrushShape(screentoneShapeIndex);
+    final bool hollowEnabled =
+        payload['hollowEnabled'] as bool? ?? false;
+    final double hollowRatio =
+        payload['hollowRatio'] as double? ?? 0.0;
+    final int rotationSeed = payload['rotationSeed'] as int? ?? 0;
+
+    _drawStrokeSegments(
+      surface: surface,
+      samples: samples,
+      shape: shape,
+      scatter: scatter,
+      randomRotation: randomRotation,
+      smoothRotation: smoothRotation,
+      rotationJitter: rotationJitter,
+      snapToPixel: snapToPixel,
+      screentoneEnabled: screentoneEnabled,
+      screentoneSpacing: screentoneSpacing,
+      screentoneDotSize: screentoneDotSize,
+      screentoneRotation: screentoneRotation,
+      screentoneSoftness: screentoneSoftness,
+      screentoneShape: screentoneShape,
+      color: strokeColor,
+      softness: softness,
+      antialias: antialias,
+      spacing: spacing,
+      rotationSeed: rotationSeed,
+      erase: false,
+      radiusScale: 1.0,
+      customShape: customShape,
+    );
+
+    if (hollowEnabled && hollowRatio > 0.0001) {
+      _drawStrokeSegments(
+        surface: surface,
+        samples: samples,
+        shape: shape,
+        scatter: scatter,
+        randomRotation: randomRotation,
+        smoothRotation: smoothRotation,
+        rotationJitter: rotationJitter,
+        snapToPixel: snapToPixel,
+        screentoneEnabled: screentoneEnabled,
+        screentoneSpacing: screentoneSpacing,
+        screentoneDotSize: screentoneDotSize,
+        screentoneRotation: screentoneRotation,
+        screentoneSoftness: screentoneSoftness,
+        screentoneShape: screentoneShape,
+        color: strokeColor,
+        softness: softness,
+        antialias: antialias,
+        spacing: spacing,
+        rotationSeed: rotationSeed,
+        erase: true,
+        radiusScale: hollowRatio.clamp(0.0, 1.0),
+        customShape: customShape,
+      );
+    }
+
+    if (surface.isClean) {
+      return <String, Object?>{'width': width, 'height': height, 'pixels': null};
+    }
+    final Uint8List rgba = _argbToRgba(surface.pixels);
+    return <String, Object?>{
+      'width': width,
+      'height': height,
+      'pixels': TransferableTypedData.fromList(<Uint8List>[rgba]),
+    };
+  } finally {
+    surface.dispose();
+  }
+}
+
+BrushShapeRaster? _decodeCustomMaskRaster(
+  TransferableTypedData? data,
+  int width,
+  int height,
+) {
+  if (data == null || width <= 0 || height <= 0) {
+    return null;
+  }
+  final ByteBuffer buffer = data.materialize();
+  final Uint8List packed = buffer.asUint8List();
+  final int count = width * height;
+  if (count <= 0 || packed.length < count * 2) {
+    return null;
+  }
+  final Uint8List alpha = Uint8List(count);
+  final Uint8List softAlpha = Uint8List(count);
+  int index = 0;
+  for (int i = 0; i < count; i++) {
+    alpha[i] = packed[index++];
+    softAlpha[i] = packed[index++];
+  }
+  return BrushShapeRaster(
+    id: 'preview_custom',
+    width: width,
+    height: height,
+    alpha: alpha,
+    softAlpha: softAlpha,
+  );
+}
+
+BrushShape _resolveBrushShape(int index) {
+  if (index < 0 || index >= BrushShape.values.length) {
+    return BrushShape.circle;
+  }
+  return BrushShape.values[index];
 }
 
 class _BrushPresetStrokeFallbackPainter extends CustomPainter {
