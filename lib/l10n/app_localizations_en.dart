@@ -172,6 +172,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsTitle => 'Settings';
 
   @override
+  String get settingsTabGeneral => 'General';
+
+  @override
+  String get settingsTabInput => 'Input & Brushes';
+
+  @override
+  String get settingsTabStorage => 'History & Storage';
+
+  @override
+  String get settingsTabAbout => 'About';
+
+  @override
   String get tabletTest => 'Tablet Test';
 
   @override
@@ -1133,6 +1145,84 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get screentoneSoftness => 'Dot Softness';
+
+  @override
+  String get brushBristleSection => 'Bristle';
+
+  @override
+  String get bristleEnabled => 'Enable Bristles';
+
+  @override
+  String get bristleDensity => 'Bristle Density';
+
+  @override
+  String get bristleRandom => 'Random Offset';
+
+  @override
+  String get bristleScale => 'Bristle Scale';
+
+  @override
+  String get bristleShear => 'Bristle Shear';
+
+  @override
+  String get bristleThreshold => 'Bristle Threshold';
+
+  @override
+  String get bristleConnected => 'Connect Bristles';
+
+  @override
+  String get bristleUsePressure => 'Use Pressure';
+
+  @override
+  String get bristleAntialias => 'Bristle Anti-aliasing';
+
+  @override
+  String get bristleUseCompositing => 'Composite Bristles';
+
+  @override
+  String get brushInkSection => 'Ink';
+
+  @override
+  String get inkDepletionEnabled => 'Ink Depletion';
+
+  @override
+  String get inkAmount => 'Ink Amount';
+
+  @override
+  String get inkDepletionStrength => 'Ink Depletion Strength';
+
+  @override
+  String get inkUseOpacity => 'Use Opacity';
+
+  @override
+  String get inkUseSaturation => 'Use Saturation';
+
+  @override
+  String get inkUseWeights => 'Use Weights';
+
+  @override
+  String get inkPressureWeight => 'Pressure Weight';
+
+  @override
+  String get inkBristleLengthWeight => 'Bristle Length Weight';
+
+  @override
+  String get inkBristleInkAmountWeight => 'Bristle Ink Weight';
+
+  @override
+  String get inkDepletionWeight => 'Depletion Weight';
+
+  @override
+  String get inkUseSoak => 'Soak Ink';
+
+  @override
+  String get inkDepletionCurve => 'Ink Depletion Curve';
+
+  @override
+  String get inkCurvePoint => 'Curve Point';
+
+  @override
+  String get inkCurveReset => 'Reset Curve';
 
   @override
   String get brushShape => 'Brush Shape';

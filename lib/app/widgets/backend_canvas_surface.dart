@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -326,6 +327,28 @@ class BackendCanvasSurface extends StatefulWidget {
     required this.brushScreentoneRotation,
     required this.brushScreentoneSoftness,
     required this.brushScreentoneShape,
+    required this.brushBristleEnabled,
+    required this.brushBristleDensity,
+    required this.brushBristleRandom,
+    required this.brushBristleScale,
+    required this.brushBristleShear,
+    required this.brushBristleThreshold,
+    required this.brushBristleConnected,
+    required this.brushBristleUsePressure,
+    required this.brushBristleAntialias,
+    required this.brushBristleUseCompositing,
+    required this.brushInkAmount,
+    required this.brushInkDepletion,
+    required this.brushInkUseOpacity,
+    required this.brushInkDepletionEnabled,
+    required this.brushInkUseSaturation,
+    required this.brushInkUseWeights,
+    required this.brushInkPressureWeight,
+    required this.brushInkBristleLengthWeight,
+    required this.brushInkBristleInkAmountWeight,
+    required this.brushInkDepletionWeight,
+    required this.brushInkUseSoak,
+    required this.brushInkDepletionCurve,
     this.hollowStrokeEnabled = false,
     this.hollowStrokeRatio = 0.0,
     this.hollowStrokeEraseOccludedParts = false,
@@ -393,6 +416,28 @@ class BackendCanvasSurface extends StatefulWidget {
   final double brushScreentoneRotation;
   final double brushScreentoneSoftness;
   final BrushShape brushScreentoneShape;
+  final bool brushBristleEnabled;
+  final double brushBristleDensity;
+  final double brushBristleRandom;
+  final double brushBristleScale;
+  final double brushBristleShear;
+  final bool brushBristleThreshold;
+  final bool brushBristleConnected;
+  final bool brushBristleUsePressure;
+  final bool brushBristleAntialias;
+  final bool brushBristleUseCompositing;
+  final double brushInkAmount;
+  final double brushInkDepletion;
+  final bool brushInkUseOpacity;
+  final bool brushInkDepletionEnabled;
+  final bool brushInkUseSaturation;
+  final bool brushInkUseWeights;
+  final double brushInkPressureWeight;
+  final double brushInkBristleLengthWeight;
+  final double brushInkBristleInkAmountWeight;
+  final double brushInkDepletionWeight;
+  final bool brushInkUseSoak;
+  final List<double> brushInkDepletionCurve;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
   final bool hollowStrokeEraseOccludedParts;
@@ -500,6 +545,45 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
                 .abs() >
             1e-6 ||
         oldWidget.brushScreentoneShape != widget.brushScreentoneShape ||
+        oldWidget.brushBristleEnabled != widget.brushBristleEnabled ||
+        (oldWidget.brushBristleDensity - widget.brushBristleDensity).abs() >
+            1e-6 ||
+        (oldWidget.brushBristleRandom - widget.brushBristleRandom).abs() >
+            1e-6 ||
+        (oldWidget.brushBristleScale - widget.brushBristleScale).abs() > 1e-6 ||
+        (oldWidget.brushBristleShear - widget.brushBristleShear).abs() > 1e-6 ||
+        oldWidget.brushBristleThreshold != widget.brushBristleThreshold ||
+        oldWidget.brushBristleConnected != widget.brushBristleConnected ||
+        oldWidget.brushBristleUsePressure != widget.brushBristleUsePressure ||
+        oldWidget.brushBristleAntialias != widget.brushBristleAntialias ||
+        oldWidget.brushBristleUseCompositing !=
+            widget.brushBristleUseCompositing ||
+        (oldWidget.brushInkAmount - widget.brushInkAmount).abs() > 1e-6 ||
+        (oldWidget.brushInkDepletion - widget.brushInkDepletion).abs() > 1e-6 ||
+        oldWidget.brushInkUseOpacity != widget.brushInkUseOpacity ||
+        oldWidget.brushInkDepletionEnabled !=
+            widget.brushInkDepletionEnabled ||
+        oldWidget.brushInkUseSaturation != widget.brushInkUseSaturation ||
+        oldWidget.brushInkUseWeights != widget.brushInkUseWeights ||
+        (oldWidget.brushInkPressureWeight - widget.brushInkPressureWeight)
+                .abs() >
+            1e-6 ||
+        (oldWidget.brushInkBristleLengthWeight -
+                    widget.brushInkBristleLengthWeight)
+                .abs() >
+            1e-6 ||
+        (oldWidget.brushInkBristleInkAmountWeight -
+                    widget.brushInkBristleInkAmountWeight)
+                .abs() >
+            1e-6 ||
+        (oldWidget.brushInkDepletionWeight - widget.brushInkDepletionWeight)
+                .abs() >
+            1e-6 ||
+        oldWidget.brushInkUseSoak != widget.brushInkUseSoak ||
+        !listEquals(
+          oldWidget.brushInkDepletionCurve,
+          widget.brushInkDepletionCurve,
+        ) ||
         oldWidget.hollowStrokeEnabled != widget.hollowStrokeEnabled ||
         (oldWidget.hollowStrokeRatio - widget.hollowStrokeRatio).abs() > 1e-6 ||
         oldWidget.hollowStrokeEraseOccludedParts !=
@@ -767,9 +851,34 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
       hollow: widget.hollowStrokeEnabled,
       hollowRatio: widget.hollowStrokeRatio,
       hollowEraseOccludedParts: widget.hollowStrokeEraseOccludedParts,
+      bristleEnabled: widget.brushBristleEnabled,
+      bristleDensity: widget.brushBristleDensity,
+      bristleRandom: widget.brushBristleRandom,
+      bristleScale: widget.brushBristleScale,
+      bristleShear: widget.brushBristleShear,
+      bristleThreshold: widget.brushBristleThreshold,
+      bristleConnected: widget.brushBristleConnected,
+      bristleUsePressure: widget.brushBristleUsePressure,
+      bristleAntialias: widget.brushBristleAntialias,
+      bristleUseCompositing: widget.brushBristleUseCompositing,
+      inkAmount: widget.brushInkAmount,
+      inkDepletion: widget.brushInkDepletion,
+      inkUseOpacity: widget.brushInkUseOpacity,
+      inkDepletionEnabled: widget.brushInkDepletionEnabled,
+      inkUseSaturation: widget.brushInkUseSaturation,
+      inkUseWeights: widget.brushInkUseWeights,
+      inkPressureWeight: widget.brushInkPressureWeight,
+      inkBristleLengthWeight: widget.brushInkBristleLengthWeight,
+      inkBristleInkAmountWeight: widget.brushInkBristleInkAmountWeight,
+      inkDepletionWeight: widget.brushInkDepletionWeight,
+      inkUseSoak: widget.brushInkUseSoak,
       streamlineStrength: widget.streamlineStrength,
       smoothingMode: smoothingMode,
       stabilizerStrength: stabilizer,
+    );
+    CanvasBackendFacade.instance.setInkCurve(
+      handle: handle,
+      curve: widget.brushInkDepletionCurve,
     );
   }
 

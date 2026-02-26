@@ -368,6 +368,30 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get settingsTitle;
 
+  /// No description provided for @settingsTabGeneral.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get settingsTabGeneral;
+
+  /// No description provided for @settingsTabInput.
+  ///
+  /// In en, this message translates to:
+  /// **'Input & Brushes'**
+  String get settingsTabInput;
+
+  /// No description provided for @settingsTabStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'History & Storage'**
+  String get settingsTabStorage;
+
+  /// No description provided for @settingsTabAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get settingsTabAbout;
+
   /// No description provided for @tabletTest.
   ///
   /// In en, this message translates to:
@@ -2161,6 +2185,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Dot Softness'**
   String get screentoneSoftness;
+
+  /// No description provided for @brushBristleSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Bristle'**
+  String get brushBristleSection;
+
+  /// No description provided for @bristleEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Bristles'**
+  String get bristleEnabled;
+
+  /// No description provided for @bristleDensity.
+  ///
+  /// In en, this message translates to:
+  /// **'Bristle Density'**
+  String get bristleDensity;
+
+  /// No description provided for @bristleRandom.
+  ///
+  /// In en, this message translates to:
+  /// **'Random Offset'**
+  String get bristleRandom;
+
+  /// No description provided for @bristleScale.
+  ///
+  /// In en, this message translates to:
+  /// **'Bristle Scale'**
+  String get bristleScale;
+
+  /// No description provided for @bristleShear.
+  ///
+  /// In en, this message translates to:
+  /// **'Bristle Shear'**
+  String get bristleShear;
+
+  /// No description provided for @bristleThreshold.
+  ///
+  /// In en, this message translates to:
+  /// **'Bristle Threshold'**
+  String get bristleThreshold;
+
+  /// No description provided for @bristleConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Bristles'**
+  String get bristleConnected;
+
+  /// No description provided for @bristleUsePressure.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Pressure'**
+  String get bristleUsePressure;
+
+  /// No description provided for @bristleAntialias.
+  ///
+  /// In en, this message translates to:
+  /// **'Bristle Anti-aliasing'**
+  String get bristleAntialias;
+
+  /// No description provided for @bristleUseCompositing.
+  ///
+  /// In en, this message translates to:
+  /// **'Composite Bristles'**
+  String get bristleUseCompositing;
+
+  /// No description provided for @brushInkSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Ink'**
+  String get brushInkSection;
+
+  /// No description provided for @inkDepletionEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Ink Depletion'**
+  String get inkDepletionEnabled;
+
+  /// No description provided for @inkAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Ink Amount'**
+  String get inkAmount;
+
+  /// No description provided for @inkDepletionStrength.
+  ///
+  /// In en, this message translates to:
+  /// **'Ink Depletion Strength'**
+  String get inkDepletionStrength;
+
+  /// No description provided for @inkUseOpacity.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Opacity'**
+  String get inkUseOpacity;
+
+  /// No description provided for @inkUseSaturation.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Saturation'**
+  String get inkUseSaturation;
+
+  /// No description provided for @inkUseWeights.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Weights'**
+  String get inkUseWeights;
+
+  /// No description provided for @inkPressureWeight.
+  ///
+  /// In en, this message translates to:
+  /// **'Pressure Weight'**
+  String get inkPressureWeight;
+
+  /// No description provided for @inkBristleLengthWeight.
+  ///
+  /// In en, this message translates to:
+  /// **'Bristle Length Weight'**
+  String get inkBristleLengthWeight;
+
+  /// No description provided for @inkBristleInkAmountWeight.
+  ///
+  /// In en, this message translates to:
+  /// **'Bristle Ink Weight'**
+  String get inkBristleInkAmountWeight;
+
+  /// No description provided for @inkDepletionWeight.
+  ///
+  /// In en, this message translates to:
+  /// **'Depletion Weight'**
+  String get inkDepletionWeight;
+
+  /// No description provided for @inkUseSoak.
+  ///
+  /// In en, this message translates to:
+  /// **'Soak Ink'**
+  String get inkUseSoak;
+
+  /// No description provided for @inkDepletionCurve.
+  ///
+  /// In en, this message translates to:
+  /// **'Ink Depletion Curve'**
+  String get inkDepletionCurve;
+
+  /// No description provided for @inkCurvePoint.
+  ///
+  /// In en, this message translates to:
+  /// **'Curve Point'**
+  String get inkCurvePoint;
+
+  /// No description provided for @inkCurveReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Curve'**
+  String get inkCurveReset;
 
   /// No description provided for @brushShape.
   ///

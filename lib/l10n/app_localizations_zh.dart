@@ -164,6 +164,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsTitle => '设置';
 
   @override
+  String get settingsTabGeneral => '常规';
+
+  @override
+  String get settingsTabInput => '输入与笔刷';
+
+  @override
+  String get settingsTabStorage => '历史与存储';
+
+  @override
+  String get settingsTabAbout => '关于';
+
+  @override
   String get tabletTest => '数位板测试';
 
   @override
@@ -1104,6 +1116,84 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get screentoneSoftness => '网点柔化';
+
+  @override
+  String get brushBristleSection => '毛束设置';
+
+  @override
+  String get bristleEnabled => '启用毛束';
+
+  @override
+  String get bristleDensity => '毛束密度';
+
+  @override
+  String get bristleRandom => '随机偏移';
+
+  @override
+  String get bristleScale => '毛束缩放';
+
+  @override
+  String get bristleShear => '毛束剪切';
+
+  @override
+  String get bristleThreshold => '毛束阈值';
+
+  @override
+  String get bristleConnected => '连笔毛束';
+
+  @override
+  String get bristleUsePressure => '使用压力';
+
+  @override
+  String get bristleAntialias => '毛束抗锯齿';
+
+  @override
+  String get bristleUseCompositing => '毛束合成';
+
+  @override
+  String get brushInkSection => '墨量';
+
+  @override
+  String get inkDepletionEnabled => '墨量衰减';
+
+  @override
+  String get inkAmount => '墨量';
+
+  @override
+  String get inkDepletionStrength => '衰减强度';
+
+  @override
+  String get inkUseOpacity => '使用不透明度';
+
+  @override
+  String get inkUseSaturation => '使用饱和度';
+
+  @override
+  String get inkUseWeights => '使用权重';
+
+  @override
+  String get inkPressureWeight => '压力权重';
+
+  @override
+  String get inkBristleLengthWeight => '毛束长度权重';
+
+  @override
+  String get inkBristleInkAmountWeight => '毛束墨量权重';
+
+  @override
+  String get inkDepletionWeight => '衰减权重';
+
+  @override
+  String get inkUseSoak => '蘸色';
+
+  @override
+  String get inkDepletionCurve => '衰减曲线';
+
+  @override
+  String get inkCurvePoint => '曲线点';
+
+  @override
+  String get inkCurveReset => '重置曲线';
 
   @override
   String get brushShape => '笔刷形状';
@@ -2355,6 +2445,18 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get settingsTitle => '设置';
 
   @override
+  String get settingsTabGeneral => '常规';
+
+  @override
+  String get settingsTabInput => '输入与笔刷';
+
+  @override
+  String get settingsTabStorage => '历史与存储';
+
+  @override
+  String get settingsTabAbout => '关于';
+
+  @override
   String get tabletTest => '数位板测试';
 
   @override
@@ -2882,6 +2984,84 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get screentoneSoftness => '网点柔化';
 
   @override
+  String get brushBristleSection => '毛束设置';
+
+  @override
+  String get bristleEnabled => '启用毛束';
+
+  @override
+  String get bristleDensity => '毛束密度';
+
+  @override
+  String get bristleRandom => '随机偏移';
+
+  @override
+  String get bristleScale => '毛束缩放';
+
+  @override
+  String get bristleShear => '毛束剪切';
+
+  @override
+  String get bristleThreshold => '毛束阈值';
+
+  @override
+  String get bristleConnected => '连笔毛束';
+
+  @override
+  String get bristleUsePressure => '使用压力';
+
+  @override
+  String get bristleAntialias => '毛束抗锯齿';
+
+  @override
+  String get bristleUseCompositing => '毛束合成';
+
+  @override
+  String get brushInkSection => '墨量';
+
+  @override
+  String get inkDepletionEnabled => '墨量衰减';
+
+  @override
+  String get inkAmount => '墨量';
+
+  @override
+  String get inkDepletionStrength => '衰减强度';
+
+  @override
+  String get inkUseOpacity => '使用不透明度';
+
+  @override
+  String get inkUseSaturation => '使用饱和度';
+
+  @override
+  String get inkUseWeights => '使用权重';
+
+  @override
+  String get inkPressureWeight => '压力权重';
+
+  @override
+  String get inkBristleLengthWeight => '毛束长度权重';
+
+  @override
+  String get inkBristleInkAmountWeight => '毛束墨量权重';
+
+  @override
+  String get inkDepletionWeight => '衰减权重';
+
+  @override
+  String get inkUseSoak => '蘸色';
+
+  @override
+  String get inkDepletionCurve => '衰减曲线';
+
+  @override
+  String get inkCurvePoint => '曲线点';
+
+  @override
+  String get inkCurveReset => '重置曲线';
+
+  @override
   String get brushAuthorLabel => '作者';
 
   @override
@@ -3390,6 +3570,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get settingsTitle => '設定';
 
   @override
+  String get settingsTabGeneral => '常規';
+
+  @override
+  String get settingsTabInput => '輸入與筆刷';
+
+  @override
+  String get settingsTabStorage => '歷史與儲存';
+
+  @override
+  String get settingsTabAbout => '關於';
+
+  @override
   String get tabletTest => '數位板測試';
 
   @override
@@ -3894,6 +4086,84 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get screentoneSoftness => '網點柔化';
+
+  @override
+  String get brushBristleSection => '毛束設定';
+
+  @override
+  String get bristleEnabled => '啟用毛束';
+
+  @override
+  String get bristleDensity => '毛束密度';
+
+  @override
+  String get bristleRandom => '隨機偏移';
+
+  @override
+  String get bristleScale => '毛束縮放';
+
+  @override
+  String get bristleShear => '毛束剪切';
+
+  @override
+  String get bristleThreshold => '毛束閾值';
+
+  @override
+  String get bristleConnected => '連筆毛束';
+
+  @override
+  String get bristleUsePressure => '使用壓力';
+
+  @override
+  String get bristleAntialias => '毛束抗鋸齒';
+
+  @override
+  String get bristleUseCompositing => '毛束合成';
+
+  @override
+  String get brushInkSection => '墨量';
+
+  @override
+  String get inkDepletionEnabled => '墨量衰減';
+
+  @override
+  String get inkAmount => '墨量';
+
+  @override
+  String get inkDepletionStrength => '衰減強度';
+
+  @override
+  String get inkUseOpacity => '使用不透明度';
+
+  @override
+  String get inkUseSaturation => '使用飽和度';
+
+  @override
+  String get inkUseWeights => '使用權重';
+
+  @override
+  String get inkPressureWeight => '壓力權重';
+
+  @override
+  String get inkBristleLengthWeight => '毛束長度權重';
+
+  @override
+  String get inkBristleInkAmountWeight => '毛束墨量權重';
+
+  @override
+  String get inkDepletionWeight => '衰減權重';
+
+  @override
+  String get inkUseSoak => '蘸色';
+
+  @override
+  String get inkDepletionCurve => '衰減曲線';
+
+  @override
+  String get inkCurvePoint => '曲線點';
+
+  @override
+  String get inkCurveReset => '重置曲線';
 
   @override
   String get brushAuthorLabel => '作者';

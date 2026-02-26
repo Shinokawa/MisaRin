@@ -45,8 +45,10 @@ struct ShaderStrokePoint {
     pos: [f32; 2],
     radius: f32,
     alpha: f32,
+    sat: f32,
     rot_sin: f32,
     rot_cos: f32,
+    pad: f32,
 }
 
 #[repr(C)]
@@ -61,6 +63,7 @@ struct BrushShaderConfig {
     point_count: u32,
     brush_shape: u32,
     erase_mode: u32,
+    composite_mode: u32,
     antialias_level: u32,
     color_argb: u32,
     softness: f32,
@@ -675,6 +678,7 @@ impl BrushRenderer {
             radii,
             None,
             None,
+            None,
             color,
             brush_shape,
             erase,
@@ -687,6 +691,7 @@ impl BrushRenderer {
             accumulate_segments,
             self.softness,
             BrushStrokeMode::Segments,
+            0,
         )
     }
 
@@ -696,6 +701,7 @@ impl BrushRenderer {
         points: &[Point2D],
         radii: &[f32],
         alphas: Option<&[f32]>,
+        saturations: Option<&[f32]>,
         point_rotations: Option<&[PointRotation]>,
         color: Color,
         brush_shape: BrushShape,
@@ -707,12 +713,14 @@ impl BrushRenderer {
         hollow_erase_occluded: bool,
         use_stroke_mask: bool,
         accumulate: bool,
+        composite_mode: u32,
     ) -> Result<(), String> {
         self.draw_stroke_internal(
             layer_view,
             points,
             radii,
             alphas,
+            saturations,
             point_rotations,
             color,
             brush_shape,
@@ -726,6 +734,7 @@ impl BrushRenderer {
             accumulate,
             softness,
             BrushStrokeMode::Points,
+            composite_mode,
         )
     }
 
@@ -735,6 +744,7 @@ impl BrushRenderer {
         points: &[Point2D],
         radii: &[f32],
         point_alphas: Option<&[f32]>,
+        point_saturations: Option<&[f32]>,
         point_rotations: Option<&[PointRotation]>,
         color: Color,
         brush_shape: BrushShape,
@@ -748,6 +758,7 @@ impl BrushRenderer {
         accumulate_segments: bool,
         softness: f32,
         stroke_mode: BrushStrokeMode,
+        composite_mode: u32,
     ) -> Result<(), String> {
         if points.is_empty() {
             return Ok(());
@@ -881,6 +892,16 @@ impl BrushRenderer {
             } else {
                 1.0
             };
+            let sat = if let Some(sats) = point_saturations {
+                let value = sats[idx];
+                if value.is_finite() {
+                    value.clamp(0.0, 2.0)
+                } else {
+                    1.0
+                }
+            } else {
+                1.0
+            };
             let (rot_sin, rot_cos) = if use_point_rotation {
                 if let Some(rotations) = point_rotations {
                     let rot = rotations[idx];
@@ -895,8 +916,10 @@ impl BrushRenderer {
                 pos: [finite_f32(p.x), finite_f32(p.y)],
                 radius,
                 alpha,
+                sat,
                 rot_sin,
                 rot_cos,
+                pad: 0.0,
             });
         }
 
@@ -918,6 +941,7 @@ impl BrushRenderer {
                 BrushShape::Star => 3,
             },
             erase_mode: if erase { 1 } else { 0 },
+            composite_mode: composite_mode.min(1),
             antialias_level: antialias_level.clamp(0, 9),
             color_argb: color.argb,
             softness,

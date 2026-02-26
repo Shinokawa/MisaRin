@@ -5,6 +5,8 @@ use crate::gpu::debug::{self, LogLevel};
 
 use super::types::EnginePoint;
 
+pub(crate) const INK_CURVE_SAMPLES: usize = 64;
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct EngineBrushSettings {
     pub(crate) color_argb: u32,
@@ -35,6 +37,28 @@ pub(crate) struct EngineBrushSettings {
     pub(crate) smoothing_mode: u8,
     pub(crate) stabilizer_strength: f32,
     pub(crate) custom_mask_enabled: bool,
+    pub(crate) bristle_enabled: bool,
+    pub(crate) bristle_density: f32,
+    pub(crate) bristle_random: f32,
+    pub(crate) bristle_scale: f32,
+    pub(crate) bristle_shear: f32,
+    pub(crate) bristle_threshold: bool,
+    pub(crate) bristle_connected: bool,
+    pub(crate) bristle_use_pressure: bool,
+    pub(crate) bristle_antialias: bool,
+    pub(crate) bristle_use_compositing: bool,
+    pub(crate) ink_amount: f32,
+    pub(crate) ink_depletion: f32,
+    pub(crate) ink_use_opacity: bool,
+    pub(crate) ink_depletion_enabled: bool,
+    pub(crate) ink_use_saturation: bool,
+    pub(crate) ink_use_weights: bool,
+    pub(crate) ink_pressure_weight: f32,
+    pub(crate) ink_bristle_length_weight: f32,
+    pub(crate) ink_bristle_ink_weight: f32,
+    pub(crate) ink_depletion_weight: f32,
+    pub(crate) ink_use_soak: bool,
+    pub(crate) ink_depletion_curve: [f32; INK_CURVE_SAMPLES],
 }
 
 impl Default for EngineBrushSettings {
@@ -68,6 +92,28 @@ impl Default for EngineBrushSettings {
             smoothing_mode: 1,
             stabilizer_strength: 0.0,
             custom_mask_enabled: false,
+            bristle_enabled: false,
+            bristle_density: 0.0,
+            bristle_random: 0.0,
+            bristle_scale: 1.0,
+            bristle_shear: 0.0,
+            bristle_threshold: false,
+            bristle_connected: false,
+            bristle_use_pressure: true,
+            bristle_antialias: false,
+            bristle_use_compositing: true,
+            ink_amount: 1.0,
+            ink_depletion: 0.0,
+            ink_use_opacity: true,
+            ink_depletion_enabled: false,
+            ink_use_saturation: false,
+            ink_use_weights: false,
+            ink_pressure_weight: 0.5,
+            ink_bristle_length_weight: 0.5,
+            ink_bristle_ink_weight: 0.5,
+            ink_depletion_weight: 0.5,
+            ink_use_soak: false,
+            ink_depletion_curve: default_ink_curve(),
         }
     }
 }
@@ -140,6 +186,48 @@ impl EngineBrushSettings {
         } else {
             self.stabilizer_strength = self.stabilizer_strength.clamp(0.0, 1.0);
         }
+        if !self.bristle_density.is_finite() {
+            self.bristle_density = 0.0;
+        } else {
+            self.bristle_density = self.bristle_density.clamp(0.0, 1.0);
+        }
+        if !self.bristle_random.is_finite() {
+            self.bristle_random = 0.0;
+        } else {
+            self.bristle_random = self.bristle_random.clamp(0.0, 10.0);
+        }
+        if !self.bristle_scale.is_finite() {
+            self.bristle_scale = 1.0;
+        } else {
+            self.bristle_scale = self.bristle_scale.clamp(0.1, 10.0);
+        }
+        if !self.bristle_shear.is_finite() {
+            self.bristle_shear = 0.0;
+        } else {
+            self.bristle_shear = self.bristle_shear.clamp(0.0, 2.0);
+        }
+        if !self.ink_amount.is_finite() {
+            self.ink_amount = 1.0;
+        } else {
+            self.ink_amount = self.ink_amount.clamp(0.0, 1.0);
+        }
+        if !self.ink_depletion.is_finite() {
+            self.ink_depletion = 0.0;
+        } else {
+            self.ink_depletion = self.ink_depletion.clamp(0.0, 1.0);
+        }
+        self.ink_pressure_weight = normalize_weight(self.ink_pressure_weight, 0.5);
+        self.ink_bristle_length_weight =
+            normalize_weight(self.ink_bristle_length_weight, 0.5);
+        self.ink_bristle_ink_weight = normalize_weight(self.ink_bristle_ink_weight, 0.5);
+        self.ink_depletion_weight = normalize_weight(self.ink_depletion_weight, 0.5);
+        for value in self.ink_depletion_curve.iter_mut() {
+            if !value.is_finite() {
+                *value = 0.0;
+            } else {
+                *value = value.clamp(0.0, 1.0);
+            }
+        }
         if self.smoothing_mode > 3 {
             self.smoothing_mode = 1;
         }
@@ -184,6 +272,36 @@ struct StrokeSample {
     timestamp_us: u64,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct Bristle {
+    offset: Point2D,
+    length: f32,
+    ink: f32,
+    counter: u32,
+    prev: Option<Point2D>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct BristleMaskSeed {
+    offset: Point2D,
+    length: f32,
+}
+
+struct BristleMask {
+    width: u32,
+    height: u32,
+    seeds: Vec<BristleMaskSeed>,
+}
+
+struct BristleState {
+    bristles: Vec<Bristle>,
+    base_radius: f32,
+    density: f32,
+    random: f32,
+    scale: f32,
+    seed: u32,
+}
+
 pub(crate) struct StreamlinePayload {
     pub(crate) points: Vec<(Point2D, f32)>,
     pub(crate) strength: f32,
@@ -204,6 +322,82 @@ const STABILIZER_SAMPLE_TIME_US: u64 = 15_000;
 const STABILIZER_DISTANCE_MAX: f32 = 50.0;
 const STABILIZER_MAX_SAMPLES: usize = 64;
 const SPEED_NORMALIZE_REF: f32 = 1.5;
+const MAX_BRISTLES: usize = 512;
+const MIN_BRISTLES: usize = 8;
+const MAX_BRISTLE_SEEDS: usize = 8192;
+const MAX_INK_SATURATION: f32 = 2.0;
+
+fn normalize_weight(value: f32, fallback: f32) -> f32 {
+    let mut v = if value.is_finite() { value } else { fallback };
+    if v > 1.0 {
+        v /= 100.0;
+    }
+    v.clamp(0.0, 1.0)
+}
+
+pub(crate) fn default_ink_curve() -> [f32; INK_CURVE_SAMPLES] {
+    let mut curve = [0.0f32; INK_CURVE_SAMPLES];
+    if INK_CURVE_SAMPLES <= 1 {
+        return curve;
+    }
+    let denom = (INK_CURVE_SAMPLES - 1) as f32;
+    for (idx, value) in curve.iter_mut().enumerate() {
+        *value = (idx as f32 / denom).clamp(0.0, 1.0);
+    }
+    curve
+}
+
+pub(crate) fn resample_ink_curve(samples: &[f32]) -> [f32; INK_CURVE_SAMPLES] {
+    if samples.is_empty() {
+        return default_ink_curve();
+    }
+    let mut curve = [0.0f32; INK_CURVE_SAMPLES];
+    if samples.len() == 1 {
+        let value = if samples[0].is_finite() {
+            samples[0].clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        for v in curve.iter_mut() {
+            *v = value;
+        }
+        return curve;
+    }
+    let last = samples.len() - 1;
+    let denom = (INK_CURVE_SAMPLES - 1).max(1) as f32;
+    for (idx, value) in curve.iter_mut().enumerate() {
+        let t = idx as f32 / denom;
+        let pos = t * last as f32;
+        let left = pos.floor() as usize;
+        let right = (left + 1).min(last);
+        let frac = pos - left as f32;
+        let a = if samples[left].is_finite() {
+            samples[left].clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let b = if samples[right].is_finite() {
+            samples[right].clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        *value = (a + (b - a) * frac).clamp(0.0, 1.0);
+    }
+    curve
+}
+
+fn sample_ink_curve(curve: &[f32; INK_CURVE_SAMPLES], idx: u32) -> f32 {
+    if INK_CURVE_SAMPLES == 0 {
+        return 0.0;
+    }
+    let index = (idx as usize).min(INK_CURVE_SAMPLES - 1);
+    let value = curve[index];
+    if value.is_finite() {
+        value.clamp(0.0, 1.0)
+    } else {
+        0.0
+    }
+}
 
 struct StabilizedSampler {
     last_time_us: Option<u64>,
@@ -458,6 +652,9 @@ pub(crate) struct StrokeResampler {
     smooth_previous: Option<StrokeSample>,
     smooth_last_raw: Option<StrokeSample>,
     stabilizer: KritaStabilizer,
+    bristle_mask: Option<BristleMask>,
+    bristle_state: Option<BristleState>,
+    soak_color: Option<u32>,
 }
 
 impl StrokeResampler {
@@ -479,6 +676,9 @@ impl StrokeResampler {
             smooth_previous: None,
             smooth_last_raw: None,
             stabilizer: KritaStabilizer::new(),
+            bristle_mask: None,
+            bristle_state: None,
+            soak_color: None,
         }
     }
 
@@ -488,6 +688,32 @@ impl StrokeResampler {
 
     pub(crate) fn last_tick_point(&self) -> Option<Point2D> {
         self.last_tick_point
+    }
+
+    pub(crate) fn set_soak_color(&mut self, color_argb: u32) {
+        self.soak_color = Some(color_argb);
+    }
+
+    pub(crate) fn clear_soak_color(&mut self) {
+        self.soak_color = None;
+    }
+
+    pub(crate) fn set_bristle_mask(&mut self, width: u32, height: u32, mask: &[u8]) {
+        self.bristle_mask = build_bristle_mask(width, height, mask);
+        self.bristle_state = None;
+    }
+
+    pub(crate) fn clear_bristle_mask(&mut self) {
+        self.bristle_mask = None;
+        self.bristle_state = None;
+    }
+
+    pub(crate) fn soak_color(&self) -> Option<u32> {
+        self.soak_color
+    }
+
+    pub(crate) fn needs_soak_color(&self) -> bool {
+        self.soak_color.is_none()
     }
 
     pub(crate) fn set_resample_scale(&mut self, scale: f32) {
@@ -546,6 +772,8 @@ impl StrokeResampler {
     fn reset_for_new_stroke(&mut self) {
         self.last_emitted = None;
         self.last_pressure = 1.0;
+        self.bristle_state = None;
+        self.soak_color = None;
         self.smooth_history.clear();
         self.smooth_distance_history.clear();
         self.smooth_have_tangent = false;
@@ -1052,6 +1280,312 @@ impl StrokeResampler {
         drawn
     }
 
+    fn ensure_bristle_state(
+        &mut self,
+        brush_settings: &EngineBrushSettings,
+        emitted: &[(Point2D, f32)],
+    ) -> Option<&mut BristleState> {
+        if !brush_settings.bristle_enabled || emitted.is_empty() {
+            self.bristle_state = None;
+            return None;
+        }
+        let base_radius = brush_settings.base_radius.max(0.01);
+        let density = brush_settings.bristle_density.clamp(0.0, 1.0);
+        let random = brush_settings.bristle_random.clamp(0.0, 10.0);
+        let scale = brush_settings.bristle_scale.clamp(0.1, 10.0);
+        let seed = brush_settings.rotation_seed ^ 0x7f4a_7c15;
+        let mask = if brush_settings.custom_mask_enabled {
+            self.bristle_mask.as_ref()
+        } else {
+            None
+        };
+        let needs_rebuild = match &self.bristle_state {
+            None => true,
+            Some(state) => {
+                (state.base_radius - base_radius).abs() > 0.01
+                    || (state.density - density).abs() > 0.001
+                    || (state.random - random).abs() > 0.001
+                    || (state.scale - scale).abs() > 0.001
+                    || state.seed != seed
+            }
+        };
+        if needs_rebuild {
+            let origin = emitted[0].0;
+            self.bristle_state = Some(build_bristle_state(origin, brush_settings, seed, mask));
+        }
+        self.bristle_state.as_mut()
+    }
+
+    fn draw_bristle_points<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32))>(
+        &mut self,
+        brush: &mut BrushRenderer,
+        brush_settings: &EngineBrushSettings,
+        layer_view: &wgpu::TextureView,
+        emitted: &[(Point2D, f32)],
+        canvas_width: u32,
+        canvas_height: u32,
+        before_draw: &mut F,
+    ) -> (bool, Option<(i32, i32, i32, i32)>) {
+        if emitted.is_empty() {
+            return (false, None);
+        }
+        let Some(state) = self.ensure_bristle_state(brush_settings, emitted) else {
+            return (false, None);
+        };
+
+        brush.set_canvas_size(canvas_width, canvas_height);
+        let softness = brush_settings.softness();
+        brush.set_softness(softness);
+        brush.set_screentone(
+            brush_settings.screentone_enabled,
+            brush_settings.screentone_spacing,
+            brush_settings.screentone_dot_size,
+            brush_settings.screentone_rotation.to_radians(),
+            brush_settings.screentone_softness,
+            brush_settings.screentone_shape,
+        );
+
+        let bristle_count = state.bristles.len().max(1);
+        let max_samples = (MAX_POINTS / bristle_count).max(1);
+        let mut downsampled: Vec<(Point2D, f32)> = Vec::new();
+        let samples: &[(Point2D, f32)] = if emitted.len() > max_samples {
+            downsampled = downsample_emitted(emitted, max_samples);
+            &downsampled
+        } else {
+            emitted
+        };
+
+        let max_per_sample = (MAX_POINTS / samples.len().max(1)).max(1);
+        let mut step = (bristle_count + max_per_sample - 1) / max_per_sample;
+        if step == 0 {
+            step = 1;
+        }
+
+        let base_radius = brush_settings.base_radius.max(0.01);
+        let ink_amount = brush_settings.ink_amount.clamp(0.0, 1.0);
+        let ink_strength = brush_settings.ink_depletion.clamp(0.0, 1.0);
+        let ink_enabled = brush_settings.ink_depletion_enabled;
+        let use_opacity = brush_settings.ink_use_opacity;
+        let use_saturation = brush_settings.ink_use_saturation && ink_enabled;
+        let use_weights = brush_settings.ink_use_weights && ink_enabled;
+        let weight_pressure = brush_settings.ink_pressure_weight;
+        let weight_length = brush_settings.ink_bristle_length_weight;
+        let weight_ink = brush_settings.ink_bristle_ink_weight;
+        let weight_depletion = brush_settings.ink_depletion_weight;
+        let step_len = (base_radius * 0.15).max(0.5);
+        let active_bristles = (state.bristles.len() + step - 1) / step;
+        let max_steps_per_bristle = (MAX_POINTS / samples.len().max(1) / active_bristles.max(1))
+            .max(1);
+
+        let mut points: Vec<Point2D> = Vec::new();
+        let mut radii: Vec<f32> = Vec::new();
+        let mut alphas: Vec<f32> = Vec::new();
+        let mut sats: Vec<f32> = Vec::new();
+
+        'outer: for (sample_idx, (point, pressure)) in samples.iter().enumerate() {
+            let angle = if sample_idx + 1 < samples.len() {
+                let next = samples[sample_idx + 1].0;
+                (next.y - point.y).atan2(next.x - point.x)
+            } else if sample_idx > 0 {
+                let prev = samples[sample_idx - 1].0;
+                (point.y - prev.y).atan2(point.x - prev.x)
+            } else {
+                0.0
+            };
+            let (sin, cos) = angle.sin_cos();
+            let mut pressure_value = if brush_settings.bristle_use_pressure {
+                *pressure
+            } else {
+                1.0
+            };
+            if !pressure_value.is_finite() {
+                pressure_value = 1.0;
+            }
+            pressure_value = pressure_value.clamp(0.0, 1.0);
+            let threshold = (1.0 - pressure_value).clamp(0.0, 1.0);
+            for idx in (0..state.bristles.len()).step_by(step) {
+                let bristle = &mut state.bristles[idx];
+                if brush_settings.bristle_threshold && bristle.length < threshold {
+                    bristle.prev = None;
+                    continue;
+                }
+                let mut ox = bristle.offset.x * brush_settings.bristle_scale;
+                let mut oy = bristle.offset.y * brush_settings.bristle_scale;
+                let rot_x = ox * cos - oy * sin;
+                let rot_y = ox * sin + oy * cos;
+                let shear = brush_settings.bristle_shear * pressure_value;
+                ox = rot_x + rot_y * shear;
+                oy = rot_y + rot_x * shear;
+                let jitter = if brush_settings.bristle_random > 0.0001 {
+                    brush_scatter_offset(
+                        *point,
+                        state.seed,
+                        base_radius * brush_settings.bristle_random,
+                        (sample_idx as u32).wrapping_add(idx as u32 * 17),
+                    )
+                } else {
+                    Point2D { x: 0.0, y: 0.0 }
+                };
+                let pos = Point2D {
+                    x: point.x + ox + jitter.x,
+                    y: point.y + oy + jitter.y,
+                };
+                let start = if brush_settings.bristle_connected {
+                    bristle.prev.unwrap_or(pos)
+                } else {
+                    pos
+                };
+                let dist = point_distance(start, pos).max(0.0);
+                let mut steps = if brush_settings.bristle_connected {
+                    ((dist / step_len).ceil() as usize).max(1)
+                } else {
+                    1
+                };
+                if steps > max_steps_per_bristle {
+                    steps = max_steps_per_bristle;
+                }
+                for step_idx in 0..steps {
+                    if points.len() >= MAX_POINTS {
+                        break 'outer;
+                    }
+                    let t = if steps == 1 {
+                        1.0
+                    } else {
+                        (step_idx + 1) as f32 / steps as f32
+                    };
+                    let pos_step = Point2D {
+                        x: start.x + (pos.x - start.x) * t,
+                        y: start.y + (pos.y - start.y) * t,
+                    };
+                    let mut ink_depletion = 0.0;
+                    let mut ink_level = ink_amount;
+                    if ink_enabled {
+                        let curve_value =
+                            sample_ink_curve(&brush_settings.ink_depletion_curve, bristle.counter);
+                        ink_depletion = (curve_value * ink_strength).clamp(0.0, 1.0);
+                        ink_level = (ink_amount * (1.0 - ink_depletion)).clamp(0.0, 1.0);
+                    }
+                    bristle.ink = ink_level;
+                    let mut weighted = 0.0;
+                    if use_weights {
+                        weighted = pressure_value * weight_pressure
+                            + bristle.length * weight_length
+                            + ink_level * weight_ink
+                            + (1.0 - ink_depletion) * weight_depletion;
+                    }
+                    let mut alpha = if use_opacity {
+                        if ink_enabled {
+                            if use_weights {
+                                weighted
+                            } else {
+                                bristle.length * ink_level
+                            }
+                        } else {
+                            bristle.length
+                        }
+                    } else {
+                        1.0
+                    };
+                    if !alpha.is_finite() {
+                        alpha = 0.0;
+                    }
+                    alpha = alpha.clamp(0.0, 1.0);
+                    if alpha <= 0.0005 {
+                        bristle.counter = bristle.counter.saturating_add(1);
+                        continue;
+                    }
+                    let mut sat = 1.0;
+                    if use_saturation {
+                        if use_weights {
+                            sat = weighted.clamp(0.0, MAX_INK_SATURATION);
+                        } else {
+                            sat =
+                                (pressure_value * bristle.length * ink_level * (1.0 - ink_depletion))
+                                    .clamp(0.0, MAX_INK_SATURATION);
+                        }
+                    }
+                    let radius = (base_radius * 0.12 * (0.3 + 0.7 * bristle.length)).max(0.05);
+                    points.push(pos_step);
+                    radii.push(radius);
+                    alphas.push(alpha);
+                    sats.push(sat);
+                    bristle.counter = bristle.counter.saturating_add(1);
+                }
+                bristle.prev = Some(pos);
+                if !brush_settings.bristle_connected {
+                    bristle.prev = None;
+                }
+            }
+        }
+
+        if points.is_empty() {
+            return (false, None);
+        }
+
+        let dirty_scale = if softness > 0.0001 { 1.0 + softness } else { 1.0 };
+        let dirty_radii: Vec<f32> = radii.iter().map(|r| r * dirty_scale).collect();
+        let dirty = compute_dirty_rect_i32(&points, &dirty_radii, canvas_width, canvas_height);
+        before_draw(brush, dirty);
+
+        let color_argb = if brush_settings.ink_use_soak {
+            self.soak_color.unwrap_or(brush_settings.color_argb)
+        } else {
+            brush_settings.color_argb
+        };
+        let color = Color { argb: color_argb };
+        let mut start = 0usize;
+        let mut any_drawn = false;
+        while start < points.len() {
+            let end = (start + MAX_POINTS).min(points.len());
+            let pts = &points[start..end];
+            let rs = &radii[start..end];
+            let alpha_slice = &alphas[start..end];
+            let sat_slice = &sats[start..end];
+            match brush.draw_points(
+                layer_view,
+                pts,
+                rs,
+                Some(alpha_slice),
+                Some(sat_slice),
+                None,
+                color,
+                brush_settings.shape,
+                brush_settings.erase,
+                if brush_settings.bristle_antialias {
+                    brush_settings.antialias_level
+                } else {
+                    0
+                },
+                softness,
+                brush_settings.hollow_enabled,
+                brush_settings.hollow_ratio,
+                brush_settings.hollow_erase_occluded,
+                brush_settings.hollow_enabled,
+                true,
+                if brush_settings.bristle_use_compositing || brush_settings.bristle_antialias {
+                    0
+                } else {
+                    1
+                },
+            ) {
+                Ok(()) => {
+                    any_drawn = true;
+                }
+                Err(err) => {
+                    debug::log(
+                        LogLevel::Warn,
+                        format_args!("Bristle draw_points failed: {err}"),
+                    );
+                }
+            }
+            start = end;
+        }
+        if any_drawn {
+            return (true, Some(dirty));
+        }
+        (false, None)
+    }
+
     pub(crate) fn draw_emitted_points<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32))>(
         &mut self,
         brush: &mut BrushRenderer,
@@ -1063,15 +1597,27 @@ impl StrokeResampler {
         before_draw: &mut F,
     ) -> bool {
         self.last_tick_point = emitted.last().map(|(point, _)| *point);
-        let (drew_any, dirty_union) = draw_emitted_points_internal(
-            brush,
-            brush_settings,
-            layer_view,
-            emitted,
-            canvas_width,
-            canvas_height,
-            before_draw,
-        );
+        let (drew_any, dirty_union) = if brush_settings.bristle_enabled {
+            self.draw_bristle_points(
+                brush,
+                brush_settings,
+                layer_view,
+                emitted,
+                canvas_width,
+                canvas_height,
+                before_draw,
+            )
+        } else {
+            draw_emitted_points_internal(
+                brush,
+                brush_settings,
+                layer_view,
+                emitted,
+                canvas_width,
+                canvas_height,
+                before_draw,
+            )
+        };
         self.last_tick_dirty = dirty_union;
         if !drew_any {
             self.last_tick_point = None;
@@ -1174,6 +1720,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
                 pts,
                 rs,
                 None,
+                None,
                 rot_slice,
                 color,
                 brush_settings.shape,
@@ -1185,6 +1732,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
                 hollow_erase,
                 hollow_enabled,
                 true,
+                0,
             ) {
                 Ok(()) => {
                     any_drawn = true;
@@ -1435,6 +1983,174 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
     }
 
     (drew_any, dirty_union)
+}
+
+fn build_bristle_state(
+    origin: Point2D,
+    brush_settings: &EngineBrushSettings,
+    seed: u32,
+    mask: Option<&BristleMask>,
+) -> BristleState {
+    let base_radius = brush_settings.base_radius.max(0.01);
+    let density = brush_settings.bristle_density.clamp(0.0, 1.0);
+    let random = brush_settings.bristle_random.clamp(0.0, 10.0);
+    let scale = brush_settings.bristle_scale.clamp(0.1, 10.0);
+    if let Some(mask) = mask {
+        if let Some(bristles) = build_bristles_from_mask(mask, brush_settings, seed, base_radius) {
+            return BristleState {
+                bristles,
+                base_radius,
+                density,
+                random,
+                scale,
+                seed,
+            };
+        }
+    }
+    let area = std::f32::consts::PI * base_radius * base_radius;
+    let mut count = (area * density * 0.35).round() as usize;
+    if count < MIN_BRISTLES {
+        count = MIN_BRISTLES;
+    }
+    if count > MAX_BRISTLES {
+        count = MAX_BRISTLES;
+    }
+    let mut bristles: Vec<Bristle> = Vec::with_capacity(count);
+    for i in 0..count {
+        let offset = brush_scatter_offset(origin, seed, base_radius, i as u32);
+        let length = brush_random_unit(origin, seed, (i as u32).wrapping_add(0x9e37_79b9))
+            .clamp(0.0, 1.0);
+        bristles.push(Bristle {
+            offset,
+            length,
+            ink: brush_settings.ink_amount.clamp(0.0, 1.0),
+            counter: 0,
+            prev: None,
+        });
+    }
+    BristleState {
+        bristles,
+        base_radius,
+        density,
+        random,
+        scale,
+        seed,
+    }
+}
+
+fn build_bristle_mask(width: u32, height: u32, mask: &[u8]) -> Option<BristleMask> {
+    if width == 0 || height == 0 {
+        return None;
+    }
+    let expected = width as usize * height as usize * 2;
+    if mask.len() < expected {
+        return None;
+    }
+    let denom_x = if width > 1 { (width - 1) as f32 } else { 1.0 };
+    let denom_y = if height > 1 { (height - 1) as f32 } else { 1.0 };
+    let mut seeds: Vec<BristleMaskSeed> = Vec::new();
+    for y in 0..height {
+        let fy = if height > 1 {
+            y as f32 / denom_y
+        } else {
+            0.5
+        };
+        let ny = (fy - 0.5) * 2.0;
+        for x in 0..width {
+            let idx = ((y * width + x) * 2) as usize;
+            let alpha = mask[idx];
+            if alpha == 0 {
+                continue;
+            }
+            let fx = if width > 1 {
+                x as f32 / denom_x
+            } else {
+                0.5
+            };
+            let nx = (fx - 0.5) * 2.0;
+            let length = (alpha as f32 / 255.0).clamp(0.0, 1.0);
+            seeds.push(BristleMaskSeed {
+                offset: Point2D { x: nx, y: ny },
+                length,
+            });
+        }
+    }
+    if seeds.is_empty() {
+        return None;
+    }
+    if seeds.len() > MAX_BRISTLE_SEEDS {
+        seeds = select_bristle_seeds(&seeds, MAX_BRISTLE_SEEDS, 0x19d7_5c2b);
+    }
+    Some(BristleMask {
+        width,
+        height,
+        seeds,
+    })
+}
+
+fn build_bristles_from_mask(
+    mask: &BristleMask,
+    brush_settings: &EngineBrushSettings,
+    seed: u32,
+    base_radius: f32,
+) -> Option<Vec<Bristle>> {
+    let count = mask.seeds.len();
+    if count == 0 {
+        return None;
+    }
+    let density = brush_settings.bristle_density.clamp(0.0, 1.0);
+    let mut target = ((count as f32) * density).round() as usize;
+    if target < MIN_BRISTLES {
+        target = MIN_BRISTLES;
+    }
+    if target > MAX_BRISTLES {
+        target = MAX_BRISTLES;
+    }
+    if target > count {
+        target = count;
+    }
+    if target == 0 {
+        return Some(Vec::new());
+    }
+    let selected = select_bristle_seeds(&mask.seeds, target, seed ^ 0x4a1d_3b25);
+    let mut bristles: Vec<Bristle> = Vec::with_capacity(selected.len());
+    let ink = brush_settings.ink_amount.clamp(0.0, 1.0);
+    for seed in selected {
+        bristles.push(Bristle {
+            offset: Point2D {
+                x: seed.offset.x * base_radius,
+                y: seed.offset.y * base_radius,
+            },
+            length: seed.length,
+            ink,
+            counter: 0,
+            prev: None,
+        });
+    }
+    Some(bristles)
+}
+
+fn select_bristle_seeds(
+    seeds: &[BristleMaskSeed],
+    target: usize,
+    seed: u32,
+) -> Vec<BristleMaskSeed> {
+    if target >= seeds.len() {
+        return seeds.to_vec();
+    }
+    let mut rng = LcgRng::new(seed);
+    let mut selected: Vec<BristleMaskSeed> = Vec::with_capacity(target);
+    for (idx, seed_value) in seeds.iter().enumerate() {
+        if idx < target {
+            selected.push(*seed_value);
+            continue;
+        }
+        let j = (rng.next_f32() * (idx as f32 + 1.0)) as usize;
+        if j < target {
+            selected[j] = *seed_value;
+        }
+    }
+    selected
 }
 
 const RUST_PRESSURE_MIN_FACTOR: f32 = 0.09;
@@ -2099,6 +2815,30 @@ fn brush_scatter_offset(center: Point2D, seed: u32, radius: f32, salt: u32) -> P
     Point2D {
         x: angle.cos() * dist,
         y: angle.sin() * dist,
+    }
+}
+
+struct LcgRng {
+    state: u32,
+}
+
+impl LcgRng {
+    fn new(seed: u32) -> Self {
+        Self {
+            state: if seed == 0 { 0x6d2b_79f5 } else { seed },
+        }
+    }
+
+    fn next_u32(&mut self) -> u32 {
+        self.state = self
+            .state
+            .wrapping_mul(1664525)
+            .wrapping_add(1013904223);
+        self.state
+    }
+
+    fn next_f32(&mut self) -> f32 {
+        (self.next_u32() as f64 / 4294967296.0) as f32
     }
 }
 

@@ -342,6 +342,27 @@ typedef _EngineSetBrushNative =
       ffi.Float streamlineStrength,
       ffi.Uint32 smoothingMode,
       ffi.Float stabilizerStrength,
+      ffi.Uint8 bristleEnabled,
+      ffi.Float bristleDensity,
+      ffi.Float bristleRandom,
+      ffi.Float bristleScale,
+      ffi.Float bristleShear,
+      ffi.Uint8 bristleThreshold,
+      ffi.Uint8 bristleConnected,
+      ffi.Uint8 bristleUsePressure,
+      ffi.Uint8 bristleAntialias,
+      ffi.Uint8 bristleUseCompositing,
+      ffi.Float inkAmount,
+      ffi.Float inkDepletion,
+      ffi.Uint8 inkUseOpacity,
+      ffi.Uint8 inkDepletionEnabled,
+      ffi.Uint8 inkUseSaturation,
+      ffi.Uint8 inkUseWeights,
+      ffi.Float inkPressureWeight,
+      ffi.Float inkBristleLengthWeight,
+      ffi.Float inkBristleInkAmountWeight,
+      ffi.Float inkDepletionWeight,
+      ffi.Uint8 inkUseSoak,
     );
 typedef _EngineSetBrushDart =
     void Function(
@@ -373,6 +394,40 @@ typedef _EngineSetBrushDart =
       double streamlineStrength,
       int smoothingMode,
       double stabilizerStrength,
+      int bristleEnabled,
+      double bristleDensity,
+      double bristleRandom,
+      double bristleScale,
+      double bristleShear,
+      int bristleThreshold,
+      int bristleConnected,
+      int bristleUsePressure,
+      int bristleAntialias,
+      int bristleUseCompositing,
+      double inkAmount,
+      double inkDepletion,
+      int inkUseOpacity,
+      int inkDepletionEnabled,
+      int inkUseSaturation,
+      int inkUseWeights,
+      double inkPressureWeight,
+      double inkBristleLengthWeight,
+      double inkBristleInkAmountWeight,
+      double inkDepletionWeight,
+      int inkUseSoak,
+    );
+
+typedef _EngineSetInkCurveNative =
+    ffi.Void Function(
+      ffi.Uint64 handle,
+      ffi.Pointer<ffi.Float> curve,
+      ffi.UintPtr curveLen,
+    );
+typedef _EngineSetInkCurveDart =
+    void Function(
+      int handle,
+      ffi.Pointer<ffi.Float> curve,
+      int curveLen,
     );
 
 typedef _EngineSetBrushMaskNative =
@@ -683,6 +738,14 @@ class CanvasEngineFfi {
         _setBrush = null;
       }
       try {
+        _setInkCurve = _lib
+            .lookupFunction<_EngineSetInkCurveNative, _EngineSetInkCurveDart>(
+              'engine_set_ink_curve',
+            );
+      } catch (_) {
+        _setInkCurve = null;
+      }
+      try {
         _setBrushMask = _lib
             .lookupFunction<_EngineSetBrushMaskNative, _EngineSetBrushMaskDart>(
               'engine_set_brush_mask',
@@ -791,6 +854,7 @@ class CanvasEngineFfi {
   late final _EngineUndoDart? _undo;
   late final _EngineRedoDart? _redo;
   late final _EngineSetBrushDart? _setBrush;
+  late final _EngineSetInkCurveDart? _setInkCurve;
   late final _EngineSetBrushMaskDart? _setBrushMask;
   late final _EngineClearBrushMaskDart? _clearBrushMask;
   late final _EngineSprayBeginDart? _sprayBegin;
@@ -1372,6 +1436,27 @@ class CanvasEngineFfi {
     bool hollow = false,
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,
+    bool bristleEnabled = false,
+    double bristleDensity = 0.0,
+    double bristleRandom = 0.0,
+    double bristleScale = 1.0,
+    double bristleShear = 0.0,
+    bool bristleThreshold = false,
+    bool bristleConnected = false,
+    bool bristleUsePressure = true,
+    bool bristleAntialias = false,
+    bool bristleUseCompositing = true,
+    double inkAmount = 1.0,
+    double inkDepletion = 0.0,
+    bool inkUseOpacity = true,
+    bool inkDepletionEnabled = false,
+    bool inkUseSaturation = false,
+    bool inkUseWeights = false,
+    double inkPressureWeight = 0.5,
+    double inkBristleLengthWeight = 0.5,
+    double inkBristleInkAmountWeight = 0.5,
+    double inkDepletionWeight = 0.5,
+    bool inkUseSoak = false,
     double streamlineStrength = 0.0,
     int smoothingMode = 1,
     double stabilizerStrength = 0.0,
@@ -1414,6 +1499,58 @@ class CanvasEngineFfi {
       rotationValue = 1.0;
     }
     rotationValue = rotationValue.clamp(0.0, 1.0);
+    double bristleDensityValue = bristleDensity;
+    if (!bristleDensityValue.isFinite) {
+      bristleDensityValue = 0.0;
+    }
+    bristleDensityValue = bristleDensityValue.clamp(0.0, 1.0);
+    double bristleRandomValue = bristleRandom;
+    if (!bristleRandomValue.isFinite) {
+      bristleRandomValue = 0.0;
+    }
+    bristleRandomValue = bristleRandomValue.clamp(0.0, 10.0);
+    double bristleScaleValue = bristleScale;
+    if (!bristleScaleValue.isFinite) {
+      bristleScaleValue = 1.0;
+    }
+    bristleScaleValue = bristleScaleValue.clamp(0.1, 10.0);
+    double bristleShearValue = bristleShear;
+    if (!bristleShearValue.isFinite) {
+      bristleShearValue = 0.0;
+    }
+    bristleShearValue = bristleShearValue.clamp(0.0, 2.0);
+    double inkPressureWeightValue = inkPressureWeight;
+    if (!inkPressureWeightValue.isFinite) {
+      inkPressureWeightValue = 0.5;
+    }
+    inkPressureWeightValue = inkPressureWeightValue.clamp(0.0, 100.0);
+    double inkBristleLengthWeightValue = inkBristleLengthWeight;
+    if (!inkBristleLengthWeightValue.isFinite) {
+      inkBristleLengthWeightValue = 0.5;
+    }
+    inkBristleLengthWeightValue =
+        inkBristleLengthWeightValue.clamp(0.0, 100.0);
+    double inkBristleInkAmountWeightValue = inkBristleInkAmountWeight;
+    if (!inkBristleInkAmountWeightValue.isFinite) {
+      inkBristleInkAmountWeightValue = 0.5;
+    }
+    inkBristleInkAmountWeightValue =
+        inkBristleInkAmountWeightValue.clamp(0.0, 100.0);
+    double inkDepletionWeightValue = inkDepletionWeight;
+    if (!inkDepletionWeightValue.isFinite) {
+      inkDepletionWeightValue = 0.5;
+    }
+    inkDepletionWeightValue = inkDepletionWeightValue.clamp(0.0, 100.0);
+    double inkAmountValue = inkAmount;
+    if (!inkAmountValue.isFinite) {
+      inkAmountValue = 1.0;
+    }
+    inkAmountValue = inkAmountValue.clamp(0.0, 1.0);
+    double inkDepletionValue = inkDepletion;
+    if (!inkDepletionValue.isFinite) {
+      inkDepletionValue = 0.0;
+    }
+    inkDepletionValue = inkDepletionValue.clamp(0.0, 1.0);
     double screentoneSpacingValue = screentoneSpacing;
     if (!screentoneSpacingValue.isFinite) {
       screentoneSpacingValue = 10.0;
@@ -1491,7 +1628,52 @@ class CanvasEngineFfi {
       streamline,
       smoothing,
       stabilizer,
+      bristleEnabled ? 1 : 0,
+      bristleDensityValue,
+      bristleRandomValue,
+      bristleScaleValue,
+      bristleShearValue,
+      bristleThreshold ? 1 : 0,
+      bristleConnected ? 1 : 0,
+      bristleUsePressure ? 1 : 0,
+      bristleAntialias ? 1 : 0,
+      bristleUseCompositing ? 1 : 0,
+      inkAmountValue,
+      inkDepletionValue,
+      inkUseOpacity ? 1 : 0,
+      inkDepletionEnabled ? 1 : 0,
+      inkUseSaturation ? 1 : 0,
+      inkUseWeights ? 1 : 0,
+      inkPressureWeightValue,
+      inkBristleLengthWeightValue,
+      inkBristleInkAmountWeightValue,
+      inkDepletionWeightValue,
+      inkUseSoak ? 1 : 0,
     );
+  }
+
+  void setInkCurve({required int handle, required List<double> curve}) {
+    final fn = _setInkCurve;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    if (curve.isEmpty) {
+      fn(handle, ffi.nullptr, 0);
+      return;
+    }
+    final Float32List data = Float32List.fromList(
+      curve.map((value) => value.toDouble()).toList(growable: false),
+    );
+    final int len = data.length;
+    final ffi.Pointer<ffi.Float> ptr = malloc.allocate<ffi.Float>(
+      len * ffi.sizeOf<ffi.Float>(),
+    );
+    try {
+      ptr.asTypedList(len).setAll(0, data);
+      fn(handle, ptr, len);
+    } finally {
+      malloc.free(ptr);
+    }
   }
 
   void setBrushMask({

@@ -165,6 +165,18 @@ class AppLocalizationsKo extends AppLocalizations {
   String get settingsTitle => '설정';
 
   @override
+  String get settingsTabGeneral => '일반';
+
+  @override
+  String get settingsTabInput => '입력 및 브러시';
+
+  @override
+  String get settingsTabStorage => '기록 및 저장소';
+
+  @override
+  String get settingsTabAbout => '정보';
+
+  @override
   String get tabletTest => '태블릿 테스트';
 
   @override
@@ -1114,6 +1126,84 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get screentoneSoftness => '도트 부드러움';
+
+  @override
+  String get brushBristleSection => '모끝';
+
+  @override
+  String get bristleEnabled => '모끝 사용';
+
+  @override
+  String get bristleDensity => '모끝 밀도';
+
+  @override
+  String get bristleRandom => '랜덤 오프셋';
+
+  @override
+  String get bristleScale => '모끝 스케일';
+
+  @override
+  String get bristleShear => '모끝 시어';
+
+  @override
+  String get bristleThreshold => '모끝 임계값';
+
+  @override
+  String get bristleConnected => '모끝 연결';
+
+  @override
+  String get bristleUsePressure => '압력 사용';
+
+  @override
+  String get bristleAntialias => '모끝 안티앨리어싱';
+
+  @override
+  String get bristleUseCompositing => '모끝 합성';
+
+  @override
+  String get brushInkSection => '먹';
+
+  @override
+  String get inkDepletionEnabled => '먹 소모';
+
+  @override
+  String get inkAmount => '먹량';
+
+  @override
+  String get inkDepletionStrength => '소모 강도';
+
+  @override
+  String get inkUseOpacity => '불투명도 사용';
+
+  @override
+  String get inkUseSaturation => '채도 사용';
+
+  @override
+  String get inkUseWeights => '가중치 사용';
+
+  @override
+  String get inkPressureWeight => '압력 가중치';
+
+  @override
+  String get inkBristleLengthWeight => '모끝 길이 가중치';
+
+  @override
+  String get inkBristleInkAmountWeight => '모끝 먹 가중치';
+
+  @override
+  String get inkDepletionWeight => '소모 가중치';
+
+  @override
+  String get inkUseSoak => '색 흡수';
+
+  @override
+  String get inkDepletionCurve => '소모 곡선';
+
+  @override
+  String get inkCurvePoint => '곡선 포인트';
+
+  @override
+  String get inkCurveReset => '곡선 초기화';
 
   @override
   String get brushShape => '브러시 모양';

@@ -573,6 +573,49 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     _brushScreentoneSoftness,
                                                 brushScreentoneShape:
                                                     _brushScreentoneShape,
+                                                brushBristleEnabled:
+                                                    _brushBristleEnabled,
+                                                brushBristleDensity:
+                                                    _brushBristleDensity,
+                                                brushBristleRandom:
+                                                    _brushBristleRandom,
+                                                brushBristleScale:
+                                                    _brushBristleScale,
+                                                brushBristleShear:
+                                                    _brushBristleShear,
+                                                brushBristleThreshold:
+                                                    _brushBristleThreshold,
+                                                brushBristleConnected:
+                                                    _brushBristleConnected,
+                                                brushBristleUsePressure:
+                                                    _brushBristleUsePressure,
+                                                brushBristleAntialias:
+                                                    _brushBristleAntialias,
+                                                brushBristleUseCompositing:
+                                                    _brushBristleUseCompositing,
+                                                brushInkAmount: _brushInkAmount,
+                                                brushInkDepletion:
+                                                    _brushInkDepletion,
+                                                brushInkUseOpacity:
+                                                    _brushInkUseOpacity,
+                                                brushInkDepletionEnabled:
+                                                    _brushInkDepletionEnabled,
+                                                brushInkUseSaturation:
+                                                    _brushInkUseSaturation,
+                                                brushInkUseWeights:
+                                                    _brushInkUseWeights,
+                                                brushInkPressureWeight:
+                                                    _brushInkPressureWeight,
+                                                brushInkBristleLengthWeight:
+                                                    _brushInkBristleLengthWeight,
+                                                brushInkBristleInkAmountWeight:
+                                                    _brushInkBristleInkAmountWeight,
+                                                brushInkDepletionWeight:
+                                                    _brushInkDepletionWeight,
+                                                brushInkUseSoak:
+                                                    _brushInkUseSoak,
+                                                brushInkDepletionCurve:
+                                                    _brushInkDepletionCurve,
                                                 hollowStrokeEnabled:
                                                     _hollowStrokeEnabled,
                                                 hollowStrokeRatio:

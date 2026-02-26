@@ -4,8 +4,10 @@ struct StrokePoint {
   pos: vec2<f32>,
   radius: f32,
   alpha: f32,
+  sat: f32,
   rot_sin: f32,
   rot_cos: f32,
+  pad: f32,
 };
 
 struct Config {
@@ -18,6 +20,7 @@ struct Config {
   point_count: u32,
   brush_shape: u32,        // 0: circle, 1: triangle, 2: square, 3: star
   erase_mode: u32,         // 0: paint, 1: erase
+  composite_mode: u32,     // 0: normal, 1: darken
   antialias_level: u32,    // 0..9
   color_argb: u32,         // straight alpha ARGB8888
   softness: f32,           // 0.0..1.0
@@ -450,14 +453,14 @@ fn segment_coverage(
   return brush_alpha(dist, radius, cfg.softness);
 }
 
-fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
+fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> vec2<f32> {
   let count = cfg.point_count;
   if (count == 0u) {
-    return 0.0;
+    return vec2<f32>(0.0, 1.0);
   }
   let scale = max(radius_scale, 0.0);
   if (scale <= 0.0) {
-    return 0.0;
+    return vec2<f32>(0.0, 1.0);
   }
   let tone = screentone_mask(sample_pos);
   if (count == 1u) {
@@ -466,33 +469,46 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
     let rot_sin = select(cfg.rotation_sin, sp.rot_sin, cfg.stroke_mode == 1u);
     let rot_cos = select(cfg.rotation_cos, sp.rot_cos, cfg.stroke_mode == 1u);
     let cov = point_coverage(sample_pos, sp.pos, radius, rot_sin, rot_cos);
-    return cov * clamp01(sp.alpha) * tone;
+    return vec2<f32>(cov * clamp01(sp.alpha) * tone, sp.sat);
   }
 
   if (cfg.stroke_mode == 1u) {
     var out_alpha = 0.0;
+    var out_sat = 1.0;
     if (cfg.stroke_accumulate_mode == 0u) {
       for (var i: u32 = 0u; i < count; i = i + 1u) {
         let sp = stroke_points[i];
         let radius = sp.radius * scale;
         let cov = point_coverage(sample_pos, sp.pos, radius, sp.rot_sin, sp.rot_cos);
         let a = cov * clamp01(sp.alpha);
-        out_alpha = max(out_alpha, a);
+        if (a > out_alpha) {
+          out_alpha = a;
+          out_sat = sp.sat;
+        }
       }
-      return out_alpha * tone;
+      return vec2<f32>(out_alpha * tone, out_sat);
     }
     var remain = 1.0;
+    var sat_accum = 0.0;
+    var alpha_accum = 0.0;
     for (var i: u32 = 0u; i < count; i = i + 1u) {
       let sp = stroke_points[i];
       let radius = sp.radius * scale;
       let cov = point_coverage(sample_pos, sp.pos, radius, sp.rot_sin, sp.rot_cos);
       let a = clamp01(cov * clamp01(sp.alpha));
+      let contrib = a * remain;
+      alpha_accum = alpha_accum + contrib;
+      sat_accum = sat_accum + contrib * sp.sat;
       remain = remain * (1.0 - a);
     }
-    return (1.0 - remain) * tone;
+    if (alpha_accum <= EPS) {
+      return vec2<f32>(0.0, 1.0);
+    }
+    return vec2<f32>(alpha_accum * tone, sat_accum / alpha_accum);
   }
 
   var out_alpha = 0.0;
+  var out_sat = 1.0;
   if (cfg.stroke_accumulate_mode == 0u) {
     for (var i: u32 = 0u; i + 1u < count; i = i + 1u) {
       let p0 = stroke_points[i];
@@ -500,6 +516,7 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
       let t = closest_t_to_segment(sample_pos, p0.pos, p1.pos);
       let radius = mix(p0.radius, p1.radius, t) * scale;
       let alpha = mix(p0.alpha, p1.alpha, t);
+      let sat = mix(p0.sat, p1.sat, t);
       let cov = segment_coverage(
         sample_pos,
         p0.pos,
@@ -509,17 +526,23 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
         cfg.rotation_cos,
       );
       let a = cov * clamp01(alpha);
-      out_alpha = max(out_alpha, a);
+      if (a > out_alpha) {
+        out_alpha = a;
+        out_sat = sat;
+      }
     }
-    return out_alpha * tone;
+    return vec2<f32>(out_alpha * tone, out_sat);
   }
   var remain = 1.0;
+  var sat_accum = 0.0;
+  var alpha_accum = 0.0;
   for (var i: u32 = 0u; i + 1u < count; i = i + 1u) {
     let p0 = stroke_points[i];
     let p1 = stroke_points[i + 1u];
     let t = closest_t_to_segment(sample_pos, p0.pos, p1.pos);
     let radius = mix(p0.radius, p1.radius, t) * scale;
     let alpha = mix(p0.alpha, p1.alpha, t);
+    let sat = mix(p0.sat, p1.sat, t);
     let cov = segment_coverage(
       sample_pos,
       p0.pos,
@@ -529,9 +552,15 @@ fn stroke_coverage_at(sample_pos: vec2<f32>, radius_scale: f32) -> f32 {
       cfg.rotation_cos,
     );
     let a = clamp01(cov * clamp01(alpha));
+    let contrib = a * remain;
+    alpha_accum = alpha_accum + contrib;
+    sat_accum = sat_accum + contrib * sat;
     remain = remain * (1.0 - a);
   }
-  return (1.0 - remain) * tone;
+  if (alpha_accum <= EPS) {
+    return vec2<f32>(0.0, 1.0);
+  }
+  return vec2<f32>(alpha_accum * tone, sat_accum / alpha_accum);
 }
 
 fn antialias_samples_per_axis(level: u32) -> u32 {
@@ -545,6 +574,13 @@ fn antialias_samples_per_axis(level: u32) -> u32 {
 fn blend_paint(dst: u32, src_rgb: vec3<f32>, src_a: f32) -> u32 {
   if (src_a <= 0.0) {
     return dst;
+  }
+  if (cfg.composite_mode == 1u) {
+    let da = unpack_a(dst);
+    if (src_a <= da) {
+      return dst;
+    }
+    return pack_argb(src_a, src_rgb.x, src_rgb.y, src_rgb.z);
   }
   let da = unpack_a(dst);
   let dr = unpack_r(dst);
@@ -599,16 +635,20 @@ fn draw_brush_stroke(@builtin(global_invocation_id) id: vec3<u32>) {
   let samples = antialias_samples_per_axis(cfg.antialias_level);
   let inv_samples = 1.0 / f32(samples);
   var outer_accum = 0.0;
+  var sat_accum = 0.0;
   for (var sy: u32 = 0u; sy < samples; sy = sy + 1u) {
     for (var sx: u32 = 0u; sx < samples; sx = sx + 1u) {
       let ox = (f32(sx) + 0.5) * inv_samples - 0.5;
       let oy = (f32(sy) + 0.5) * inv_samples - 0.5;
       let sample_pos = vec2<f32>(f32(x) + 0.5 + ox, f32(y) + 0.5 + oy);
-      outer_accum = outer_accum + stroke_coverage_at(sample_pos, 1.0);
+      let cov = stroke_coverage_at(sample_pos, 1.0);
+      outer_accum = outer_accum + cov.x;
+      sat_accum = sat_accum + cov.y * cov.x;
     }
   }
   let total_samples = f32(samples * samples);
   let outer = clamp01(outer_accum / max(1.0, total_samples));
+  let sat = select(1.0, sat_accum / outer_accum, outer_accum > EPS);
 
   let src_a_base = unpack_a(cfg.color_argb);
   if (cfg.erase_mode != 0u) {
@@ -627,11 +667,13 @@ fn draw_brush_stroke(@builtin(global_invocation_id) id: vec3<u32>) {
     return;
   }
 
-  let src_rgb = vec3<f32>(
+  let base_rgb = vec3<f32>(
     unpack_r(cfg.color_argb),
     unpack_g(cfg.color_argb),
     unpack_b(cfg.color_argb),
   );
+  let gray = dot(base_rgb, vec3<f32>(0.299, 0.587, 0.114));
+  let src_rgb = vec3<f32>(gray) + (base_rgb - vec3<f32>(gray)) * sat;
 
   let dst = layer_load(vec2<i32>(i32(x), i32(y)));
   let out = blend_paint(dst, src_rgb, paint_a);
