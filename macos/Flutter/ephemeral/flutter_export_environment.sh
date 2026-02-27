@@ -1,9 +1,9 @@
 #!/bin/sh
 # This is a generated file; do not edit or check into version control.
-export "FLUTTER_ROOT=/Library/Afolder/FlutterProject/flutter"
-export "FLUTTER_APPLICATION_PATH=/Library/Afolder/FlutterProject/misa-rin"
+export "FLUTTER_ROOT=/Users/sakiko/development/flutter"
+export "FLUTTER_APPLICATION_PATH=/Users/sakiko/Desktop/MisaRin"
 export "COCOAPODS_PARALLEL_CODE_SIGN=true"
-export "FLUTTER_TARGET=/Library/Afolder/FlutterProject/misa-rin/lib/main.dart"
+export "FLUTTER_TARGET=/Users/sakiko/Desktop/MisaRin/lib/main.dart"
 export "FLUTTER_BUILD_DIR=build"
 export "FLUTTER_BUILD_NAME=1.0.10"
 export "FLUTTER_BUILD_NUMBER=1"
@@ -11,4 +11,4 @@ export "DART_DEFINES=RkxVVFRFUl9WRVJTSU9OPTMuMzguNQ==,RkxVVFRFUl9DSEFOTkVMPXN0YW
 export "DART_OBFUSCATION=false"
 export "TRACK_WIDGET_CREATION=true"
 export "TREE_SHAKE_ICONS=false"
-export "PACKAGE_CONFIG=/Library/Afolder/FlutterProject/misa-rin/.dart_tool/package_config.json"
+export "PACKAGE_CONFIG=/Users/sakiko/Desktop/MisaRin/.dart_tool/package_config.json"
