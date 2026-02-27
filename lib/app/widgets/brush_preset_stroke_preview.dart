@@ -58,6 +58,7 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
   ui.Image? _image;
   int _signature = 0;
   int _renderToken = 0;
+  String? _pendingShapeId;
 
   @override
   void dispose() {
@@ -119,10 +120,13 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
       return;
     }
     final BrushPreset preset = widget.preset.sanitized();
+    final BrushShapeLibrary shapeLibrary = BrushLibrary.instance.shapeLibrary;
+    final String shapeId = preset.resolvedShapeId;
     final int nextSignature = Object.hashAll(<Object?>[
       pixelWidth,
       pixelHeight,
       preset.id,
+      shapeId,
       preset.shape,
       preset.spacing,
       preset.hardness,
@@ -145,6 +149,31 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
       widget.color.value,
       scale,
     ]);
+    if (!shapeLibrary.isBuiltInId(shapeId) &&
+        shapeLibrary.getCachedRaster(shapeId) == null) {
+      if (_pendingShapeId != shapeId) {
+        _pendingShapeId = shapeId;
+        shapeLibrary.loadRaster(shapeId).then((BrushShapeRaster? raster) {
+          if (!mounted) {
+            return;
+          }
+          if (_pendingShapeId == shapeId) {
+            _pendingShapeId = null;
+          }
+          if (raster != null) {
+            setState(() {
+              _signature = 0;
+            });
+          }
+        });
+      }
+      if (_image != null) {
+        _image?.dispose();
+        _image = null;
+      }
+      _signature = nextSignature;
+      return;
+    }
     if (nextSignature == _signature) {
       return;
     }
@@ -1634,6 +1663,7 @@ class _WgpuPreviewEngine {
   int _width = 0;
   int _height = 0;
   int _maskSignature = 0;
+  bool _maskInitialized = false;
   bool _disabled = false;
 
   bool get _canUse => !_disabled && _ffi.canCreateEngine;
@@ -1644,6 +1674,7 @@ class _WgpuPreviewEngine {
       _handle = 0;
     }
     _maskSignature = 0;
+    _maskInitialized = false;
     _width = 0;
     _height = 0;
   }
@@ -1656,6 +1687,8 @@ class _WgpuPreviewEngine {
     if (_handle != 0 && (_width != width || _height != height)) {
       _ffi.disposeEngine(handle: _handle);
       _handle = 0;
+      _maskSignature = 0;
+      _maskInitialized = false;
     }
     if (_handle == 0) {
       final int handle = _ffi.createEngine(width: width, height: height);
@@ -1680,9 +1713,10 @@ class _WgpuPreviewEngine {
       return;
     }
     if (mask == null || mask.isEmpty || width <= 0 || height <= 0) {
-      if (_maskSignature != 0) {
+      if (_maskInitialized) {
         _ffi.clearBrushMask(handle: _handle);
         _maskSignature = 0;
+        _maskInitialized = false;
       }
       return;
     }
@@ -1693,10 +1727,11 @@ class _WgpuPreviewEngine {
       mask.first,
       mask.last,
     );
-    if (signature == _maskSignature) {
+    if (_maskInitialized && signature == _maskSignature) {
       return;
     }
     _maskSignature = signature;
+    _maskInitialized = true;
     _ffi.setBrushMask(
       handle: _handle,
       width: width,
