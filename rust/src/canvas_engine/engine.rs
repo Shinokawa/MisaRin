@@ -1365,10 +1365,22 @@ fn render_thread_main(
     let mut spray_active_layer: Option<u32> = None;
     let mut pending_present = false;
     let mut pending_present_since: Option<Instant> = None;
+    let mut deferred_reads: Vec<EngineCommand> = Vec::new();
 
     loop {
         let mut needs_render = false;
         while let Ok(cmd) = cmd_rx.try_recv() {
+            if present.is_none()
+                && matches!(
+                    cmd,
+                    EngineCommand::ReadLayer { .. }
+                        | EngineCommand::ReadLayerPreview { .. }
+                        | EngineCommand::ReadPresent { .. }
+                )
+            {
+                deferred_reads.push(cmd);
+                continue;
+            }
             if let Some(mut animation) = streamline_animation.take() {
                 if let Some(state) = preview_state.take() {
                     let committed = commit_preview_stroke(
@@ -1488,6 +1500,107 @@ fn render_thread_main(
             Err(mpsc::RecvTimeoutError::Disconnected) => return,
         }
 
+        if present.is_none() {
+            while let Ok(cmd) = cmd_rx.try_recv() {
+                if matches!(
+                    cmd,
+                    EngineCommand::ReadLayer { .. }
+                        | EngineCommand::ReadLayerPreview { .. }
+                        | EngineCommand::ReadPresent { .. }
+                ) {
+                    deferred_reads.push(cmd);
+                    continue;
+                }
+                if let Some(mut animation) = streamline_animation.take() {
+                    if let Some(state) = preview_state.take() {
+                        let committed = commit_preview_stroke(
+                            &mut stroke,
+                            &mut brush,
+                            &state.brush_settings,
+                            &animation.to_points,
+                            state.layer_index,
+                            &layers,
+                            &mut undo_manager,
+                            &mut layer_uniform,
+                            &device,
+                            &queue,
+                            canvas_width,
+                            canvas_height,
+                        );
+                        if committed {
+                            needs_render = true;
+                        }
+                    } else {
+                        let frame_drawn = render_streamline_frame(
+                            &mut animation,
+                            1.0,
+                            &mut stroke,
+                            &mut brush,
+                            &device,
+                            &queue,
+                            &layers,
+                            &mut undo_manager,
+                            &mut layer_uniform,
+                            canvas_width,
+                            canvas_height,
+                        );
+                        undo_manager
+                            .end_stroke(device.as_ref(), queue.as_ref(), layers.texture());
+                        if frame_drawn {
+                            if let Some(entry) = layer_uniform.get_mut(active_layer_index) {
+                                *entry = None;
+                            }
+                            needs_render = true;
+                        }
+                    }
+                }
+                let outcome = handle_engine_command(
+                    &device,
+                    &queue,
+                    &mut present,
+                    cmd,
+                    &mut bucket_fill_renderer,
+                    &mut filter_renderer,
+                    &mut layers,
+                    &mut layer_count,
+                    &mut active_layer_index,
+                    &mut layer_opacity,
+                    &mut layer_visible,
+                    &mut layer_clipping_mask,
+                    &mut layer_blend_mode,
+                    &mut layer_uniform,
+                    &mut view_flags,
+                    &present_renderer,
+                    &present_config_buffer,
+                    &present_transform_buffer,
+                    &mut transform_matrix,
+                    &mut transform_layer_index,
+                    &mut transform_flags,
+                    &mut present_params_buffer,
+                    &mut present_params_capacity,
+                    &mut present_bind_group,
+                    &mut transform_renderer,
+                    &mut brush,
+                    &mut brush_settings,
+                    &mut stroke,
+                    &mut selection_mask_active,
+                    &mut spray_active_layer,
+                    &mut undo_manager,
+                    canvas_width,
+                    canvas_height,
+                );
+                if outcome.stop {
+                    return;
+                }
+                if let Some((new_width, new_height)) = outcome.new_canvas_size {
+                    canvas_width = new_width;
+                    canvas_height = new_height;
+                    stroke = StrokeResampler::new();
+                }
+                needs_render |= outcome.needs_render;
+            }
+        }
+
         if !batches.is_empty() {
             const FLAG_DOWN: u32 = 1;
             const FLAG_UP: u32 = 4;
@@ -1506,13 +1619,14 @@ fn render_thread_main(
                 &layer_opacity,
                 layer_count,
             );
-            let preview_allowed = can_use_vector_preview(
-                &brush_settings,
-                selection_mask_active,
-                layer_blend_mode_value,
-                view_flags,
-                has_visible_above,
-            );
+            let preview_allowed = present.is_some()
+                && can_use_vector_preview(
+                    &brush_settings,
+                    selection_mask_active,
+                    layer_blend_mode_value,
+                    view_flags,
+                    has_visible_above,
+                );
             let preview_active = preview_state.is_some() || preview_allowed;
             let has_down = raw_points.iter().any(|p| (p.flags & FLAG_DOWN) != 0);
             let has_up = raw_points.iter().any(|p| (p.flags & FLAG_UP) != 0);
@@ -2068,6 +2182,58 @@ fn render_thread_main(
         }
         if clear_animation {
             streamline_animation = None;
+        }
+
+        if !deferred_reads.is_empty()
+            && input_queue_len.load(Ordering::Relaxed) == 0
+        {
+            let pending = std::mem::take(&mut deferred_reads);
+            for cmd in pending {
+                let outcome = handle_engine_command(
+                    &device,
+                    &queue,
+                    &mut present,
+                    cmd,
+                    &mut bucket_fill_renderer,
+                    &mut filter_renderer,
+                    &mut layers,
+                    &mut layer_count,
+                    &mut active_layer_index,
+                    &mut layer_opacity,
+                    &mut layer_visible,
+                    &mut layer_clipping_mask,
+                    &mut layer_blend_mode,
+                    &mut layer_uniform,
+                    &mut view_flags,
+                    &present_renderer,
+                    &present_config_buffer,
+                    &present_transform_buffer,
+                    &mut transform_matrix,
+                    &mut transform_layer_index,
+                    &mut transform_flags,
+                    &mut present_params_buffer,
+                    &mut present_params_capacity,
+                    &mut present_bind_group,
+                    &mut transform_renderer,
+                    &mut brush,
+                    &mut brush_settings,
+                    &mut stroke,
+                    &mut selection_mask_active,
+                    &mut spray_active_layer,
+                    &mut undo_manager,
+                    canvas_width,
+                    canvas_height,
+                );
+                if outcome.stop {
+                    return;
+                }
+                if let Some((new_width, new_height)) = outcome.new_canvas_size {
+                    canvas_width = new_width;
+                    canvas_height = new_height;
+                    stroke = StrokeResampler::new();
+                }
+                needs_render |= outcome.needs_render;
+            }
         }
 
         if needs_render {

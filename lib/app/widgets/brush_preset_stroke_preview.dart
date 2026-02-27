@@ -26,11 +26,16 @@ const int _kEnginePointStrideBytes = 32;
 const int _kPointFlagDown = 1;
 const int _kPointFlagMove = 2;
 const int _kPointFlagUp = 4;
-const int _kWgpuPreviewWaitMaxMs = 40;
 const bool _kPreviewLog = bool.fromEnvironment(
   'MISA_RIN_BRUSH_PREVIEW_LOG',
   defaultValue: false,
 );
+
+void _logPreview(String message) {
+  if (_kPreviewLog) {
+    debugPrint('[brush-preview] $message');
+  }
+}
 
 class BrushPresetStrokePreview extends StatefulWidget {
   const BrushPresetStrokePreview({
@@ -98,8 +103,7 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
   }
 
   void _ensurePreview(BuildContext context, Size size) {
-    final bool canRender = rust_wgpu_engine.CanvasEngineFfi.instance.canCreateEngine ||
-        RustCpuBrushFfi.instance.isSupported;
+    final bool canRender = rust_wgpu_engine.CanvasEngineFfi.instance.canCreateEngine;
     if (!canRender) {
       return;
     }
@@ -144,15 +148,12 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
     if (nextSignature == _signature) {
       return;
     }
-    if (_kPreviewLog) {
-      debugPrint(
-        '[brush-preview] schedule id=${preset.id} '
-        'size=${pixelWidth}x${pixelHeight} scale=$scale '
-        'aa=${preset.antialiasLevel} snap=${preset.snapToPixel} '
-        'hardness=${preset.hardness} flow=${preset.flow} '
-        'shape=${preset.shape} rustSupported=${RustCpuBrushFfi.instance.isSupported}',
-      );
-    }
+    _logPreview(
+      'schedule id=${preset.id} size=${pixelWidth}x${pixelHeight} '
+      'scale=$scale aa=${preset.antialiasLevel} snap=${preset.snapToPixel} '
+      'hardness=${preset.hardness} flow=${preset.flow} shape=${preset.shape} '
+      'wgpuSupported=${rust_wgpu_engine.CanvasEngineFfi.instance.canCreateEngine}',
+    );
     _signature = nextSignature;
     if (BrushPresetTimeline.enabled) {
       BrushPresetTimeline.mark(
@@ -191,12 +192,10 @@ class _BrushPresetStrokePreviewState extends State<BrushPresetStrokePreview> {
         't=${stopwatch.elapsedMilliseconds}ms image=${image != null}',
       );
     }
-    if (_kPreviewLog) {
-      debugPrint(
-        '[brush-preview] done id=${preset.id} image=${image != null} '
-        'aa=${preset.antialiasLevel} snap=${preset.snapToPixel}',
-      );
-    }
+    _logPreview(
+      'done id=${preset.id} image=${image != null} '
+      'aa=${preset.antialiasLevel} snap=${preset.snapToPixel}',
+    );
     if (!mounted || token != _renderToken) {
       image?.dispose();
       return;
@@ -393,8 +392,7 @@ Future<ui.Image?> _buildPreviewImage({
   required int pixelHeight,
   required double scale,
 }) async {
-  final bool canRender = rust_wgpu_engine.CanvasEngineFfi.instance.canCreateEngine ||
-      RustCpuBrushFfi.instance.isSupported;
+  final bool canRender = rust_wgpu_engine.CanvasEngineFfi.instance.canCreateEngine;
   if (!canRender) {
     return null;
   }
@@ -456,6 +454,10 @@ Future<ui.Image?> _buildPreviewImage({
     ),
   );
   if (workerResult != null) {
+    _logPreview(
+      'result backend=${workerResult.backend ?? 'none'} '
+      'size=${workerResult.width}x${workerResult.height}',
+    );
     final Uint8List? rgba = workerResult.pixels;
     if (rgba != null && rgba.isNotEmpty) {
       return _decodeRgbaImage(rgba, workerResult.width, workerResult.height);
@@ -473,8 +475,7 @@ Future<ui.Image?> _buildPreviewImageOnMain({
   required int pixelHeight,
   required double scale,
 }) async {
-  final bool canRender = rust_wgpu_engine.CanvasEngineFfi.instance.canCreateEngine ||
-      RustCpuBrushFfi.instance.isSupported;
+  final bool canRender = rust_wgpu_engine.CanvasEngineFfi.instance.canCreateEngine;
   if (!canRender) {
     return null;
   }
@@ -1154,11 +1155,13 @@ class _BrushPreviewWorkerResult {
     required this.width,
     required this.height,
     this.pixels,
+    this.backend,
   });
 
   final int width;
   final int height;
   final Uint8List? pixels;
+  final String? backend;
 }
 
 class _QueuedPreviewRequest {
@@ -1264,6 +1267,7 @@ class _BrushPreviewWorker {
     if (data is Map<String, Object?>) {
       final int width = data['width'] as int? ?? 0;
       final int height = data['height'] as int? ?? 0;
+      final String? backend = data['backend'] as String?;
       Uint8List? pixels;
       final TransferableTypedData? pixelData =
           data['pixels'] as TransferableTypedData?;
@@ -1275,6 +1279,7 @@ class _BrushPreviewWorker {
           width: width,
           height: height,
           pixels: pixels,
+          backend: backend,
         ),
       );
       return;
@@ -1365,33 +1370,97 @@ class _BrushPreviewWorker {
 void _brushPreviewWorkerMain(SendPort initialReplyTo) {
   final ReceivePort port = ReceivePort();
   initialReplyTo.send(port.sendPort);
-  Future<void> chain = Future<void>.value();
-  port.listen((Object? message) {
-    chain = chain.then((_) async {
-      if (message == null) {
+  bool busy = false;
+  bool shutdownRequested = false;
+  Object? queuedMessage;
+  int? queuedId;
+
+  void cancelQueued() {
+    final int? id = queuedId;
+    if (id != null) {
+      initialReplyTo.send(<String, Object?>{'id': id, 'data': null});
+    }
+    queuedMessage = null;
+    queuedId = null;
+  }
+
+  int? extractId(Object? message) {
+    if (message is Map<String, Object?>) {
+      final Object? id = message['id'];
+      if (id is int) {
+        return id;
+      }
+    }
+    return null;
+  }
+
+  Future<void> processMessage(Object? message) async {
+    Object? current = message;
+    while (current != null) {
+      if (shutdownRequested) {
         _WgpuPreviewEngine.instance.dispose();
         port.close();
+        busy = false;
         return;
       }
-      if (message is! Map<String, Object?>) {
+      if (current is! Map<String, Object?>) {
+        // Ignore malformed message.
+      } else {
+        final int id = current['id'] as int? ?? -1;
+        final Object? payload = current['payload'];
+        if (payload is! Map<String, Object?>) {
+          initialReplyTo.send(<String, Object?>{'id': id, 'data': null});
+        } else {
+          try {
+            final Object? result = await _brushPreviewWorkerHandlePayload(
+              payload,
+            );
+            initialReplyTo.send(<String, Object?>{'id': id, 'data': result});
+          } catch (error, stackTrace) {
+            initialReplyTo.send(<String, Object?>{
+              'id': id,
+              'data': StateError('$error\n$stackTrace'),
+            });
+          }
+        }
+      }
+      if (shutdownRequested) {
+        _WgpuPreviewEngine.instance.dispose();
+        port.close();
+        busy = false;
         return;
       }
-      final int id = message['id'] as int? ?? -1;
-      final Object? payload = message['payload'];
-      if (payload is! Map<String, Object?>) {
-        initialReplyTo.send(<String, Object?>{'id': id, 'data': null});
+      if (queuedMessage == null) {
+        busy = false;
         return;
       }
-      try {
-        final Object? result = await _brushPreviewWorkerHandlePayload(payload);
-        initialReplyTo.send(<String, Object?>{'id': id, 'data': result});
-      } catch (error, stackTrace) {
-        initialReplyTo.send(<String, Object?>{
-          'id': id,
-          'data': StateError('$error\n$stackTrace'),
-        });
+      current = queuedMessage;
+      queuedMessage = null;
+      queuedId = null;
+    }
+    busy = false;
+  }
+
+  port.listen((Object? message) {
+    if (message == null) {
+      shutdownRequested = true;
+      cancelQueued();
+      if (!busy) {
+        _WgpuPreviewEngine.instance.dispose();
+        port.close();
       }
-    });
+      return;
+    }
+    if (busy) {
+      if (queuedMessage != null) {
+        cancelQueued();
+      }
+      queuedMessage = message;
+      queuedId = extractId(message);
+      return;
+    }
+    busy = true;
+    unawaited(processMessage(message));
   });
 }
 
@@ -1404,14 +1473,24 @@ Future<Object?> _brushPreviewWorkerHandlePayload(
   final TransferableTypedData? sampleData =
       payload['samples'] as TransferableTypedData?;
   if (width <= 0 || height <= 0 || sampleData == null) {
-    return <String, Object?>{'width': width, 'height': height, 'pixels': null};
+    return <String, Object?>{
+      'width': width,
+      'height': height,
+      'pixels': null,
+      'backend': 'none',
+    };
   }
   final ByteBuffer buffer = sampleData.materialize();
   final Float32List sampleList = buffer.asFloat32List();
   final List<_PreviewStrokeSample> samples =
       _decodePreviewSamples(sampleList);
   if (samples.isEmpty) {
-    return <String, Object?>{'width': width, 'height': height, 'pixels': null};
+    return <String, Object?>{
+      'width': width,
+      'height': height,
+      'pixels': null,
+      'backend': 'none',
+    };
   }
   final TransferableTypedData? customMaskData =
       payload['customMask'] as TransferableTypedData?;
@@ -1425,14 +1504,6 @@ Future<Object?> _brushPreviewWorkerHandlePayload(
       (payload['hardness'] as double? ?? 0.8).clamp(0.0, 1.0);
   final double flow =
       (payload['flow'] as double? ?? 1.0).clamp(0.0, 1.0);
-  final double opacity =
-      (0.25 + 0.75 * flow * (0.35 + 0.65 * hardness))
-          .clamp(0.18, 1.0);
-  final Color baseColor = Color(colorArgb);
-  final Color strokeColor = baseColor.withOpacity(
-    (baseColor.opacity * opacity).clamp(0.0, 1.0),
-  );
-  final double softness = (1.0 - hardness).clamp(0.0, 1.0);
   final double spacing = payload['spacing'] as double? ?? 0.15;
   final double scatter = payload['scatter'] as double? ?? 0.0;
   final bool randomRotation = payload['randomRotation'] as bool? ?? false;
@@ -1442,7 +1513,6 @@ Future<Object?> _brushPreviewWorkerHandlePayload(
   final int antialias = payload['antialias'] as int? ?? 0;
   final bool snapToPixel = payload['snapToPixel'] as bool? ?? false;
   final int shapeIndex = payload['shapeIndex'] as int? ?? 0;
-  final BrushShape shape = _resolveBrushShape(shapeIndex);
   final bool screentoneEnabled =
       payload['screentoneEnabled'] as bool? ?? false;
   final double screentoneSpacing =
@@ -1455,8 +1525,6 @@ Future<Object?> _brushPreviewWorkerHandlePayload(
       payload['screentoneSoftness'] as double? ?? 0.0;
   final int screentoneShapeIndex =
       payload['screentoneShapeIndex'] as int? ?? 0;
-  final BrushShape screentoneShape =
-      _resolveBrushShape(screentoneShapeIndex);
   final bool hollowEnabled = payload['hollowEnabled'] as bool? ?? false;
   final double hollowRatio = payload['hollowRatio'] as double? ?? 0.0;
   final int rotationSeed = payload['rotationSeed'] as int? ?? 0;
@@ -1492,89 +1560,27 @@ Future<Object?> _brushPreviewWorkerHandlePayload(
   if (wgpuPixels != null &&
       wgpuPixels.isNotEmpty &&
       _rgbaHasNonZeroAlpha(wgpuPixels)) {
+    _logPreview('worker wgpu ok bytes=${wgpuPixels.length}');
     return <String, Object?>{
       'width': width,
       'height': height,
       'pixels': TransferableTypedData.fromList(<Uint8List>[wgpuPixels]),
+      'backend': 'wgpu',
     };
   }
-
-  final BrushShapeRaster? customShape = _decodeCustomMaskRasterFromBytes(
-    customMaskBytes,
-    customMaskWidth,
-    customMaskHeight,
-  );
-
-  final BitmapSurface surface = BitmapSurface(
-    width: width,
-    height: height,
-    fillColor: const Color(0x00000000),
-  );
-  try {
-    _drawStrokeSegments(
-      surface: surface,
-      samples: samples,
-      shape: shape,
-      scatter: scatter,
-      randomRotation: randomRotation,
-      smoothRotation: smoothRotation,
-      rotationJitter: rotationJitter,
-      snapToPixel: snapToPixel,
-      screentoneEnabled: screentoneEnabled,
-      screentoneSpacing: screentoneSpacing,
-      screentoneDotSize: screentoneDotSize,
-      screentoneRotation: screentoneRotation,
-      screentoneSoftness: screentoneSoftness,
-      screentoneShape: screentoneShape,
-      color: strokeColor,
-      softness: softness,
-      antialias: antialias,
-      spacing: spacing,
-      rotationSeed: rotationSeed,
-      erase: false,
-      radiusScale: 1.0,
-      customShape: customShape,
-    );
-
-    if (hollowEnabled && hollowRatio > 0.0001) {
-      _drawStrokeSegments(
-        surface: surface,
-        samples: samples,
-        shape: shape,
-        scatter: scatter,
-        randomRotation: randomRotation,
-        smoothRotation: smoothRotation,
-        rotationJitter: rotationJitter,
-        snapToPixel: snapToPixel,
-        screentoneEnabled: screentoneEnabled,
-        screentoneSpacing: screentoneSpacing,
-        screentoneDotSize: screentoneDotSize,
-        screentoneRotation: screentoneRotation,
-        screentoneSoftness: screentoneSoftness,
-        screentoneShape: screentoneShape,
-        color: strokeColor,
-        softness: softness,
-        antialias: antialias,
-        spacing: spacing,
-        rotationSeed: rotationSeed,
-        erase: true,
-        radiusScale: hollowRatio.clamp(0.0, 1.0),
-        customShape: customShape,
-      );
-    }
-
-    if (surface.isClean) {
-      return <String, Object?>{'width': width, 'height': height, 'pixels': null};
-    }
-    final Uint8List rgba = _argbToRgba(surface.pixels);
-    return <String, Object?>{
-      'width': width,
-      'height': height,
-      'pixels': TransferableTypedData.fromList(<Uint8List>[rgba]),
-    };
-  } finally {
-    surface.dispose();
+  if (wgpuPixels == null) {
+    _logPreview('worker wgpu null -> no preview');
+  } else if (wgpuPixels.isEmpty) {
+    _logPreview('worker wgpu empty -> no preview');
+  } else {
+    _logPreview('worker wgpu transparent -> no preview');
   }
+  return <String, Object?>{
+    'width': width,
+    'height': height,
+    'pixels': null,
+    'backend': 'none',
+  };
 }
 
 BrushShapeRaster? _decodeCustomMaskRaster(
@@ -1644,6 +1650,7 @@ class _WgpuPreviewEngine {
 
   bool _ensureEngine(int width, int height) {
     if (!_canUse || width <= 0 || height <= 0) {
+      _logPreview('wgpu engine unavailable');
       return false;
     }
     if (_handle != 0 && (_width != width || _height != height)) {
@@ -1654,6 +1661,7 @@ class _WgpuPreviewEngine {
       final int handle = _ffi.createEngine(width: width, height: height);
       if (handle == 0) {
         _disabled = true;
+        _logPreview('wgpu engine create failed size=${width}x$height');
         return false;
       }
       _handle = handle;
@@ -1695,20 +1703,6 @@ class _WgpuPreviewEngine {
       height: height,
       mask: mask,
     );
-  }
-
-  Future<void> _waitForInputDrain() async {
-    int waited = 0;
-    while (waited < _kWgpuPreviewWaitMaxMs) {
-      if (_ffi.getInputQueueLen(_handle) == 0) {
-        if (waited == 0) {
-          await Future<void>.delayed(const Duration(milliseconds: 1));
-        }
-        return;
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 2));
-      waited += 2;
-    }
   }
 
   Future<Uint8List?> render({
@@ -1810,7 +1804,6 @@ class _WgpuPreviewEngine {
       bytes: points,
       pointCount: samples.length,
     );
-    await _waitForInputDrain();
     Uint8List? pixels = _ffi.readLayerPreview(
       handle: _handle,
       layerIndex: 0,
@@ -1818,6 +1811,7 @@ class _WgpuPreviewEngine {
       height: height,
     );
     if (pixels != null && pixels.isNotEmpty && !_rgbaHasNonZeroAlpha(pixels)) {
+      _logPreview('wgpu readback transparent, retry');
       await Future<void>.delayed(const Duration(milliseconds: 2));
       pixels = _ffi.readLayerPreview(
         handle: _handle,
