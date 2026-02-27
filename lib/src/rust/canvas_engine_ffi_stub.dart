@@ -52,33 +52,10 @@ class CanvasEngineFfi {
     bool hollow = false,
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,
-    bool bristleEnabled = false,
-    double bristleDensity = 0.0,
-    double bristleRandom = 0.0,
-    double bristleScale = 1.0,
-    double bristleShear = 0.0,
-    bool bristleThreshold = false,
-    bool bristleConnected = false,
-    bool bristleUsePressure = true,
-    bool bristleAntialias = false,
-    bool bristleUseCompositing = true,
-    double inkAmount = 1.0,
-    double inkDepletion = 0.0,
-    bool inkUseOpacity = true,
-    bool inkDepletionEnabled = false,
-    bool inkUseSaturation = false,
-    bool inkUseWeights = false,
-    double inkPressureWeight = 0.5,
-    double inkBristleLengthWeight = 0.5,
-    double inkBristleInkAmountWeight = 0.5,
-    double inkDepletionWeight = 0.5,
-    bool inkUseSoak = false,
     double streamlineStrength = 0.0,
     int smoothingMode = 1,
     double stabilizerStrength = 0.0,
   }) {}
-
-  void setInkCurve({required int handle, required List<double> curve}) {}
 
   void setBrushMask({
     required int handle,

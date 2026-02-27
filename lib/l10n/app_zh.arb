@@ -1,9 +1,7 @@
 {
   "@@locale": "zh",
-
   "webLoadingInitializingCanvas": "正在初始化画板…",
   "webLoadingMayTakeTime": "Web 端加载需要一些时间，请稍候。",
-
   "closeAppTitle": "关闭应用",
   "unsavedProjectsWarning": "{count, plural, =1{检测到 1 个未保存的项目。如果现在退出，最近的修改将会丢失。} other{检测到 {count} 个未保存的项目。如果现在退出，最近的修改将会丢失。}}",
   "@unsavedProjectsWarning": {
@@ -13,7 +11,6 @@
   },
   "cancel": "取消",
   "discardAndExit": "丢弃并退出",
-
   "homeTagline": "创作从这里开始",
   "homeNewProject": "新建项目",
   "homeNewProjectDesc": "从空白画布开启新的创意",
@@ -27,7 +24,6 @@
   "homeSettingsDesc": "预览即将上线的个性化选项",
   "homeAbout": "关于",
   "homeAboutDesc": "了解项目 Misa Rin",
-
   "createProjectFailed": "创建项目失败：{error}",
   "@createProjectFailed": {
     "placeholders": {
@@ -57,7 +53,6 @@
       "error": {}
     }
   },
-
   "importImageDialogTitle": "导入图片",
   "importedImageInfo": "已导入图片：{name}",
   "@importedImageInfo": {
@@ -82,14 +77,12 @@
   },
   "webPreparingCanvasTitle": "正在准备画布…",
   "webPreparingCanvasMessage": "Web 端需要一些时间才能完成初始化，请稍候。",
-
   "aboutTitle": "关于 Misa Rin",
   "aboutDescription": "Misa Rin 是一款专注于创意绘制与项目管理的应用，旨在为创作者提供流畅的绘图体验与可靠的项目存档能力。",
   "aboutAppIdLabel": "应用标识",
   "aboutAppVersionLabel": "应用版本",
   "aboutDeveloperLabel": "开发者",
   "close": "关闭",
-
   "settingsTitle": "设置",
   "settingsTabGeneral": "常规",
   "settingsTabInput": "输入与笔刷",
@@ -140,7 +133,6 @@
   "performanceOverlayLabel": "性能监控面板",
   "performanceOverlayDesc": "打开后会在屏幕角落显示 Flutter Performance Pulse 仪表盘，实时展示 FPS、CPU、内存与磁盘等数据。",
   "tabletInputTestTitle": "数位板输入测试",
-
   "recentProjectsTitle": "最近打开",
   "recentProjectsLoadFailed": "加载最近项目失败：{error}",
   "@recentProjectsLoadFailed": {
@@ -163,7 +155,6 @@
       "height": {}
     }
   },
-
   "menuFile": "文件",
   "menuEdit": "编辑",
   "menuImage": "图像",
@@ -174,7 +165,6 @@
   "menuView": "视图",
   "menuWorkspace": "工作区",
   "menuWindow": "窗口",
-
   "menuAbout": "关于 Misa Rin",
   "menuPreferences": "偏好设置…",
   "menuNewEllipsis": "新建…",
@@ -185,13 +175,11 @@
   "menuSaveAsEllipsis": "另存为…",
   "menuExportEllipsis": "导出…",
   "menuCloseAll": "关闭全部",
-
   "menuUndo": "撤销",
   "menuRedo": "恢复",
   "menuCut": "剪切",
   "menuCopy": "复制",
   "menuPaste": "粘贴",
-
   "menuImageTransform": "图像变换",
   "menuRotate90CW": "顺时针 90 度",
   "menuRotate90CCW": "逆时针 90 度",
@@ -201,26 +189,21 @@
   "menuFlipVertical": "垂直翻转",
   "menuImageSizeEllipsis": "图像大小…",
   "menuCanvasSizeEllipsis": "画布大小…",
-
   "menuNewSubmenu": "新建",
   "menuNewLayerEllipsis": "图层…",
   "menuMergeDown": "向下合并",
   "menuRasterize": "栅格化",
   "menuTransform": "变换",
-
   "menuSelectAll": "全选",
   "menuDeselect": "取消选择",
   "menuInvertSelection": "反选",
-
   "menuPalette": "调色盘",
   "menuGeneratePaletteFromCanvasEllipsis": "取色当前画布生成调色盘…",
   "menuGenerateGradientPalette": "使用当前颜色生成渐变调色盘",
   "menuImportPaletteEllipsis": "导入调色盘…",
-
   "menuReferenceImage": "参考图像",
   "menuCreateReferenceImage": "创建参考图像",
   "menuImportReferenceImageEllipsis": "导入参考图像…",
-
   "menuReferenceModel": "参考模型",
   "menuReferenceModelSteve": "Steve模型",
   "menuReferenceModelAlex": "Alex模型",
@@ -240,7 +223,6 @@
   "referenceModelViewBottom": "底视图",
   "referenceModelViewLeft": "左视图",
   "referenceModelViewRight": "右视图",
-
   "menuZoomIn": "放大",
   "menuZoomOut": "缩小",
   "menuShowGrid": "显示网格",
@@ -257,12 +239,10 @@
   "menuPerspective1Point": "1 点透视",
   "menuPerspective2Point": "2 点透视",
   "menuPerspective3Point": "3 点透视",
-
   "menuWorkspaceDefault": "默认",
   "menuWorkspaceSai2": "SAI2",
   "menuSwitchWorkspace": "切换工作区",
   "menuResetWorkspace": "复位工作区",
-
   "menuEdgeSofteningEllipsis": "边缘柔化…",
   "menuNarrowLinesEllipsis": "线条收窄…",
   "menuExpandFillEllipsis": "填色拉伸…",
@@ -276,12 +256,10 @@
   "menuScanPaperDrawingEllipsis": "扫描纸绘…",
   "menuScanPaperDrawing": "扫描纸绘",
   "menuInvertColors": "颜色反转",
-
   "canvasSizeTitle": "画布大小",
   "canvasSizeAnchorLabel": "定位方式",
   "canvasSizeAnchorDesc": "根据定位点裁剪或扩展画布尺寸。",
   "confirm": "确定",
-
   "projectManagerTitle": "项目管理",
   "selectAll": "全选",
   "openFolder": "打开文件夹",
@@ -291,13 +269,10 @@
       "count": {}
     }
   },
-
   "imageSizeTitle": "图像大小",
   "lockAspectRatio": "锁定纵横比",
-
   "realtimeParams": "实时参数",
   "clearScribble": "清空涂鸦",
-
   "newCanvasSettingsTitle": "新建画布设置",
   "custom": "自定义",
   "colorWhite": "白色",
@@ -311,7 +286,6 @@
       "name": {}
     }
   },
-
   "exportSettingsTitle": "导出设置",
   "exportTypeLabel": "导出类型",
   "exportTypePng": "位图 PNG",
@@ -341,11 +315,9 @@
     }
   },
   "export": "导出",
-
   "invalidDimensions": "请输入有效的宽高（像素）。",
   "widthPx": "宽度（像素）",
   "heightPx": "高度（像素）",
-
   "noAutosavedProjects": "暂无自动保存的项目",
   "revealProjectLocation": "打开所选项目所在文件夹",
   "deleteSelectedProjects": "删除所选项目",
@@ -375,7 +347,6 @@
       "height": {}
     }
   },
-
   "samplingMethod": "采样方式",
   "currentSize": "当前尺寸：{width} x {height} 像素",
   "@currentSize": {
@@ -388,7 +359,6 @@
   "samplingNearestDesc": "保持像素边缘硬度，适合像素风或图案缩放。",
   "samplingBilinearLabel": "双线性",
   "samplingBilinearDesc": "对像素进行平滑插值，适合需要柔和过渡的缩放。",
-
   "tabletPressureLatest": "最近压力",
   "tabletPressureMin": "最小压力",
   "tabletPressureMax": "最大压力",
@@ -397,14 +367,12 @@
   "tabletSampleCount": "采样计数",
   "tabletSampleRateHz": "采样频率 (Hz)",
   "tabletPointerType": "指针类型",
-  
   "pointerKindMouse": "鼠标",
   "pointerKindTouch": "触摸",
   "pointerKindStylus": "笔",
   "pointerKindInvertedStylus": "笔（橡皮擦）",
   "pointerKindTrackpad": "触控板",
   "pointerKindUnknown": "未知",
-
   "presetMobilePortrait": "移动端纵向 (1080 x 1920)",
   "presetSquare": "方形 (1024 x 1024)",
   "presetPixelArt": "像素画 ({width} x {height})",
@@ -458,7 +426,6 @@
   },
   "enterValidDimensions": "请输入有效的宽高数值",
   "backgroundColor": "背景颜色",
-
   "exportBitmapDesc": "适合需要栅格格式的常规导出，可设置倍率与边缘柔化。",
   "exportVectorDesc": "自动将当前画面转录为矢量路径，便于继续在矢量工具中编辑。",
   "exampleScale": "如：1.0",
@@ -491,7 +458,6 @@
   "antialiasLow": "1 级（轻度）：轻微柔化锯齿，平滑边缘的同时尽量保持线条密度。",
   "antialiasMedium": "2 级（标准）：平衡锐度与柔化，呈现类似 Retas 的干净线条感。",
   "antialiasHigh": "3 级（强力）：最强柔化效果，用于需要柔和过渡或大幅放大的边缘。",
-
   "tolerance": "容差",
   "fillGap": "填充间隔",
   "sampleAllLayers": "跨图层",
@@ -541,34 +507,7 @@
   "screentoneDotSize": "网点大小",
   "screentoneRotation": "网点旋转",
   "screentoneSoftness": "网点柔化",
-  "brushBristleSection": "毛束设置",
-  "bristleEnabled": "启用毛束",
-  "bristleDensity": "毛束密度",
-  "bristleRandom": "随机偏移",
-  "bristleScale": "毛束缩放",
-  "bristleShear": "毛束剪切",
-  "bristleThreshold": "毛束阈值",
-  "bristleConnected": "连笔毛束",
-  "bristleUsePressure": "使用压力",
-  "bristleAntialias": "毛束抗锯齿",
-  "bristleUseCompositing": "毛束合成",
-  "brushInkSection": "墨量",
-  "inkDepletionEnabled": "墨量衰减",
-  "inkAmount": "墨量",
-  "inkDepletionStrength": "衰减强度",
-  "inkUseOpacity": "使用不透明度",
-  "inkUseSaturation": "使用饱和度",
-  "inkUseWeights": "使用权重",
-  "inkPressureWeight": "压力权重",
-  "inkBristleLengthWeight": "毛束长度权重",
-  "inkBristleInkAmountWeight": "毛束墨量权重",
-  "inkDepletionWeight": "衰减权重",
-  "inkUseSoak": "蘸色",
-  "inkDepletionCurve": "衰减曲线",
-  "inkCurvePoint": "曲线点",
-  "inkCurveReset": "重置曲线",
   "brushShape": "笔刷形状",
-  "brushShapeBristlesCircleRandom": "毛笔刷形（随机）",
   "brushAuthorLabel": "作者",
   "brushVersionLabel": "版本",
   "importBrush": "导入笔刷",
@@ -622,7 +561,6 @@
   "circle": "圆形",
   "square": "正方形",
   "star": "五角星",
-
   "brushSizeDesc": "设置当前笔刷的像素直径，数值越大线条越粗，越小越适合描画细节。",
   "spraySizeDesc": "决定喷枪喷洒区域的半径，半径大时覆盖面更广但颗粒更分散。",
   "toleranceDesc": "控制油漆桶或魔棒判断\"颜色足够相似\"的阈值，容差高会一次抓取更多相近颜色。",
@@ -637,7 +575,6 @@
   "hollowStrokeDesc": "将笔画中心挖空，形成空心描边效果。",
   "hollowStrokeRatioDesc": "调整空心内圈大小，数值越高描边越细。",
   "eraseOccludedPartsDesc": "开启后，同一图层里后画的空心线条会吃掉与其他线条的重合部分。",
-
   "solidFillDesc": "决定形状工具是绘制填充色块还是空心轮廓，开启后直接生成实心图形。",
   "randomRotationDesc": "开启后，方形/三角形/五角星笔刷会在笔触的每个印章上随机旋转。",
   "autoSharpTaperDesc": "为笔刷起笔与收笔自动收尖，营造赛璐璐式的利落线条。",
@@ -657,9 +594,7 @@
   "cropOutsideCanvasDesc": "调整图层时把超过画布的像素裁掉，保持文档边缘干净；关闭可保留全部像素。",
   "textAntialiasingDesc": "为文字绘制过程启用边缘柔化，平滑字形的同时保留线条密度；关闭可保留像素感。",
   "textStrokeDesc": "为文字轮廓开启描边通道，配合描边宽度与颜色突出文字。",
-
   "sprayEffectDesc": "切换喷枪的散布模型：\"柔和喷枪\"呈现雾状渐变，\"喷溅\"会喷出颗粒噪点，依据素材质感选择。",
-
   "rectSelectDesc": "使用矩形框快速圈选规则区域。",
   "ellipseSelectDesc": "创建圆形或椭圆选区，适合柔和的局部限制。",
   "polyLassoDesc": "逐点连线绘制任意多边形选区，适合复杂形状。",
@@ -670,7 +605,6 @@
   "circleTipDesc": "笔尖保持圆形，适合顺滑、柔和的笔触。",
   "squareTipDesc": "使用方形笔尖绘制硬边像素风笔触。",
   "starTipDesc": "使用五角星笔尖绘制装饰性笔触。",
-
   "apply": "应用",
   "next": "下一步",
   "disableVectorDrawing": "关闭矢量绘制",
@@ -701,11 +635,9 @@
   "repairRange": "修复范围",
   "selectAntialiasLevel": "选择边缘柔化级别",
   "colorCountLabel": "色彩数量",
-
   "completeTransformFirst": "请先完成当前自由变换。",
   "enablePerspectiveGuideFirst": "请先开启透视辅助线后再使用透视画笔。",
   "lineNotAlignedWithPerspective": "当前线条未对齐透视方向，请调整角度后再落笔。",
-
   "layerBackground": "背景",
   "layerDefaultName": "图层 {index}",
   "@layerDefaultName": {
@@ -726,12 +658,10 @@
   "createClippingMask": "创建剪贴蒙版",
   "hide": "隐藏",
   "show": "显示",
-
   "colorRangeTitle": "色彩范围",
   "colorPickerTitle": "取色",
   "layerManagerTitle": "图层管理",
   "edgeSoftening": "边缘柔化",
-
   "undo": "撤销",
   "redo": "恢复",
   "undoShortcut": "撤销 ({shortcut})",
@@ -762,7 +692,6 @@
   "unlockLayerDesc": "解除保护后即可继续编辑此图层",
   "clippingMaskDescOn": "恢复为普通图层，显示全部像素",
   "clippingMaskDescOff": "仅显示落在下方图层不透明区域内的内容",
-
   "red": "红",
   "green": "绿",
   "blue": "蓝",
@@ -807,7 +736,6 @@
   "applyTransformFailed": "应用自由变换失败，请重试。",
   "freeTransformTitle": "自由变换",
   "colorIndicatorDetail": "点击打开颜色编辑器，可输入数值或复制 HEX 色值",
-
   "gplDesc": "文本格式，兼容 GIMP、Krita、Clip Studio Paint 等软件。",
   "aseDesc": "适用于 Aseprite、LibreSprite 等像素绘图软件。",
   "asepriteDesc": "使用 .aseprite 后缀，方便直接在 Aseprite 中打开。",
@@ -893,7 +821,6 @@
   "lightness": "明度",
   "brightness": "亮度",
   "contrast": "对比度",
-
   "selectSaveFormat": "请选择要保存的文件格式。",
   "saveAsPsd": "保存为 PSD",
   "saveAsSai2": "保存为 SAI2",
@@ -918,7 +845,6 @@
   "rename": "重命名",
   "canvasNotReady": "画布尚未准备好",
   "toolPanel": "工具面板",
-
   "toolbarTitle": "工具栏",
   "toolOptionsTitle": "工具选项",
   "defaultProjectDirectory": "默认项目目录",
@@ -933,7 +859,6 @@
   "fontLanguageAll": "全部",
   "fontFavorites": "收藏",
   "noFavoriteFonts": "暂无收藏字体。",
-
   "rendererLabel": "渲染器",
   "rendererNormal": "普通",
   "rendererNormalDesc": "实时渲染，速度最快，适合预览。",

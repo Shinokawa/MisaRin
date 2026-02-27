@@ -1,6 +1,6 @@
 MRB-TEXT 1
 [brush.json]
-length:1341
+length:569
 {
   "formatVersion": 1,
   "id": "sumi_e",
@@ -24,45 +24,6 @@ length:1341
   "hollowEraseOccludedParts": false,
   "autoSharpTaper": false,
   "snapToPixel": false,
-  "bristleEnabled": false,
-  "bristleDensity": 0.34,
-  "bristleRandom": 7.47,
-  "bristleScale": 1.03,
-  "bristleShear": 0.0,
-  "bristleThreshold": false,
-  "bristleConnected": false,
-  "bristleUsePressure": false,
-  "bristleAntialias": true,
-  "bristleUseCompositing": false,
-  "inkAmount": 1.0,
-  "inkDepletion": 0.0,
-  "inkUseOpacity": false,
-  "inkDepletionEnabled": false,
-  "inkUseSaturation": false,
-  "inkUseWeights": true,
-  "inkPressureWeight": 50.0,
-  "inkBristleLengthWeight": 50.0,
-  "inkBristleInkAmountWeight": 50.0,
-  "inkDepletionWeight": 50.0,
-  "inkUseSoak": false,
-  "inkDepletionCurve": [
-    0.0,
-    0.006,
-    0.02,
-    0.05,
-    0.09,
-    0.14,
-    0.21,
-    0.28,
-    0.36,
-    0.45,
-    0.55,
-    0.65,
-    0.76,
-    0.87,
-    0.94,
-    1.0
-  ],
   "langFile": "brush_lang.txt"
 }
 [brush_lang.txt]

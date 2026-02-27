@@ -1,9 +1,7 @@
 {
   "@@locale": "zh_CN",
-
   "webLoadingInitializingCanvas": "正在初始化画板…",
   "webLoadingMayTakeTime": "Web 端加载需要一些时间，请稍候。",
-
   "closeAppTitle": "关闭应用",
   "unsavedProjectsWarning": "{count, plural, =1{检测到 1 个未保存的项目。如果现在退出，最近的修改将会丢失。} other{检测到 {count} 个未保存的项目。如果现在退出，最近的修改将会丢失。}}",
   "@unsavedProjectsWarning": {
@@ -13,7 +11,6 @@
   },
   "cancel": "取消",
   "discardAndExit": "丢弃并退出",
-
   "homeTagline": "创作从这里开始",
   "homeNewProject": "新建项目",
   "homeNewProjectDesc": "从空白画布开启新的创意",
@@ -27,7 +24,6 @@
   "homeSettingsDesc": "预览即将上线的个性化选项",
   "homeAbout": "关于",
   "homeAboutDesc": "了解项目 Misa Rin",
-
   "createProjectFailed": "创建项目失败：{error}",
   "@createProjectFailed": {
     "placeholders": {
@@ -57,7 +53,6 @@
       "error": {}
     }
   },
-
   "importImageDialogTitle": "导入图片",
   "importedImageInfo": "已导入图片：{name}",
   "@importedImageInfo": {
@@ -82,14 +77,12 @@
   },
   "webPreparingCanvasTitle": "正在准备画布…",
   "webPreparingCanvasMessage": "Web 端需要一些时间才能完成初始化，请稍候。",
-
   "aboutTitle": "关于 Misa Rin",
   "aboutDescription": "Misa Rin 是一款专注于创意绘制与项目管理的应用，旨在为创作者提供流畅的绘图体验与可靠的项目存档能力。",
   "aboutAppIdLabel": "应用标识",
   "aboutAppVersionLabel": "应用版本",
   "aboutDeveloperLabel": "开发者",
   "close": "关闭",
-
   "settingsTitle": "设置",
   "settingsTabGeneral": "常规",
   "settingsTabInput": "输入与笔刷",
@@ -140,7 +133,6 @@
   "performanceOverlayLabel": "性能监控面板",
   "performanceOverlayDesc": "打开后会在屏幕角落显示 Flutter Performance Pulse 仪表盘，实时展示 FPS、CPU、内存与磁盘等数据。",
   "tabletInputTestTitle": "数位板输入测试",
-
   "recentProjectsTitle": "最近打开",
   "recentProjectsLoadFailed": "加载最近项目失败：{error}",
   "@recentProjectsLoadFailed": {
@@ -163,7 +155,6 @@
       "height": {}
     }
   },
-
   "menuFile": "文件",
   "menuEdit": "编辑",
   "menuImage": "图像",
@@ -174,7 +165,6 @@
   "menuView": "视图",
   "menuWorkspace": "工作区",
   "menuWindow": "窗口",
-
   "menuAbout": "关于 Misa Rin",
   "menuPreferences": "偏好设置…",
   "menuNewEllipsis": "新建…",
@@ -185,13 +175,11 @@
   "menuSaveAsEllipsis": "另存为…",
   "menuExportEllipsis": "导出…",
   "menuCloseAll": "关闭全部",
-
   "menuUndo": "撤销",
   "menuRedo": "恢复",
   "menuCut": "剪切",
   "menuCopy": "复制",
   "menuPaste": "粘贴",
-
   "menuImageTransform": "图像变换",
   "menuRotate90CW": "顺时针 90 度",
   "menuRotate90CCW": "逆时针 90 度",
@@ -201,26 +189,21 @@
   "menuFlipVertical": "垂直翻转",
   "menuImageSizeEllipsis": "图像大小…",
   "menuCanvasSizeEllipsis": "画布大小…",
-
   "menuNewSubmenu": "新建",
   "menuNewLayerEllipsis": "图层…",
   "menuMergeDown": "向下合并",
   "menuRasterize": "栅格化",
   "menuTransform": "变换",
-
   "menuSelectAll": "全选",
   "menuDeselect": "取消选择",
   "menuInvertSelection": "反选",
-
   "menuPalette": "调色盘",
   "menuGeneratePaletteFromCanvasEllipsis": "取色当前画布生成调色盘…",
   "menuGenerateGradientPalette": "使用当前颜色生成渐变调色盘",
   "menuImportPaletteEllipsis": "导入调色盘…",
-
   "menuReferenceImage": "参考图像",
   "menuCreateReferenceImage": "创建参考图像",
   "menuImportReferenceImageEllipsis": "导入参考图像…",
-
   "menuReferenceModel": "参考模型",
   "menuReferenceModelSteve": "Steve模型",
   "menuReferenceModelAlex": "Alex模型",
@@ -240,7 +223,6 @@
   "referenceModelViewBottom": "底视图",
   "referenceModelViewLeft": "左视图",
   "referenceModelViewRight": "右视图",
-
   "menuZoomIn": "放大",
   "menuZoomOut": "缩小",
   "menuShowGrid": "显示网格",
@@ -257,12 +239,10 @@
   "menuPerspective1Point": "1 点透视",
   "menuPerspective2Point": "2 点透视",
   "menuPerspective3Point": "3 点透视",
-
   "menuWorkspaceDefault": "默认",
   "menuWorkspaceSai2": "SAI2",
   "menuSwitchWorkspace": "切换工作区",
   "menuResetWorkspace": "复位工作区",
-
   "menuEdgeSofteningEllipsis": "边缘柔化…",
   "menuNarrowLinesEllipsis": "线条收窄…",
   "menuExpandFillEllipsis": "填色拉伸…",
@@ -274,7 +254,6 @@
   "menuBlackWhiteEllipsis": "黑白…",
   "menuBinarizeEllipsis": "二值化…",
   "menuInvertColors": "颜色反转",
-
   "fontFamily": "字体系列",
   "fontSearchPlaceholder": "搜索字体...",
   "noMatchingFonts": "没有匹配的字体。",
@@ -478,7 +457,6 @@
   "hollowStrokeRatioDesc": "调整空心内圈大小，数值越高描边越细。",
   "eraseOccludedParts": "擦除被遮挡部分",
   "eraseOccludedPartsDesc": "开启后，同一图层里后画的空心线条会吃掉与其他线条的重合部分。",
-
   "rendererLabel": "渲染器",
   "rendererNormal": "普通",
   "rendererNormalDesc": "实时渲染，速度最快，适合预览。",
@@ -513,32 +491,6 @@
   "screentoneDotSize": "网点大小",
   "screentoneRotation": "网点旋转",
   "screentoneSoftness": "网点柔化",
-  "brushBristleSection": "毛束设置",
-  "bristleEnabled": "启用毛束",
-  "bristleDensity": "毛束密度",
-  "bristleRandom": "随机偏移",
-  "bristleScale": "毛束缩放",
-  "bristleShear": "毛束剪切",
-  "bristleThreshold": "毛束阈值",
-  "bristleConnected": "连笔毛束",
-  "bristleUsePressure": "使用压力",
-  "bristleAntialias": "毛束抗锯齿",
-  "bristleUseCompositing": "毛束合成",
-  "brushInkSection": "墨量",
-  "inkDepletionEnabled": "墨量衰减",
-  "inkAmount": "墨量",
-  "inkDepletionStrength": "衰减强度",
-  "inkUseOpacity": "使用不透明度",
-  "inkUseSaturation": "使用饱和度",
-  "inkUseWeights": "使用权重",
-  "inkPressureWeight": "压力权重",
-  "inkBristleLengthWeight": "毛束长度权重",
-  "inkBristleInkAmountWeight": "毛束墨量权重",
-  "inkDepletionWeight": "衰减权重",
-  "inkUseSoak": "蘸色",
-  "inkDepletionCurve": "衰减曲线",
-  "inkCurvePoint": "曲线点",
-  "inkCurveReset": "重置曲线",
   "brushAntialiasing": "笔刷抗锯齿",
   "brushAuthorLabel": "作者",
   "brushVersionLabel": "版本",
@@ -570,6 +522,5 @@
       "limit": {}
     }
   },
-  "autoSaveCleanupDialogClean": "清理",
-  "brushShapeBristlesCircleRandom": "毛笔刷形（随机）"
+  "autoSaveCleanupDialogClean": "清理"
 }

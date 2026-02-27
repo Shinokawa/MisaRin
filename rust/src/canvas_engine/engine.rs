@@ -33,7 +33,7 @@ use super::preview::{PreviewConfig, PreviewRenderer, PreviewSegment};
 use super::present::create_dxgi_shared_present_target;
 use super::stroke::{
     apply_streamline, brush_random_rotation_radians, map_brush_shape, prepare_brush_samples,
-    resample_ink_curve, EngineBrushSettings, StrokeResampler,
+    EngineBrushSettings, StrokeResampler,
 };
 use super::transform::LayerTransformRenderer;
 use super::types::{EnginePoint, SprayPoint};
@@ -176,30 +176,6 @@ pub(crate) enum EngineCommand {
         streamline_strength: f32,
         smoothing_mode: u32,
         stabilizer_strength: f32,
-        bristle_enabled: bool,
-        bristle_density: f32,
-        bristle_random: f32,
-        bristle_scale: f32,
-        bristle_shear: f32,
-        bristle_threshold: bool,
-        bristle_connected: bool,
-        bristle_use_pressure: bool,
-        bristle_antialias: bool,
-        bristle_use_compositing: bool,
-        ink_amount: f32,
-        ink_depletion: f32,
-        ink_use_opacity: bool,
-        ink_depletion_enabled: bool,
-        ink_use_saturation: bool,
-        ink_use_weights: bool,
-        ink_pressure_weight: f32,
-        ink_bristle_length_weight: f32,
-        ink_bristle_ink_amount_weight: f32,
-        ink_depletion_weight: f32,
-        ink_use_soak: bool,
-    },
-    SetInkCurve {
-        curve: Vec<f32>,
     },
     SetBrushMask {
         width: u32,
@@ -608,44 +584,6 @@ fn maybe_log_layer_sample(
             "layer sample tag={tag} source={source} layer={layer_index} x={x_u} y={y_u} argb=0x{pixel:08X} dirty=({left},{top},{width},{height})"
         ),
     );
-}
-
-fn maybe_set_brush_soak_color(
-    stroke: &mut StrokeResampler,
-    brush_settings: &EngineBrushSettings,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    layer_texture: &wgpu::Texture,
-    layer_index: u32,
-    canvas_width: u32,
-    canvas_height: u32,
-    points: &[(Point2D, f32)],
-) {
-    if !brush_settings.bristle_enabled || !brush_settings.ink_use_soak {
-        stroke.clear_soak_color();
-        return;
-    }
-    if !stroke.needs_soak_color() {
-        return;
-    }
-    let Some((point, _)) = points.first() else {
-        return;
-    };
-    if !point.x.is_finite() || !point.y.is_finite() {
-        return;
-    }
-    if canvas_width == 0 || canvas_height == 0 {
-        return;
-    }
-    let max_x = canvas_width.saturating_sub(1) as f32;
-    let max_y = canvas_height.saturating_sub(1) as f32;
-    let x = point.x.round().clamp(0.0, max_x) as u32;
-    let y = point.y.round().clamp(0.0, max_y) as u32;
-    if let Some(color) =
-        read_layer_pixel_u32(device, queue, layer_texture, layer_index, x, y)
-    {
-        stroke.set_soak_color(color);
-    }
 }
 
 fn ease_out_cubic(t: f32) -> f32 {
@@ -1085,17 +1023,6 @@ fn render_streamline_frame(
             }
         }
     };
-    maybe_set_brush_soak_color(
-        stroke,
-        &animation.brush_settings,
-        device.as_ref(),
-        queue.as_ref(),
-        layer_texture,
-        animation.layer_index,
-        canvas_width,
-        canvas_height,
-        &animation.scratch,
-    );
     let drawn_any = stroke.draw_emitted_points(
         brush_ref,
         &animation.brush_settings,
@@ -1211,17 +1138,6 @@ fn commit_preview_stroke(
             }
         }
     };
-    maybe_set_brush_soak_color(
-        stroke,
-        brush_settings,
-        device.as_ref(),
-        queue.as_ref(),
-        layer_texture,
-        layer_index,
-        canvas_width,
-        canvas_height,
-        points,
-    );
     let drawn_any = stroke.draw_emitted_points(
         brush_ref,
         brush_settings,
@@ -3163,27 +3079,6 @@ fn handle_engine_command(
             streamline_strength,
             smoothing_mode,
             stabilizer_strength,
-            bristle_enabled,
-            bristle_density,
-            bristle_random,
-            bristle_scale,
-            bristle_shear,
-            bristle_threshold,
-            bristle_connected,
-            bristle_use_pressure,
-            bristle_antialias,
-            bristle_use_compositing,
-            ink_amount,
-            ink_depletion,
-            ink_use_opacity,
-            ink_depletion_enabled,
-            ink_use_saturation,
-            ink_use_weights,
-            ink_pressure_weight,
-            ink_bristle_length_weight,
-            ink_bristle_ink_amount_weight,
-            ink_depletion_weight,
-            ink_use_soak,
         } => {
             brush_settings.color_argb = color_argb;
             brush_settings.base_radius = base_radius;
@@ -3212,27 +3107,6 @@ fn handle_engine_command(
             brush_settings.streamline_strength = streamline_strength;
             brush_settings.smoothing_mode = (smoothing_mode as u8).min(3);
             brush_settings.stabilizer_strength = stabilizer_strength;
-            brush_settings.bristle_enabled = bristle_enabled;
-            brush_settings.bristle_density = bristle_density;
-            brush_settings.bristle_random = bristle_random;
-            brush_settings.bristle_scale = bristle_scale;
-            brush_settings.bristle_shear = bristle_shear;
-            brush_settings.bristle_threshold = bristle_threshold;
-            brush_settings.bristle_connected = bristle_connected;
-            brush_settings.bristle_use_pressure = bristle_use_pressure;
-            brush_settings.bristle_antialias = bristle_antialias;
-            brush_settings.bristle_use_compositing = bristle_use_compositing;
-            brush_settings.ink_amount = ink_amount;
-            brush_settings.ink_depletion = ink_depletion;
-            brush_settings.ink_use_opacity = ink_use_opacity;
-            brush_settings.ink_depletion_enabled = ink_depletion_enabled;
-            brush_settings.ink_use_saturation = ink_use_saturation;
-            brush_settings.ink_use_weights = ink_use_weights;
-            brush_settings.ink_pressure_weight = ink_pressure_weight;
-            brush_settings.ink_bristle_length_weight = ink_bristle_length_weight;
-            brush_settings.ink_bristle_ink_weight = ink_bristle_ink_amount_weight;
-            brush_settings.ink_depletion_weight = ink_depletion_weight;
-            brush_settings.ink_use_soak = ink_use_soak;
             brush_settings.sanitize();
             if brush.is_none() {
                 if let Err(err) = ensure_brush(brush, device, queue, canvas_width, canvas_height) {
@@ -3243,9 +3117,6 @@ fn handle_engine_command(
                 }
             }
         }
-        EngineCommand::SetInkCurve { curve } => {
-            brush_settings.ink_depletion_curve = resample_ink_curve(&curve);
-        }
         EngineCommand::SetBrushMask {
             width,
             height,
@@ -3253,7 +3124,6 @@ fn handle_engine_command(
         } => {
             brush_settings.custom_mask_enabled = false;
             if width == 0 || height == 0 || mask.is_empty() {
-                stroke.clear_bristle_mask();
                 if let Some(renderer) = brush.as_mut() {
                     renderer.clear_custom_mask();
                 }
@@ -3280,7 +3150,6 @@ fn handle_engine_command(
             match brush_ref.set_custom_mask(width, height, &mask) {
                 Ok(()) => {
                     brush_settings.custom_mask_enabled = true;
-                    stroke.set_bristle_mask(width, height, &mask);
                 }
                 Err(err) => {
                     debug::log(
@@ -3288,7 +3157,6 @@ fn handle_engine_command(
                         format_args!("BrushRenderer set custom mask failed: {err}"),
                     );
                     brush_ref.clear_custom_mask();
-                    stroke.clear_bristle_mask();
                 }
             }
             return EngineCommandOutcome {
@@ -3299,7 +3167,6 @@ fn handle_engine_command(
         }
         EngineCommand::ClearBrushMask => {
             brush_settings.custom_mask_enabled = false;
-            stroke.clear_bristle_mask();
             if let Some(renderer) = brush.as_mut() {
                 renderer.clear_custom_mask();
             }

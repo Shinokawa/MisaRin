@@ -1,9 +1,7 @@
 {
   "@@locale": "en",
-
-  "webLoadingInitializingCanvas": "Initializing canvas\u2026",
+  "webLoadingInitializingCanvas": "Initializing canvas…",
   "webLoadingMayTakeTime": "Loading on web may take a moment. Please wait.",
-
   "closeAppTitle": "Quit App",
   "unsavedProjectsWarning": "{count, plural, =1{Detected 1 unsaved project. If you quit now, your recent changes will be lost.} other{Detected {count} unsaved projects. If you quit now, your recent changes will be lost.}}",
   "@unsavedProjectsWarning": {
@@ -13,7 +11,6 @@
   },
   "cancel": "Cancel",
   "discardAndExit": "Discard and Quit",
-
   "homeTagline": "Start creating here",
   "homeNewProject": "New Project",
   "homeNewProjectDesc": "Start a new idea from a blank canvas",
@@ -27,7 +24,6 @@
   "homeSettingsDesc": "Preview personalization options coming soon",
   "homeAbout": "About",
   "homeAboutDesc": "Learn more about Misa Rin",
-
   "createProjectFailed": "Failed to create project: {error}",
   "@createProjectFailed": {
     "placeholders": {
@@ -35,7 +31,7 @@
     }
   },
   "openProjectDialogTitle": "Open Project",
-  "openingProjectTitle": "Opening project\u2026",
+  "openingProjectTitle": "Opening project…",
   "openingProjectMessage": "Loading {fileName}",
   "@openingProjectMessage": {
     "placeholders": {
@@ -57,7 +53,6 @@
       "error": {}
     }
   },
-
   "importImageDialogTitle": "Import Image",
   "importedImageInfo": "Imported image: {name}",
   "@importedImageInfo": {
@@ -80,16 +75,14 @@
       "error": {}
     }
   },
-  "webPreparingCanvasTitle": "Preparing canvas\u2026",
+  "webPreparingCanvasTitle": "Preparing canvas…",
   "webPreparingCanvasMessage": "Initializing on web may take a moment. Please wait.",
-
   "aboutTitle": "About Misa Rin",
   "aboutDescription": "Misa Rin is an app focused on creative drawing and project management, designed to provide creators with a smooth painting experience and reliable project archiving.",
   "aboutAppIdLabel": "App ID",
   "aboutAppVersionLabel": "Version",
   "aboutDeveloperLabel": "Developer",
   "close": "Close",
-
   "settingsTitle": "Settings",
   "settingsTabGeneral": "General",
   "settingsTabInput": "Input & Brushes",
@@ -140,7 +133,6 @@
   "performanceOverlayLabel": "Performance overlay",
   "performanceOverlayDesc": "Shows a Flutter Performance Pulse dashboard in the corner with FPS, CPU, memory, disk, etc.",
   "tabletInputTestTitle": "Tablet Input Test",
-
   "recentProjectsTitle": "Recent",
   "recentProjectsLoadFailed": "Failed to load recent projects: {error}",
   "@recentProjectsLoadFailed": {
@@ -163,7 +155,6 @@
       "height": {}
     }
   },
-
   "menuFile": "File",
   "menuEdit": "Edit",
   "menuImage": "Image",
@@ -174,64 +165,56 @@
   "menuView": "View",
   "menuWorkspace": "Workspace",
   "menuWindow": "Window",
-
   "menuAbout": "About Misa Rin",
-  "menuPreferences": "Preferences\u2026",
-  "menuNewEllipsis": "New\u2026",
-  "menuOpenEllipsis": "Open\u2026",
-  "menuImportImageEllipsis": "Import Image\u2026",
+  "menuPreferences": "Preferences…",
+  "menuNewEllipsis": "New…",
+  "menuOpenEllipsis": "Open…",
+  "menuImportImageEllipsis": "Import Image…",
   "menuImportImageFromClipboard": "Import Image from Clipboard",
   "menuSave": "Save",
-  "menuSaveAsEllipsis": "Save As\u2026",
-  "menuExportEllipsis": "Export\u2026",
+  "menuSaveAsEllipsis": "Save As…",
+  "menuExportEllipsis": "Export…",
   "menuCloseAll": "Close All",
-
   "menuUndo": "Undo",
   "menuRedo": "Redo",
   "menuCut": "Cut",
   "menuCopy": "Copy",
   "menuPaste": "Paste",
-
   "menuImageTransform": "Transform",
-  "menuRotate90CW": "Rotate 90\u00b0 CW",
-  "menuRotate90CCW": "Rotate 90\u00b0 CCW",
-  "menuRotate180CW": "Rotate 180\u00b0 CW",
-  "menuRotate180CCW": "Rotate 180\u00b0 CCW",
+  "menuRotate90CW": "Rotate 90° CW",
+  "menuRotate90CCW": "Rotate 90° CCW",
+  "menuRotate180CW": "Rotate 180° CW",
+  "menuRotate180CCW": "Rotate 180° CCW",
   "menuFlipHorizontal": "Flip Horizontal",
   "menuFlipVertical": "Flip Vertical",
-  "menuImageSizeEllipsis": "Image Size\u2026",
-  "menuCanvasSizeEllipsis": "Canvas Size\u2026",
-
+  "menuImageSizeEllipsis": "Image Size…",
+  "menuCanvasSizeEllipsis": "Canvas Size…",
   "menuNewSubmenu": "New",
-  "menuNewLayerEllipsis": "Layer\u2026",
+  "menuNewLayerEllipsis": "Layer…",
   "menuMergeDown": "Merge Down",
   "menuRasterize": "Rasterize",
   "menuTransform": "Transform",
-
   "menuSelectAll": "Select All",
   "menuDeselect": "Deselect",
   "menuInvertSelection": "Invert Selection",
-
   "menuPalette": "Palette",
-  "menuGeneratePaletteFromCanvasEllipsis": "Generate palette from current canvas\u2026",
+  "menuGeneratePaletteFromCanvasEllipsis": "Generate palette from current canvas…",
   "menuGenerateGradientPalette": "Generate gradient palette from current colors",
-  "menuImportPaletteEllipsis": "Import palette\u2026",
-
+  "menuImportPaletteEllipsis": "Import palette…",
   "menuReferenceImage": "Reference Images",
   "menuCreateReferenceImage": "Create Reference Image",
-  "menuImportReferenceImageEllipsis": "Import Reference Image\u2026",
-
+  "menuImportReferenceImageEllipsis": "Import Reference Image…",
   "menuReferenceModel": "Reference Model",
   "menuReferenceModelSteve": "Steve Model",
   "menuReferenceModelAlex": "Alex Model",
   "menuReferenceModelCube": "Cube Model",
-  "menuImportReferenceModelEllipsis": "Import Model\u2026",
+  "menuImportReferenceModelEllipsis": "Import Model…",
   "referenceModelRefreshTexture": "Refresh Texture",
   "referenceModelRefreshTextureDesc": "Generate a model texture from the current canvas",
   "referenceModelResetView": "Reset View",
   "referenceModelResetViewDesc": "Reset rotation and zoom",
   "referenceModelSixView": "6 Views",
-  "referenceModelSixViewDesc": "Split the viewport into a 2\u00d73 grid (Front/Back/Top/Bottom/Left/Right)",
+  "referenceModelSixViewDesc": "Split the viewport into a 2×3 grid (Front/Back/Top/Bottom/Left/Right)",
   "referenceModelSingleView": "Single View",
   "referenceModelSingleViewDesc": "Back to single view (drag to rotate)",
   "referenceModelViewFront": "Front View",
@@ -240,7 +223,6 @@
   "referenceModelViewBottom": "Bottom View",
   "referenceModelViewLeft": "Left View",
   "referenceModelViewRight": "Right View",
-
   "menuZoomIn": "Zoom In",
   "menuZoomOut": "Zoom Out",
   "menuShowGrid": "Show Grid",
@@ -257,31 +239,27 @@
   "menuPerspective1Point": "1-Point",
   "menuPerspective2Point": "2-Point",
   "menuPerspective3Point": "3-Point",
-
   "menuWorkspaceDefault": "Default",
   "menuWorkspaceSai2": "SAI2",
   "menuSwitchWorkspace": "Switch Workspace",
   "menuResetWorkspace": "Reset Workspace",
-
-  "menuEdgeSofteningEllipsis": "Edge Softening\u2026",
-  "menuNarrowLinesEllipsis": "Narrow Lines\u2026",
-  "menuExpandFillEllipsis": "Expand Fill\u2026",
-  "menuGaussianBlurEllipsis": "Gaussian Blur\u2026",
-  "menuRemoveColorLeakEllipsis": "Remove Color Leak\u2026",
-  "menuHueSaturationEllipsis": "Hue/Saturation\u2026",
-  "menuBrightnessContrastEllipsis": "Brightness/Contrast\u2026",
-  "menuColorRangeEllipsis": "Color Range\u2026",
-  "menuBlackWhiteEllipsis": "Black & White\u2026",
-  "menuBinarizeEllipsis": "Binarize\u2026",
-  "menuScanPaperDrawingEllipsis": "Scan Paper Drawing\u2026",
+  "menuEdgeSofteningEllipsis": "Edge Softening…",
+  "menuNarrowLinesEllipsis": "Narrow Lines…",
+  "menuExpandFillEllipsis": "Expand Fill…",
+  "menuGaussianBlurEllipsis": "Gaussian Blur…",
+  "menuRemoveColorLeakEllipsis": "Remove Color Leak…",
+  "menuHueSaturationEllipsis": "Hue/Saturation…",
+  "menuBrightnessContrastEllipsis": "Brightness/Contrast…",
+  "menuColorRangeEllipsis": "Color Range…",
+  "menuBlackWhiteEllipsis": "Black & White…",
+  "menuBinarizeEllipsis": "Binarize…",
+  "menuScanPaperDrawingEllipsis": "Scan Paper Drawing…",
   "menuScanPaperDrawing": "Scan Paper Drawing",
   "menuInvertColors": "Invert Colors",
-
   "canvasSizeTitle": "Canvas Size",
   "canvasSizeAnchorLabel": "Anchor",
   "canvasSizeAnchorDesc": "Resize canvas based on anchor point.",
   "confirm": "Confirm",
-
   "projectManagerTitle": "Project Manager",
   "selectAll": "Select All",
   "openFolder": "Open Folder",
@@ -291,13 +269,10 @@
       "count": {}
     }
   },
-
   "imageSizeTitle": "Image Size",
   "lockAspectRatio": "Lock Aspect Ratio",
-
   "realtimeParams": "Realtime Parameters",
   "clearScribble": "Clear Scribble",
-
   "newCanvasSettingsTitle": "New Canvas Settings",
   "custom": "Custom",
   "colorWhite": "White",
@@ -311,7 +286,6 @@
       "name": {}
     }
   },
-
   "exportSettingsTitle": "Export Settings",
   "exportTypeLabel": "Export Type",
   "exportTypePng": "Bitmap PNG",
@@ -341,11 +315,9 @@
     }
   },
   "export": "Export",
-
   "invalidDimensions": "Please enter valid dimensions (px).",
   "widthPx": "Width (px)",
   "heightPx": "Height (px)",
-
   "noAutosavedProjects": "No autosaved projects",
   "revealProjectLocation": "Reveal selected project location",
   "deleteSelectedProjects": "Delete selected projects",
@@ -375,7 +347,6 @@
       "height": {}
     }
   },
-
   "samplingMethod": "Sampling Method",
   "currentSize": "Current Size: {width} x {height} px",
   "@currentSize": {
@@ -388,7 +359,6 @@
   "samplingNearestDesc": "Preserves hard edges, good for pixel art.",
   "samplingBilinearLabel": "Bilinear",
   "samplingBilinearDesc": "Smooth interpolation, good for general resizing.",
-
   "tabletPressureLatest": "Latest Pressure",
   "tabletPressureMin": "Pressure Min",
   "tabletPressureMax": "Pressure Max",
@@ -397,14 +367,12 @@
   "tabletSampleCount": "Sample Count",
   "tabletSampleRateHz": "Sample Rate (Hz)",
   "tabletPointerType": "Pointer Type",
-  
   "pointerKindMouse": "Mouse",
   "pointerKindTouch": "Touch",
   "pointerKindStylus": "Stylus",
   "pointerKindInvertedStylus": "Stylus (Eraser)",
   "pointerKindTrackpad": "Trackpad",
   "pointerKindUnknown": "Unknown",
-
   "presetMobilePortrait": "Mobile Portrait (1080 x 1920)",
   "presetSquare": "Square (1024 x 1024)",
   "presetPixelArt": "Pixel Art ({width} x {height})",
@@ -458,7 +426,6 @@
   },
   "enterValidDimensions": "Please enter valid dimensions",
   "backgroundColor": "Background Color",
-
   "exportBitmapDesc": "Suitable for regular exports requiring raster format, supports scaling and antialiasing.",
   "exportVectorDesc": "Automatically transcribes current canvas to vector paths, suitable for editing in vector tools.",
   "exampleScale": "e.g. 1.0",
@@ -491,7 +458,6 @@
   "antialiasLow": "Level 1 (Low): Slight softening of aliasing, smoothing edges while maintaining line density.",
   "antialiasMedium": "Level 2 (Standard): Balance sharpness and softening, presenting clean lines like Retas.",
   "antialiasHigh": "Level 3 (High): Strongest softening effect, for edges requiring soft transitions or large scaling.",
-
   "tolerance": "Tolerance",
   "fillGap": "Fill Gap",
   "sampleAllLayers": "Sample All Layers",
@@ -541,34 +507,7 @@
   "screentoneDotSize": "Dot Size",
   "screentoneRotation": "Dot Rotation",
   "screentoneSoftness": "Dot Softness",
-  "brushBristleSection": "Bristle",
-  "bristleEnabled": "Enable Bristles",
-  "bristleDensity": "Bristle Density",
-  "bristleRandom": "Random Offset",
-  "bristleScale": "Bristle Scale",
-  "bristleShear": "Bristle Shear",
-  "bristleThreshold": "Bristle Threshold",
-  "bristleConnected": "Connect Bristles",
-  "bristleUsePressure": "Use Pressure",
-  "bristleAntialias": "Bristle Anti-aliasing",
-  "bristleUseCompositing": "Composite Bristles",
-  "brushInkSection": "Ink",
-  "inkDepletionEnabled": "Ink Depletion",
-  "inkAmount": "Ink Amount",
-  "inkDepletionStrength": "Ink Depletion Strength",
-  "inkUseOpacity": "Use Opacity",
-  "inkUseSaturation": "Use Saturation",
-  "inkUseWeights": "Use Weights",
-  "inkPressureWeight": "Pressure Weight",
-  "inkBristleLengthWeight": "Bristle Length Weight",
-  "inkBristleInkAmountWeight": "Bristle Ink Weight",
-  "inkDepletionWeight": "Depletion Weight",
-  "inkUseSoak": "Soak Ink",
-  "inkDepletionCurve": "Ink Depletion Curve",
-  "inkCurvePoint": "Curve Point",
-  "inkCurveReset": "Reset Curve",
   "brushShape": "Brush Shape",
-  "brushShapeBristlesCircleRandom": "Bristles (Random)",
   "brushAuthorLabel": "Author",
   "brushVersionLabel": "Version",
   "importBrush": "Import Brush",
@@ -622,7 +561,6 @@
   "circle": "Circle",
   "square": "Square",
   "star": "Star",
-
   "brushSizeDesc": "Sets the pixel diameter of the current brush. Larger values make thicker lines, smaller for details.",
   "spraySizeDesc": "Determines the radius of the spray area. Larger radius covers more area but particles are more dispersed.",
   "toleranceDesc": "Controls the threshold for 'color similarity' for Bucket or Magic Wand. Higher tolerance grabs more similar colors.",
@@ -637,7 +575,6 @@
   "hollowStrokeDesc": "Cuts out the center of strokes for a hollow outline effect.",
   "hollowStrokeRatioDesc": "Controls the size of the hollow interior. Higher values make the outline thinner.",
   "eraseOccludedPartsDesc": "When enabled, later hollow strokes erase overlapping pixels from existing strokes on the same layer.",
-  
   "solidFillDesc": "Determines if the shape tool draws a filled block or hollow outline. Toggle on for solid shapes.",
   "randomRotationDesc": "When enabled, square/triangle/star stamps rotate randomly along the stroke.",
   "autoSharpTaperDesc": "Automatically tapers the start and end of strokes for a sharp, cel-shading look.",
@@ -657,9 +594,7 @@
   "cropOutsideCanvasDesc": "Crops pixels outside the canvas when adjusting layers. Turn off to keep all pixels.",
   "textAntialiasingDesc": "Enables antialiasing for text rendering, smoothing glyphs while preserving density.",
   "textStrokeDesc": "Enables the stroke channel for text outlines.",
-  
   "sprayEffectDesc": "Switches spray model: 'Soft Spray' for misty gradients, 'Splatter' for particles.",
-  
   "rectSelectDesc": "Quickly select a rectangular area.",
   "ellipseSelectDesc": "Create circular or elliptical selections.",
   "polyLassoDesc": "Draw arbitrary polygon selections point by point.",
@@ -670,7 +605,6 @@
   "circleTipDesc": "Keep brush tip circular for smooth, soft strokes.",
   "squareTipDesc": "Use a square tip for hard-edged pixel strokes.",
   "starTipDesc": "Use a five-point star tip for decorative strokes.",
-
   "apply": "Apply",
   "next": "Next",
   "disableVectorDrawing": "Disable Vector Drawing",
@@ -701,11 +635,9 @@
   "repairRange": "Repair Range",
   "selectAntialiasLevel": "Select Antialias Level",
   "colorCountLabel": "Color Count",
-
   "completeTransformFirst": "Please complete the current transform first.",
   "enablePerspectiveGuideFirst": "Please enable perspective guide before using perspective pen.",
   "lineNotAlignedWithPerspective": "Current line does not align with perspective direction, please adjust angle.",
-
   "layerBackground": "Background",
   "layerDefaultName": "Layer {index}",
   "@layerDefaultName": {
@@ -726,12 +658,10 @@
   "createClippingMask": "Create Clipping Mask",
   "hide": "Hide",
   "show": "Show",
-
   "colorRangeTitle": "Color Range",
   "colorPickerTitle": "Color Picker",
   "layerManagerTitle": "Layer Manager",
   "edgeSoftening": "Edge Softening",
-
   "undo": "Undo",
   "redo": "Redo",
   "undoShortcut": "Undo ({shortcut})",
@@ -762,7 +692,6 @@
   "unlockLayerDesc": "Unlock to enable editing.",
   "clippingMaskDescOn": "Restore to normal layer.",
   "clippingMaskDescOff": "Clip to layer below.",
-
   "red": "Red",
   "green": "Green",
   "blue": "Blue",
@@ -801,7 +730,6 @@
   "applyTransformFailed": "Failed to apply transform, please try again.",
   "freeTransformTitle": "Free Transform",
   "colorIndicatorDetail": "Click to open color editor, enter values or copy HEX.",
-
   "gplDesc": "Text format compatible with GIMP, Krita, Clip Studio Paint, etc.",
   "aseDesc": "Suitable for Aseprite, LibreSprite pixel art software.",
   "asepriteDesc": "Uses .aseprite extension for direct opening in Aseprite.",
@@ -887,7 +815,6 @@
   "lightness": "Lightness",
   "brightness": "Brightness",
   "contrast": "Contrast",
-
   "selectSaveFormat": "Please select a file format to save.",
   "saveAsPsd": "Save as PSD",
   "saveAsSai2": "Save as SAI2",
@@ -899,7 +826,6 @@
   "rename": "Rename",
   "canvasNotReady": "Canvas not ready",
   "toolPanel": "Tool Panel",
-
   "toolbarTitle": "Toolbar",
   "toolOptionsTitle": "Tool Options",
   "defaultProjectDirectory": "Default Project Directory",
@@ -914,7 +840,6 @@
   "fontLanguageAll": "All",
   "fontFavorites": "Favorites",
   "noFavoriteFonts": "No favorite fonts yet.",
-
   "importPaletteTitle": "Import Palette",
   "cannotReadFile": "Cannot read file",
   "paletteImported": "Palette imported: {name}",
@@ -1102,7 +1027,6 @@
   "blackPoint": "Black Point",
   "whitePoint": "White Point",
   "midTone": "Mid Tone",
-
   "rendererLabel": "Renderer",
   "rendererNormal": "Normal",
   "rendererNormalDesc": "Real-time rendering, fastest speed, suitable for preview.",

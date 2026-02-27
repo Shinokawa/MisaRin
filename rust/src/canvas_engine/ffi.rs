@@ -552,27 +552,6 @@ pub extern "C" fn engine_set_brush(
     streamline_strength: f32,
     smoothing_mode: u32,
     stabilizer_strength: f32,
-    bristle_enabled: u8,
-    bristle_density: f32,
-    bristle_random: f32,
-    bristle_scale: f32,
-    bristle_shear: f32,
-    bristle_threshold: u8,
-    bristle_connected: u8,
-    bristle_use_pressure: u8,
-    bristle_antialias: u8,
-    bristle_use_compositing: u8,
-    ink_amount: f32,
-    ink_depletion: f32,
-    ink_use_opacity: u8,
-    ink_depletion_enabled: u8,
-    ink_use_saturation: u8,
-    ink_use_weights: u8,
-    ink_pressure_weight: f32,
-    ink_bristle_length_weight: f32,
-    ink_bristle_ink_amount_weight: f32,
-    ink_depletion_weight: f32,
-    ink_use_soak: u8,
 ) {
     let Some(entry) = lookup_engine(handle) else {
         return;
@@ -621,55 +600,7 @@ pub extern "C" fn engine_set_brush(
         streamline_strength,
         smoothing_mode,
         stabilizer_strength,
-        bristle_enabled: bristle_enabled != 0,
-        bristle_density,
-        bristle_random,
-        bristle_scale,
-        bristle_shear,
-        bristle_threshold: bristle_threshold != 0,
-        bristle_connected: bristle_connected != 0,
-        bristle_use_pressure: bristle_use_pressure != 0,
-        bristle_antialias: bristle_antialias != 0,
-        bristle_use_compositing: bristle_use_compositing != 0,
-        ink_amount,
-        ink_depletion,
-        ink_use_opacity: ink_use_opacity != 0,
-        ink_depletion_enabled: ink_depletion_enabled != 0,
-        ink_use_saturation: ink_use_saturation != 0,
-        ink_use_weights: ink_use_weights != 0,
-        ink_pressure_weight,
-        ink_bristle_length_weight,
-        ink_bristle_ink_amount_weight,
-        ink_depletion_weight,
-        ink_use_soak: ink_use_soak != 0,
     });
-}
-
-#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
-#[no_mangle]
-pub extern "C" fn engine_set_ink_curve(
-    handle: u64,
-    curve_ptr: *const f32,
-    curve_len: usize,
-) {
-    let Some(entry) = lookup_engine(handle) else {
-        return;
-    };
-    let curve: Vec<f32> = if curve_ptr.is_null() || curve_len == 0 {
-        Vec::new()
-    } else {
-        unsafe { std::slice::from_raw_parts(curve_ptr, curve_len).to_vec() }
-    };
-    let _ = entry.cmd_tx.send(EngineCommand::SetInkCurve { curve });
-}
-
-#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
-#[no_mangle]
-pub extern "C" fn engine_set_ink_curve(
-    _handle: u64,
-    _curve_ptr: *const f32,
-    _curve_len: usize,
-) {
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
@@ -703,27 +634,6 @@ pub extern "C" fn engine_set_brush(
     _streamline_strength: f32,
     _smoothing_mode: u32,
     _stabilizer_strength: f32,
-    _bristle_enabled: u8,
-    _bristle_density: f32,
-    _bristle_random: f32,
-    _bristle_scale: f32,
-    _bristle_shear: f32,
-    _bristle_threshold: u8,
-    _bristle_connected: u8,
-    _bristle_use_pressure: u8,
-    _bristle_antialias: u8,
-    _bristle_use_compositing: u8,
-    _ink_amount: f32,
-    _ink_depletion: f32,
-    _ink_use_opacity: u8,
-    _ink_depletion_enabled: u8,
-    _ink_use_saturation: u8,
-    _ink_use_weights: u8,
-    _ink_pressure_weight: f32,
-    _ink_bristle_length_weight: f32,
-    _ink_bristle_ink_amount_weight: f32,
-    _ink_depletion_weight: f32,
-    _ink_use_soak: u8,
 ) {
 }
 

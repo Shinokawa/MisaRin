@@ -90,34 +90,8 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   late double _screentoneRotation;
   late double _screentoneSoftness;
   late BrushShape _screentoneShape;
-  late bool _bristleEnabled;
-  late double _bristleDensity;
-  late double _bristleRandom;
-  late double _bristleScale;
-  late double _bristleShear;
-  late bool _bristleThreshold;
-  late bool _bristleConnected;
-  late bool _bristleUsePressure;
-  late bool _bristleAntialias;
-  late bool _bristleUseCompositing;
-  late double _inkAmount;
-  late double _inkDepletion;
-  late bool _inkUseOpacity;
-  late bool _inkDepletionEnabled;
-  late bool _inkUseSaturation;
-  late bool _inkUseWeights;
-  late double _inkPressureWeight;
-  late double _inkBristleLengthWeight;
-  late double _inkBristleInkAmountWeight;
-  late double _inkDepletionWeight;
-  late bool _inkUseSoak;
-  late List<double> _inkDepletionCurve;
-  late List<double> _inkDepletionCurveRaw;
-  bool _inkCurveEdited = false;
   ui.Locale? _lastLocale;
   bool _didSync = false;
-
-  static const int _inkCurveEditorPoints = 16;
 
   @override
   void initState() {
@@ -188,32 +162,6 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
     _screentoneRotation = sanitized.screentoneRotation;
     _screentoneSoftness = sanitized.screentoneSoftness;
     _screentoneShape = sanitized.screentoneShape;
-    _bristleEnabled = sanitized.bristleEnabled;
-    _bristleDensity = sanitized.bristleDensity;
-    _bristleRandom = sanitized.bristleRandom;
-    _bristleScale = sanitized.bristleScale;
-    _bristleShear = sanitized.bristleShear;
-    _bristleThreshold = sanitized.bristleThreshold;
-    _bristleConnected = sanitized.bristleConnected;
-    _bristleUsePressure = sanitized.bristleUsePressure;
-    _bristleAntialias = sanitized.bristleAntialias;
-    _bristleUseCompositing = sanitized.bristleUseCompositing;
-    _inkAmount = sanitized.inkAmount;
-    _inkDepletion = sanitized.inkDepletion;
-    _inkUseOpacity = sanitized.inkUseOpacity;
-    _inkDepletionEnabled = sanitized.inkDepletionEnabled;
-    _inkUseSaturation = sanitized.inkUseSaturation;
-    _inkUseWeights = sanitized.inkUseWeights;
-    _inkPressureWeight = sanitized.inkPressureWeight;
-    _inkBristleLengthWeight = sanitized.inkBristleLengthWeight;
-    _inkBristleInkAmountWeight = sanitized.inkBristleInkAmountWeight;
-    _inkDepletionWeight = sanitized.inkDepletionWeight;
-    _inkUseSoak = sanitized.inkUseSoak;
-    _inkDepletionCurveRaw =
-        List<double>.from(sanitized.inkDepletionCurve, growable: false);
-    _inkDepletionCurve =
-        _resampleCurve(_inkDepletionCurveRaw, _inkCurveEditorPoints);
-    _inkCurveEdited = false;
     if (stopwatch != null) {
       BrushPresetTimeline.mark(
         'editor_sync id=${sanitized.id} t=${stopwatch.elapsedMilliseconds}ms',
@@ -222,11 +170,6 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   }
 
   BrushPreset buildPreset() {
-    final List<double> curve = _inkCurveEdited
-        ? _inkDepletionCurve
-        : (_inkDepletionCurveRaw.isNotEmpty
-            ? _inkDepletionCurveRaw
-            : _inkDepletionCurve);
     return widget.preset.copyWith(
       name: _resolveName(),
       shape: _shapeFromId(_shapeId) ?? _shape,
@@ -256,28 +199,6 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
       screentoneRotation: _screentoneRotation,
       screentoneSoftness: _screentoneSoftness,
       screentoneShape: _screentoneShape,
-      bristleEnabled: _bristleEnabled,
-      bristleDensity: _bristleDensity,
-      bristleRandom: _bristleRandom,
-      bristleScale: _bristleScale,
-      bristleShear: _bristleShear,
-      bristleThreshold: _bristleThreshold,
-      bristleConnected: _bristleConnected,
-      bristleUsePressure: _bristleUsePressure,
-      bristleAntialias: _bristleAntialias,
-      bristleUseCompositing: _bristleUseCompositing,
-      inkAmount: _inkAmount,
-      inkDepletion: _inkDepletion,
-      inkUseOpacity: _inkUseOpacity,
-      inkDepletionEnabled: _inkDepletionEnabled,
-      inkUseSaturation: _inkUseSaturation,
-      inkUseWeights: _inkUseWeights,
-      inkPressureWeight: _inkPressureWeight,
-      inkBristleLengthWeight: _inkBristleLengthWeight,
-      inkBristleInkAmountWeight: _inkBristleInkAmountWeight,
-      inkDepletionWeight: _inkDepletionWeight,
-      inkUseSoak: _inkUseSoak,
-      inkDepletionCurve: curve,
     );
   }
 
@@ -353,8 +274,6 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
           )
           .toList(growable: false),
     );
-    final bool bristleActive = _bristleEnabled;
-    final bool inkActive = _inkDepletionEnabled;
     final Widget content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -568,187 +487,6 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
                 _setAndNotify(() => _screentoneSoftness = value),
           ),
         ],
-        const SizedBox(height: 16),
-        Text(l10n.brushBristleSection, style: theme.typography.subtitle),
-        const SizedBox(height: 8),
-        _buildToggleRow(
-          context,
-          label: l10n.bristleEnabled,
-          value: _bristleEnabled,
-          onChanged: (value) => _setAndNotify(() => _bristleEnabled = value),
-        ),
-        if (bristleActive) ...[
-          const SizedBox(height: 12),
-          _buildPercentSlider(
-            context,
-            label: l10n.bristleDensity,
-            value: _bristleDensity,
-            onChanged: (value) => _setAndNotify(() => _bristleDensity = value),
-          ),
-          const SizedBox(height: 12),
-          _buildSlider(
-            context,
-            label: l10n.bristleRandom,
-            value: _bristleRandom,
-            min: 0.0,
-            max: 10.0,
-            divisions: 100,
-            formatter: (value) => value.toStringAsFixed(2),
-            onChanged: (value) => _setAndNotify(() => _bristleRandom = value),
-          ),
-          const SizedBox(height: 12),
-          _buildSlider(
-            context,
-            label: l10n.bristleScale,
-            value: _bristleScale,
-            min: 0.1,
-            max: 10.0,
-            divisions: 99,
-            formatter: (value) => value.toStringAsFixed(2),
-            onChanged: (value) => _setAndNotify(() => _bristleScale = value),
-          ),
-          const SizedBox(height: 12),
-          _buildSlider(
-            context,
-            label: l10n.bristleShear,
-            value: _bristleShear,
-            min: 0.0,
-            max: 2.0,
-            divisions: 200,
-            formatter: (value) => value.toStringAsFixed(2),
-            onChanged: (value) => _setAndNotify(() => _bristleShear = value),
-          ),
-          const SizedBox(height: 12),
-          _buildToggleRow(
-            context,
-            label: l10n.bristleUsePressure,
-            value: _bristleUsePressure,
-            onChanged: (value) =>
-                _setAndNotify(() => _bristleUsePressure = value),
-          ),
-          const SizedBox(height: 12),
-          _buildToggleRow(
-            context,
-            label: l10n.bristleThreshold,
-            value: _bristleThreshold,
-            onChanged: (value) =>
-                _setAndNotify(() => _bristleThreshold = value),
-          ),
-          const SizedBox(height: 12),
-          _buildToggleRow(
-            context,
-            label: l10n.bristleConnected,
-            value: _bristleConnected,
-            onChanged: (value) =>
-                _setAndNotify(() => _bristleConnected = value),
-          ),
-          const SizedBox(height: 12),
-          _buildToggleRow(
-            context,
-            label: l10n.bristleAntialias,
-            value: _bristleAntialias,
-            onChanged: (value) =>
-                _setAndNotify(() => _bristleAntialias = value),
-          ),
-          const SizedBox(height: 12),
-          _buildToggleRow(
-            context,
-            label: l10n.bristleUseCompositing,
-            value: _bristleUseCompositing,
-            onChanged: (value) =>
-                _setAndNotify(() => _bristleUseCompositing = value),
-          ),
-        ],
-        const SizedBox(height: 16),
-        Text(l10n.brushInkSection, style: theme.typography.subtitle),
-        const SizedBox(height: 8),
-        _buildToggleRow(
-          context,
-          label: l10n.inkDepletionEnabled,
-          value: _inkDepletionEnabled,
-          onChanged: (value) =>
-              _setAndNotify(() => _inkDepletionEnabled = value),
-        ),
-        if (inkActive) ...[
-          const SizedBox(height: 12),
-          _buildPercentSlider(
-            context,
-            label: l10n.inkAmount,
-            value: _inkAmount,
-            onChanged: (value) => _setAndNotify(() => _inkAmount = value),
-          ),
-          const SizedBox(height: 12),
-          _buildPercentSlider(
-            context,
-            label: l10n.inkDepletionStrength,
-            value: _inkDepletion,
-            onChanged: (value) => _setAndNotify(() => _inkDepletion = value),
-          ),
-          const SizedBox(height: 12),
-          _buildToggleRow(
-            context,
-            label: l10n.inkUseOpacity,
-            value: _inkUseOpacity,
-            onChanged: (value) => _setAndNotify(() => _inkUseOpacity = value),
-          ),
-          const SizedBox(height: 12),
-          _buildToggleRow(
-            context,
-            label: l10n.inkUseSaturation,
-            value: _inkUseSaturation,
-            onChanged: (value) => _setAndNotify(() => _inkUseSaturation = value),
-          ),
-          const SizedBox(height: 12),
-          _buildToggleRow(
-            context,
-            label: l10n.inkUseWeights,
-            value: _inkUseWeights,
-            onChanged: (value) => _setAndNotify(() => _inkUseWeights = value),
-          ),
-          if (_inkUseWeights) ...[
-            const SizedBox(height: 12),
-            _buildWeightSlider(
-              context,
-              label: l10n.inkPressureWeight,
-              value: _inkPressureWeight,
-              onChanged: (value) =>
-                  _setAndNotify(() => _inkPressureWeight = value),
-            ),
-            const SizedBox(height: 12),
-            _buildWeightSlider(
-              context,
-              label: l10n.inkBristleLengthWeight,
-              value: _inkBristleLengthWeight,
-              onChanged: (value) =>
-                  _setAndNotify(() => _inkBristleLengthWeight = value),
-            ),
-            const SizedBox(height: 12),
-            _buildWeightSlider(
-              context,
-              label: l10n.inkBristleInkAmountWeight,
-              value: _inkBristleInkAmountWeight,
-              onChanged: (value) =>
-                  _setAndNotify(() => _inkBristleInkAmountWeight = value),
-            ),
-            const SizedBox(height: 12),
-            _buildWeightSlider(
-              context,
-              label: l10n.inkDepletionWeight,
-              value: _inkDepletionWeight,
-              onChanged: (value) =>
-                  _setAndNotify(() => _inkDepletionWeight = value),
-            ),
-          ],
-          const SizedBox(height: 12),
-          _buildToggleRow(
-            context,
-            label: l10n.inkUseSoak,
-            value: _inkUseSoak,
-            onChanged: (value) => _setAndNotify(() => _inkUseSoak = value),
-          ),
-          const SizedBox(height: 12),
-          _buildInkCurveEditor(context),
-        ],
       ],
     );
 
@@ -777,74 +515,6 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
       formatter: (value) => l10n.levelLabel(value.round()),
       onChanged: (value) =>
           _setAndNotify(() => _antialiasLevel = value.round()),
-    );
-  }
-
-  Widget _buildWeightSlider(
-    BuildContext context, {
-    required String label,
-    required double value,
-    required ValueChanged<double> onChanged,
-  }) {
-    return _buildSlider(
-      context,
-      label: label,
-      value: value,
-      min: 0.0,
-      max: 100.0,
-      divisions: 100,
-      formatter: (raw) => '${raw.round()}%',
-      onChanged: onChanged,
-    );
-  }
-
-  Widget _buildInkCurveEditor(BuildContext context) {
-    final AppLocalizations l10n = context.l10n;
-    final FluentThemeData theme = FluentTheme.of(context);
-    final List<Widget> sliders = <Widget>[];
-    for (int i = 0; i < _inkDepletionCurve.length; i += 1) {
-      sliders.add(
-        _buildSlider(
-          context,
-          label: '${l10n.inkCurvePoint} ${i + 1}',
-          value: _inkDepletionCurve[i],
-          min: 0.0,
-          max: 1.0,
-          divisions: 100,
-          formatter: (raw) => raw.toStringAsFixed(2),
-          onChanged: (value) => _setAndNotify(() {
-            _inkDepletionCurve[i] = value;
-            _inkCurveEdited = true;
-          }),
-        ),
-      );
-      if (i != _inkDepletionCurve.length - 1) {
-        sliders.add(const SizedBox(height: 8));
-      }
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                l10n.inkDepletionCurve,
-                style: theme.typography.bodyStrong,
-              ),
-            ),
-            Button(
-              onPressed: () => _setAndNotify(() {
-                _inkDepletionCurve = _linearCurve(_inkCurveEditorPoints);
-                _inkCurveEdited = true;
-              }),
-              child: Text(l10n.inkCurveReset),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ...sliders,
-      ],
     );
   }
 
@@ -918,58 +588,6 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
           ToggleSwitch(checked: value, onChanged: enabled ? onChanged : null),
         ],
       ),
-    );
-  }
-
-  List<double> _linearCurve(int count) {
-    if (count <= 0) {
-      return const <double>[];
-    }
-    if (count == 1) {
-      return const <double>[0.0];
-    }
-    final int last = count - 1;
-    return List<double>.generate(
-      count,
-      (int index) => (index / last).clamp(0.0, 1.0),
-      growable: false,
-    );
-  }
-
-  List<double> _resampleCurve(List<double> source, int count) {
-    if (count <= 0) {
-      return const <double>[];
-    }
-    if (source.isEmpty) {
-      return _linearCurve(count);
-    }
-    if (source.length == 1) {
-      final double value = source.first.clamp(0.0, 1.0);
-      return List<double>.filled(count, value, growable: false);
-    }
-    final int last = source.length - 1;
-    final int denom = count - 1;
-    return List<double>.generate(
-      count,
-      (int index) {
-        final double t = denom > 0 ? index / denom : 0.0;
-        final double pos = t * last;
-        int left = pos.floor();
-        if (left < 0) {
-          left = 0;
-        } else if (left > last) {
-          left = last;
-        }
-        int right = left + 1;
-        if (right > last) {
-          right = last;
-        }
-        final double frac = pos - left;
-        final double a = source[left].clamp(0.0, 1.0);
-        final double b = source[right].clamp(0.0, 1.0);
-        return (a + (b - a) * frac).clamp(0.0, 1.0);
-      },
-      growable: false,
     );
   }
 

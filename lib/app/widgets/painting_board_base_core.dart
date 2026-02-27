@@ -84,28 +84,6 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   double _hollowStrokeRatio = AppPreferences.defaultHollowStrokeRatio;
   bool _hollowStrokeEraseOccludedParts =
       AppPreferences.defaultHollowStrokeEraseOccludedParts;
-  bool _brushBristleEnabled = false;
-  double _brushBristleDensity = 0.0;
-  double _brushBristleRandom = 0.0;
-  double _brushBristleScale = 1.0;
-  double _brushBristleShear = 0.0;
-  bool _brushBristleThreshold = false;
-  bool _brushBristleConnected = false;
-  bool _brushBristleUsePressure = true;
-  bool _brushBristleAntialias = false;
-  bool _brushBristleUseCompositing = true;
-  double _brushInkAmount = 1.0;
-  double _brushInkDepletion = 0.0;
-  bool _brushInkUseOpacity = true;
-  bool _brushInkDepletionEnabled = false;
-  bool _brushInkUseSaturation = false;
-  bool _brushInkUseWeights = false;
-  double _brushInkPressureWeight = 0.5;
-  double _brushInkBristleLengthWeight = 0.5;
-  double _brushInkBristleInkAmountWeight = 0.5;
-  double _brushInkDepletionWeight = 0.5;
-  bool _brushInkUseSoak = false;
-  List<double> _brushInkDepletionCurve = const <double>[0.0, 1.0];
   PenStrokeSliderRange _penStrokeSliderRange =
       AppPreferences.defaultPenStrokeSliderRange;
   PenStrokeSliderRange _sprayStrokeSliderRange =

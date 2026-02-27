@@ -1229,28 +1229,6 @@ class PaintingBoardState extends _PaintingBoardBase
       _hollowStrokeRatio = sanitized.hollowRatio;
       _hollowStrokeEraseOccludedParts = sanitized.hollowEraseOccludedParts;
       _autoSharpPeakEnabled = sanitized.autoSharpTaper;
-      _brushBristleEnabled = sanitized.bristleEnabled;
-      _brushBristleDensity = sanitized.bristleDensity;
-      _brushBristleRandom = sanitized.bristleRandom;
-      _brushBristleScale = sanitized.bristleScale;
-      _brushBristleShear = sanitized.bristleShear;
-      _brushBristleThreshold = sanitized.bristleThreshold;
-      _brushBristleConnected = sanitized.bristleConnected;
-      _brushBristleUsePressure = sanitized.bristleUsePressure;
-      _brushBristleAntialias = sanitized.bristleAntialias;
-      _brushBristleUseCompositing = sanitized.bristleUseCompositing;
-      _brushInkAmount = sanitized.inkAmount;
-      _brushInkDepletion = sanitized.inkDepletion;
-      _brushInkUseOpacity = sanitized.inkUseOpacity;
-      _brushInkDepletionEnabled = sanitized.inkDepletionEnabled;
-      _brushInkUseSaturation = sanitized.inkUseSaturation;
-      _brushInkUseWeights = sanitized.inkUseWeights;
-      _brushInkPressureWeight = sanitized.inkPressureWeight;
-      _brushInkBristleLengthWeight = sanitized.inkBristleLengthWeight;
-      _brushInkBristleInkAmountWeight = sanitized.inkBristleInkAmountWeight;
-      _brushInkDepletionWeight = sanitized.inkDepletionWeight;
-      _brushInkUseSoak = sanitized.inkUseSoak;
-      _brushInkDepletionCurve = sanitized.inkDepletionCurve;
     };
     if (notify) {
       setState(update);

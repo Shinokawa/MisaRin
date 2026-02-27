@@ -36,28 +36,6 @@ class AdaptiveCanvasSurface extends StatelessWidget {
     required this.brushScreentoneRotation,
     required this.brushScreentoneSoftness,
     required this.brushScreentoneShape,
-    required this.brushBristleEnabled,
-    required this.brushBristleDensity,
-    required this.brushBristleRandom,
-    required this.brushBristleScale,
-    required this.brushBristleShear,
-    required this.brushBristleThreshold,
-    required this.brushBristleConnected,
-    required this.brushBristleUsePressure,
-    required this.brushBristleAntialias,
-    required this.brushBristleUseCompositing,
-    required this.brushInkAmount,
-    required this.brushInkDepletion,
-    required this.brushInkUseOpacity,
-    required this.brushInkDepletionEnabled,
-    required this.brushInkUseSaturation,
-    required this.brushInkUseWeights,
-    required this.brushInkPressureWeight,
-    required this.brushInkBristleLengthWeight,
-    required this.brushInkBristleInkAmountWeight,
-    required this.brushInkDepletionWeight,
-    required this.brushInkUseSoak,
-    required this.brushInkDepletionCurve,
     this.hollowStrokeEnabled = false,
     this.hollowStrokeRatio = 0.0,
     this.hollowStrokeEraseOccludedParts = false,
@@ -96,28 +74,6 @@ class AdaptiveCanvasSurface extends StatelessWidget {
   final double brushScreentoneRotation;
   final double brushScreentoneSoftness;
   final BrushShape brushScreentoneShape;
-  final bool brushBristleEnabled;
-  final double brushBristleDensity;
-  final double brushBristleRandom;
-  final double brushBristleScale;
-  final double brushBristleShear;
-  final bool brushBristleThreshold;
-  final bool brushBristleConnected;
-  final bool brushBristleUsePressure;
-  final bool brushBristleAntialias;
-  final bool brushBristleUseCompositing;
-  final double brushInkAmount;
-  final double brushInkDepletion;
-  final bool brushInkUseOpacity;
-  final bool brushInkDepletionEnabled;
-  final bool brushInkUseSaturation;
-  final bool brushInkUseWeights;
-  final double brushInkPressureWeight;
-  final double brushInkBristleLengthWeight;
-  final double brushInkBristleInkAmountWeight;
-  final double brushInkDepletionWeight;
-  final bool brushInkUseSoak;
-  final List<double> brushInkDepletionCurve;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
   final bool hollowStrokeEraseOccludedParts;
@@ -164,28 +120,6 @@ class AdaptiveCanvasSurface extends StatelessWidget {
         brushScreentoneRotation: brushScreentoneRotation,
         brushScreentoneSoftness: brushScreentoneSoftness,
         brushScreentoneShape: brushScreentoneShape,
-        brushBristleEnabled: brushBristleEnabled,
-        brushBristleDensity: brushBristleDensity,
-        brushBristleRandom: brushBristleRandom,
-        brushBristleScale: brushBristleScale,
-        brushBristleShear: brushBristleShear,
-        brushBristleThreshold: brushBristleThreshold,
-        brushBristleConnected: brushBristleConnected,
-        brushBristleUsePressure: brushBristleUsePressure,
-        brushBristleAntialias: brushBristleAntialias,
-        brushBristleUseCompositing: brushBristleUseCompositing,
-        brushInkAmount: brushInkAmount,
-        brushInkDepletion: brushInkDepletion,
-        brushInkUseOpacity: brushInkUseOpacity,
-        brushInkDepletionEnabled: brushInkDepletionEnabled,
-        brushInkUseSaturation: brushInkUseSaturation,
-        brushInkUseWeights: brushInkUseWeights,
-        brushInkPressureWeight: brushInkPressureWeight,
-        brushInkBristleLengthWeight: brushInkBristleLengthWeight,
-        brushInkBristleInkAmountWeight: brushInkBristleInkAmountWeight,
-        brushInkDepletionWeight: brushInkDepletionWeight,
-        brushInkUseSoak: brushInkUseSoak,
-        brushInkDepletionCurve: brushInkDepletionCurve,
         hollowStrokeEnabled: hollowStrokeEnabled,
         hollowStrokeRatio: hollowStrokeRatio,
         hollowStrokeEraseOccludedParts: hollowStrokeEraseOccludedParts,
