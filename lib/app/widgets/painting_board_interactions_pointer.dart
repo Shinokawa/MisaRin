@@ -1,6 +1,7 @@
 part of 'painting_board.dart';
 
-extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin {
+extension _PaintingBoardInteractionPointerImpl
+    on _PaintingBoardInteractionMixin {
   Future<void> _handlePointerDownImpl(PointerDownEvent event) async {
     _trackStylusContact(event);
     if (!_isPrimaryPointer(event)) {
@@ -99,8 +100,9 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
           if (shiftPressed) {
             final Offset? anchor = _lastBrushLineAnchor;
             if (anchor != null) {
-              final bool? snapToPixelOverride =
-                  _brushSnapToPixel ? false : null;
+              final bool? snapToPixelOverride = _brushSnapToPixel
+                  ? false
+                  : null;
               if (_useCpuStrokeQueue) {
                 _enqueueCpuStrokeEvent(
                   type: _CpuStrokeEventType.down,
@@ -292,8 +294,16 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
       case CanvasTool.eraser:
+        final List<TabletStylusPoint> predictedEvents = TabletInputBridge
+            .instance
+            .predictedSamplesForEvent(event);
         if (backendStrokeActive) {
+          final Offset? overlayAnchor = _lastStrokeBoardPosition;
+          final double? overlayAnchorPressure = _backendLastStylusPressure;
           final dynamic dyn = event;
+          final List<TabletStylusPoint> overlayCoalescedEvents =
+              <TabletStylusPoint>[];
+          bool enqueuedCoalesced = false;
           try {
             final List<dynamic>? coalesced =
                 dyn.coalescedEvents as List<dynamic>?;
@@ -301,16 +311,70 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
               for (final dynamic e in coalesced) {
                 if (e is PointerEvent) {
                   _enqueueBackendPoint(e, _kBackendPointFlagMove);
+                  overlayCoalescedEvents.add(
+                    TabletStylusPoint(
+                      position: e.position,
+                      pressure: _stylusPressureValue(e),
+                    ),
+                  );
                 }
               }
-              break;
+              enqueuedCoalesced = true;
             }
           } catch (_) {}
-          _enqueueBackendPoint(event, _kBackendPointFlagMove);
+          if (!enqueuedCoalesced) {
+            if (_kEnableBridgeCoalescedForStroke) {
+              final List<TabletStylusPoint> coalescedFromBridge =
+                  TabletInputBridge.instance.coalescedSamplesForEvent(event);
+              if (coalescedFromBridge.isNotEmpty) {
+                for (final TabletStylusPoint sample in coalescedFromBridge) {
+                  _enqueueBackendPointFromStylusSample(
+                    event,
+                    sample,
+                    _kBackendPointFlagMove,
+                  );
+                  overlayCoalescedEvents.add(sample);
+                }
+              } else {
+                _enqueueBackendPoint(event, _kBackendPointFlagMove);
+                overlayCoalescedEvents.add(
+                  TabletStylusPoint(
+                    position: event.position,
+                    pressure: _stylusPressureValue(event),
+                  ),
+                );
+              }
+            } else {
+              _enqueueBackendPoint(event, _kBackendPointFlagMove);
+              overlayCoalescedEvents.add(
+                TabletStylusPoint(
+                  position: event.position,
+                  pressure: _stylusPressureValue(event),
+                ),
+              );
+            }
+          }
+          if (predictedEvents.isNotEmpty || overlayCoalescedEvents.isNotEmpty) {
+            _updateBackendPredictedOverlay(
+              event,
+              predictedEvents,
+              coalescedEvents: overlayCoalescedEvents,
+              anchorOverride: overlayAnchor,
+              pressureOverride: overlayAnchorPressure,
+            );
+            _debugRecordPredictedOverlaySample(
+              predictedPoints:
+                  predictedEvents.length + overlayCoalescedEvents.length,
+              backendStrokeActive: true,
+            );
+          } else {
+            _clearBackendPredictedOverlay();
+          }
           break;
         }
         if (_useCpuStrokeQueue) {
           final dynamic dyn = event;
+          bool enqueuedCpuCoalesced = false;
           try {
             final List<dynamic>? coalesced =
                 dyn.coalescedEvents as List<dynamic>?;
@@ -329,10 +393,11 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
                   );
                 }
               }
-              break;
+              enqueuedCpuCoalesced = true;
             }
           } catch (_) {}
-          if (event.down || _isDrawing || _cpuStrokeQueue.isNotEmpty) {
+          if (!enqueuedCpuCoalesced &&
+              (event.down || _isDrawing || _cpuStrokeQueue.isNotEmpty)) {
             final Offset boardLocal = _toBoardLocal(event.localPosition);
             _enqueueCpuStrokeEvent(
               type: _CpuStrokeEventType.move,
@@ -341,8 +406,25 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
               event: event,
             );
           }
+          if (predictedEvents.isNotEmpty &&
+              (event.down || _isDrawing || _cpuStrokeQueue.isNotEmpty)) {
+            _updateBackendPredictedOverlay(
+              event,
+              predictedEvents,
+              requireBackendPointer: false,
+              anchorOverride: _toBoardLocal(event.localPosition),
+              pressureOverride: _stylusPressureValue(event),
+            );
+            _debugRecordPredictedOverlaySample(
+              predictedPoints: predictedEvents.length,
+              backendStrokeActive: false,
+            );
+          } else {
+            _clearBackendPredictedOverlay();
+          }
           break;
         }
+        _clearBackendPredictedOverlay();
         if (_isDrawing) {
           final Offset boardLocal = _toBoardLocal(event.localPosition);
           _appendPoint(boardLocal, event.timeStamp, event);
@@ -417,6 +499,9 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
       case CanvasTool.eraser:
+        if (_backendActivePointer != event.pointer) {
+          _clearBackendPredictedOverlay();
+        }
         if (_backendActivePointer == event.pointer) {
           _endBackendStroke(event);
           break;
@@ -506,6 +591,9 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
     switch (_effectiveActiveTool) {
       case CanvasTool.pen:
       case CanvasTool.eraser:
+        if (_backendActivePointer != event.pointer) {
+          _clearBackendPredictedOverlay();
+        }
         if (_backendActivePointer == event.pointer) {
           _endBackendStroke(event);
           break;
@@ -943,7 +1031,9 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
     }
     final _CanvasHistoryEntry previous = _undoStack.removeLast();
     _redoStack.add(
-      await _createHistoryEntry(backendPixelsSynced: previous.backendPixelsSynced),
+      await _createHistoryEntry(
+        backendPixelsSynced: previous.backendPixelsSynced,
+      ),
     );
     _trimHistoryStacks();
     await _applyHistoryEntry(previous);
@@ -970,7 +1060,9 @@ extension _PaintingBoardInteractionPointerImpl on _PaintingBoardInteractionMixin
         }
         final _CanvasHistoryEntry next = _redoStack.removeLast();
         _undoStack.add(
-          await _createHistoryEntry(backendPixelsSynced: next.backendPixelsSynced),
+          await _createHistoryEntry(
+            backendPixelsSynced: next.backendPixelsSynced,
+          ),
         );
         _commitHistoryRedoAction();
         _trimHistoryStacks();

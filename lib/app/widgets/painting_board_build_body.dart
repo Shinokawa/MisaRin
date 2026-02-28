@@ -82,23 +82,23 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
             _effectiveActiveTool == CanvasTool.layerAdjust && _isLayerDragging;
         final double overlayBrushDiameter =
             _effectiveActiveTool == CanvasTool.spray
-                ? _sprayStrokeWidth
-                : _effectiveActiveTool == CanvasTool.eraser
-                    ? _eraserStrokeWidth
-                    : _penStrokeWidth;
+            ? _sprayStrokeWidth
+            : _effectiveActiveTool == CanvasTool.eraser
+            ? _eraserStrokeWidth
+            : _penStrokeWidth;
         final BrushShape overlayBrushShape =
             _effectiveActiveTool == CanvasTool.spray ||
-                    _effectiveActiveTool == CanvasTool.selectionPen
-                ? BrushShape.circle
-                : _brushShape;
+                _effectiveActiveTool == CanvasTool.selectionPen
+            ? BrushShape.circle
+            : _brushShape;
         final BrushShapeRaster? overlayBrushRaster =
             _effectiveActiveTool == CanvasTool.spray ||
-                    _effectiveActiveTool == CanvasTool.selectionPen
-                ? null
-                : (_brushShapeRaster != null &&
-                        _brushShapeRaster!.id == _brushShapeId
-                    ? _brushShapeRaster
-                    : null);
+                _effectiveActiveTool == CanvasTool.selectionPen
+            ? null
+            : (_brushShapeRaster != null &&
+                      _brushShapeRaster!.id == _brushShapeId
+                  ? _brushShapeRaster
+                  : null);
         final Widget? antialiasCard = _buildAntialiasCard();
         final Widget? colorRangeCard = _buildColorRangeCard();
         final Widget? transformPanel = buildLayerTransformPanel();
@@ -250,7 +250,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           onBucketSampleAllLayersChanged: _updateBucketSampleAllLayers,
           onBucketContiguousChanged: _updateBucketContiguous,
           onBucketSwallowColorLineChanged: _updateBucketSwallowColorLine,
-          onBucketSwallowColorLineModeChanged: _updateBucketSwallowColorLineMode,
+          onBucketSwallowColorLineModeChanged:
+              _updateBucketSwallowColorLineMode,
           onBucketAntialiasChanged: _updateBucketAntialiasLevel,
           bucketTolerance: _bucketTolerance,
           onBucketToleranceChanged: _updateBucketTolerance,
@@ -292,14 +293,14 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           onTextAntialiasChanged: _updateTextAntialias,
           textStrokeEnabled: _textStrokeEnabled,
           onTextStrokeEnabledChanged: _updateTextStrokeEnabled,
-	          textStrokeWidth: _textStrokeWidth,
-	          onTextStrokeWidthChanged: _updateTextStrokeWidth,
-	          textStrokeColor: _colorLineColor,
-	          onTextStrokeColorPressed: _handleEditTextStrokeColor,
-	          canvasRotation: _viewport.rotation,
-	          onCanvasRotationChanged: _setViewportRotation,
-	          onCanvasRotationReset: _resetViewportRotation,
-	        );
+          textStrokeWidth: _textStrokeWidth,
+          onTextStrokeWidthChanged: _updateTextStrokeWidth,
+          textStrokeColor: _colorLineColor,
+          onTextStrokeColorPressed: _handleEditTextStrokeColor,
+          canvasRotation: _viewport.rotation,
+          onCanvasRotationChanged: _setViewportRotation,
+          onCanvasRotationReset: _resetViewportRotation,
+        );
         final ToolbarPanelData colorPanelData = ToolbarPanelData(
           title: context.l10n.colorPickerTitle,
           trailing: _buildColorPanelTrailing(theme),
@@ -397,34 +398,34 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                           Positioned(
                             left: boardRect.left,
                             top: boardRect.top,
-	                            child: MouseRegion(
-	                              cursor: boardCursor,
-	                              child: Transform.scale(
-	                                scale: _viewport.scale,
-	                                alignment: Alignment.topLeft,
-	                                child: Transform.rotate(
-	                                  angle: _viewport.rotation,
-	                                  alignment: Alignment.center,
-	                                  child: SizedBox(
-	                                    width: _canvasSize.width,
-	                                    height: _canvasSize.height,
-	                                    child: DecoratedBox(
-	                                    decoration: BoxDecoration(
-	                                      border: Border.all(
-	                                        color: isDark
-	                                            ? Color.lerp(
-                                                Colors.white,
-                                                Colors.transparent,
-                                                0.88,
-                                              )!
-	                                            : const Color(0x33000000),
-	                                        width: 1,
-	                                      ),
-	                                    ),
-	                                    child: RepaintBoundary(
-	                                      child: AnimatedBuilder(
-	                                          animation: _controller,
-	                                          builder: (context, _) {
+                            child: MouseRegion(
+                              cursor: boardCursor,
+                              child: Transform.scale(
+                                scale: _viewport.scale,
+                                alignment: Alignment.topLeft,
+                                child: Transform.rotate(
+                                  angle: _viewport.rotation,
+                                  alignment: Alignment.center,
+                                  child: SizedBox(
+                                    width: _canvasSize.width,
+                                    height: _canvasSize.height,
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: isDark
+                                              ? Color.lerp(
+                                                  Colors.white,
+                                                  Colors.transparent,
+                                                  0.88,
+                                                )!
+                                              : const Color(0x33000000),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: RepaintBoundary(
+                                        child: AnimatedBuilder(
+                                          animation: _controller,
+                                          builder: (context, _) {
                                             final bool isTransforming =
                                                 _controller
                                                     .isActiveLayerTransforming;
@@ -444,7 +445,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                   _controller
                                                       .activeLayerTransformBlendMode,
                                                 );
-                                            final bool suppressLayerAdjustOverlay =
+                                            final bool
+                                            suppressLayerAdjustOverlay =
                                                 _layerAdjustUsingBackendPreview;
                                             final bool hasSelectionOverlay =
                                                 selectionPath != null ||
@@ -484,7 +486,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               }
                                               return false;
                                             }();
-                                            final bool allowActiveStrokeOverlay =
+                                            final bool
+                                            allowActiveStrokeOverlay =
                                                 !(kIsWeb &&
                                                     _controller
                                                         .activeStrokeSnapToPixel);
@@ -506,11 +509,25 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                             final bool activeStrokeIsEraser =
                                                 _controller
                                                     .activeStrokeEraseMode;
+                                            final bool
+                                            showBackendPredictedStroke =
+                                                !_isLayerFreeTransformActive &&
+                                                !_controller
+                                                    .isActiveLayerTransforming &&
+                                                _showBackendPredictedOverlay;
+                                            final Color predictedStrokeColor =
+                                                (_isBrushEraserEnabled
+                                                        ? _kVectorEraserPreviewColor
+                                                        : _primaryColor)
+                                                    .withAlpha(210);
 
-                                            Widget applyViewOverlay(Widget child) {
+                                            Widget applyViewOverlay(
+                                              Widget child,
+                                            ) {
                                               if (_viewMirrorOverlay) {
                                                 child = Transform(
-                                                  transform: _kViewMirrorTransform,
+                                                  transform:
+                                                      _kViewMirrorTransform,
                                                   alignment: Alignment.center,
                                                   transformHitTests: false,
                                                   child: child,
@@ -518,14 +535,16 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               }
                                               if (_viewBlackWhiteOverlay) {
                                                 child = ColorFiltered(
-                                                  colorFilter: _kViewBlackWhiteColorFilter,
+                                                  colorFilter:
+                                                      _kViewBlackWhiteColorFilter,
                                                   child: child,
                                                 );
                                               }
                                               return child;
                                             }
 
-                                            final Widget canvasSurface = IgnorePointer(
+                                            final Widget
+                                            canvasSurface = IgnorePointer(
                                               ignoring: true,
                                               child: AdaptiveCanvasSurface(
                                                 surfaceKey: widget.surfaceKey,
@@ -540,19 +559,18 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                         .isActiveLayerTransforming,
                                                 allowBackendCanvas:
                                                     _brushShapeSupportsBackend,
-                                                layerCount: _controller
-                                                    .layers
-                                                    .length,
+                                                layerCount:
+                                                    _controller.layers.length,
                                                 brushColorArgb:
                                                     _isBrushEraserEnabled
-                                                        ? 0xFFFFFFFF
-                                                        : _primaryColor.value,
+                                                    ? 0xFFFFFFFF
+                                                    : _primaryColor.value,
                                                 brushRadius:
                                                     (_activeTool ==
-                                                                CanvasTool.eraser
-                                                            ? _eraserStrokeWidth
-                                                            : _penStrokeWidth) /
-                                                        2,
+                                                            CanvasTool.eraser
+                                                        ? _eraserStrokeWidth
+                                                        : _penStrokeWidth) /
+                                                    2,
                                                 erase: _isBrushEraserEnabled,
                                                 brushShape: _brushShape,
                                                 brushRandomRotationEnabled:
@@ -619,7 +637,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               if (_backend.isReady) {
                                                 return Texture(
                                                   textureId: backendTextureId!,
-                                                  filterQuality: FilterQuality.none,
+                                                  filterQuality:
+                                                      FilterQuality.none,
                                                 );
                                               }
                                               return BitmapCanvasSurface(
@@ -651,19 +670,22 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               return tile;
                                             }
 
-                                            final _FilterSession? filterSession =
-                                                _filterSession;
-                                            final bool showBackendFilterPreview =
+                                            final _FilterSession?
+                                            filterSession = _filterSession;
+                                            final bool
+                                            showBackendFilterPreview =
                                                 filterSession != null &&
                                                 _shouldShowBackendFilterPreviewOverlay(
                                                   filterSession,
                                                 );
                                             final bool showBackendCurvePreview =
                                                 _backend.isReady &&
-                                                _curvePreviewRasterImage != null;
+                                                _curvePreviewRasterImage !=
+                                                    null;
                                             final bool showBackendShapePreview =
                                                 _backend.isReady &&
-                                                _shapePreviewRasterImage != null;
+                                                _shapePreviewRasterImage !=
+                                                    null;
                                             final bool showVectorCurvePreview =
                                                 _backend.isReady &&
                                                 _curvePreviewPath != null &&
@@ -676,20 +698,20 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 _isBrushEraserEnabled;
                                             final Color previewStrokeColor =
                                                 previewErase
-                                                    ? _kVectorEraserPreviewColor
-                                                    : _primaryColor;
+                                                ? _kVectorEraserPreviewColor
+                                                : _primaryColor;
                                             final bool previewFillEnabled =
                                                 _shapeFillEnabled &&
                                                 _shapeToolVariant !=
                                                     ShapeToolVariant.line;
                                             final Color? previewFillColor =
                                                 previewFillEnabled
-                                                    ? previewStrokeColor
-                                                    : null;
+                                                ? previewStrokeColor
+                                                : null;
                                             final CanvasLayerInfo activeLayer =
                                                 _controller.activeLayer;
                                             final ui.BlendMode?
-                                                backendPreviewBlendMode =
+                                            backendPreviewBlendMode =
                                                 _flutterBlendMode(
                                                   activeLayer.blendMode,
                                                 );
@@ -697,8 +719,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 activeLayer.opacity
                                                     .clamp(0.0, 1.0)
                                                     .toDouble();
-                                            final List<Widget> overlayChildren =
-                                                <Widget>[
+                                            final List<Widget>
+                                            overlayChildren = <Widget>[
                                               if (showBackendFilterPreview)
                                                 _buildBackendFilterPreviewOverlay(),
                                               if (_pixelGridVisible)
@@ -706,14 +728,19 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                   child: IgnorePointer(
                                                     ignoring: true,
                                                     child: CustomPaint(
-                                                      painter: _PixelGridPainter(
-                                                        pixelWidth:
-                                                            _controller.width,
-                                                        pixelHeight:
-                                                            _controller.height,
-                                                        color: _pixelGridColor,
-                                                        scale: _viewport.scale,
-                                                      ),
+                                                      painter:
+                                                          _PixelGridPainter(
+                                                            pixelWidth:
+                                                                _controller
+                                                                    .width,
+                                                            pixelHeight:
+                                                                _controller
+                                                                    .height,
+                                                            color:
+                                                                _pixelGridColor,
+                                                            scale:
+                                                                _viewport.scale,
+                                                          ),
                                                     ),
                                                   ),
                                                 ),
@@ -744,8 +771,9 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                         hollowStrokeRatio:
                                                             _controller
                                                                 .activeStrokeHollowRatio,
-                                                        committingStrokes: _controller
-                                                            .committingStrokes,
+                                                        committingStrokes:
+                                                            _controller
+                                                                .committingStrokes,
                                                         commitOverlayOpacityFor:
                                                             _controller
                                                                 .commitOverlayOpacityFor,
@@ -760,13 +788,35 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     ),
                                                   ),
                                                 ),
+                                              if (showBackendPredictedStroke)
+                                                Positioned.fill(
+                                                  child: IgnorePointer(
+                                                    ignoring: true,
+                                                    child: CustomPaint(
+                                                      painter: _PredictedStrokeOverlayPainter(
+                                                        points:
+                                                            _backendPredictedPoints,
+                                                        radii:
+                                                            _backendPredictedRadii,
+                                                        revision:
+                                                            _backendPredictedOverlayRevision,
+                                                        color:
+                                                            predictedStrokeColor,
+                                                        shape: _brushShape,
+                                                        antialiasLevel:
+                                                            _penAntialiasLevel,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
                                               if (showVectorCurvePreview)
                                                 Positioned.fill(
                                                   child: IgnorePointer(
                                                     ignoring: true,
                                                     child: CustomPaint(
                                                       painter: _PathPreviewPainter(
-                                                        path: _curvePreviewPath!,
+                                                        path:
+                                                            _curvePreviewPath!,
                                                         strokeColor:
                                                             previewStrokeColor,
                                                         strokeWidth:
@@ -783,13 +833,16 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                     ignoring: true,
                                                     child: CustomPaint(
                                                       painter: _PathPreviewPainter(
-                                                        path: _shapePreviewPath!,
+                                                        path:
+                                                            _shapePreviewPath!,
                                                         strokeColor:
                                                             previewStrokeColor,
                                                         strokeWidth:
                                                             _penStrokeWidth,
-                                                        fill: previewFillEnabled,
-                                                        fillColor: previewFillColor,
+                                                        fill:
+                                                            previewFillEnabled,
+                                                        fillColor:
+                                                            previewFillColor,
                                                         antialiasLevel:
                                                             _penAntialiasLevel,
                                                       ),
@@ -800,30 +853,28 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 Positioned.fill(
                                                   child: IgnorePointer(
                                                     ignoring: true,
-                                                    child:
-                                                        _buildTransformedLayerOverlay(
-                                                          image:
-                                                              _curvePreviewRasterImage!,
-                                                          opacity:
-                                                              backendPreviewOpacity,
-                                                          blendMode:
-                                                              backendPreviewBlendMode,
-                                                        ),
+                                                    child: _buildTransformedLayerOverlay(
+                                                      image:
+                                                          _curvePreviewRasterImage!,
+                                                      opacity:
+                                                          backendPreviewOpacity,
+                                                      blendMode:
+                                                          backendPreviewBlendMode,
+                                                    ),
                                                   ),
                                                 ),
                                               if (showBackendShapePreview)
                                                 Positioned.fill(
                                                   child: IgnorePointer(
                                                     ignoring: true,
-                                                    child:
-                                                        _buildTransformedLayerOverlay(
-                                                          image:
-                                                              _shapePreviewRasterImage!,
-                                                          opacity:
-                                                              backendPreviewOpacity,
-                                                          blendMode:
-                                                              backendPreviewBlendMode,
-                                                        ),
+                                                    child: _buildTransformedLayerOverlay(
+                                                      image:
+                                                          _shapePreviewRasterImage!,
+                                                      opacity:
+                                                          backendPreviewOpacity,
+                                                      blendMode:
+                                                          backendPreviewBlendMode,
+                                                    ),
                                                   ),
                                                 ),
                                               if (transformImageOverlay != null)
@@ -837,16 +888,17 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                   child: IgnorePointer(
                                                     ignoring: true,
                                                     child: OverflowBox(
-                                                      alignment: Alignment.topLeft,
+                                                      alignment:
+                                                          Alignment.topLeft,
                                                       minWidth: 0,
                                                       minHeight: 0,
                                                       maxWidth: double.infinity,
-                                                      maxHeight: double.infinity,
+                                                      maxHeight:
+                                                          double.infinity,
                                                       child: Transform.translate(
                                                         offset:
                                                             transformedLayerOffset,
-                                                        child:
-                                                            _buildTransformedLayerOverlay(
+                                                        child: _buildTransformedLayerOverlay(
                                                           image:
                                                               transformedActiveLayerImage,
                                                           opacity:
@@ -876,12 +928,12 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                             _viewport.scale,
                                                         showPreviewStroke:
                                                             _effectiveActiveTool !=
-                                                                CanvasTool
-                                                                    .selectionPen,
+                                                            CanvasTool
+                                                                .selectionPen,
                                                         fillSelectionPath:
                                                             _activeTool ==
-                                                                CanvasTool
-                                                                    .selectionPen,
+                                                            CanvasTool
+                                                                .selectionPen,
                                                       ),
                                                     ),
                                                   ),
@@ -909,41 +961,47 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 applyViewToCanvas
                                                 ? applyViewOverlay(canvasLayer)
                                                 : canvasLayer;
-                                            final Widget? transformHandlesViewOverlay =
+                                            final Widget?
+                                            transformHandlesViewOverlay =
                                                 transformHandlesOverlay == null
                                                 ? null
                                                 : applyViewOverlay(
                                                     transformHandlesOverlay,
                                                   );
-                                            final Widget clippedContent = ClipRect(
-                                              child: Stack(
-                                                fit: StackFit.expand,
-                                                clipBehavior: Clip.none,
-                                                children: [
-                                                  canvasWithView,
-                                                  if (overlayChildren.isNotEmpty)
-                                                    applyViewOverlay(overlayLayer),
-                                                ],
-                                              ),
-                                            );
+                                            final Widget clippedContent =
+                                                ClipRect(
+                                                  child: Stack(
+                                                    fit: StackFit.expand,
+                                                    clipBehavior: Clip.none,
+                                                    children: [
+                                                      canvasWithView,
+                                                      if (overlayChildren
+                                                          .isNotEmpty)
+                                                        applyViewOverlay(
+                                                          overlayLayer,
+                                                        ),
+                                                    ],
+                                                  ),
+                                                );
 
                                             final Widget centralContent = Stack(
                                               fit: StackFit.expand,
                                               clipBehavior: Clip.none,
                                               children: [
                                                 clippedContent,
-                                                if (transformHandlesViewOverlay != null)
+                                                if (transformHandlesViewOverlay !=
+                                                    null)
                                                   transformHandlesViewOverlay,
                                               ],
                                             );
 
                                             final Widget keyedCentralContent =
                                                 KeyedSubtree(
-                                              key: const ValueKey<String>(
-                                                'tiled-preview-central',
-                                              ),
-                                              child: centralContent,
-                                            );
+                                                  key: const ValueKey<String>(
+                                                    'tiled-preview-central',
+                                                  ),
+                                                  child: centralContent,
+                                                );
                                             final bool canBuildTiledView =
                                                 tiledViewEnabled &&
                                                 canRepeatSurface &&
@@ -973,29 +1031,39 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                   : viewportExtent * 1.5;
                                               final double coverage =
                                                   adjustedExtent / tileExtent;
-                                              final int needed = coverage.isFinite
+                                              final int needed =
+                                                  coverage.isFinite
                                                   ? coverage.ceil()
                                                   : 1;
                                               final int radius = needed + 2;
-                                              return radius.clamp(1, maxTileRadius);
+                                              return radius.clamp(
+                                                1,
+                                                maxTileRadius,
+                                              );
                                             }
 
                                             final int radiusX = tileRadius(
                                               _workspaceSize.width,
-                                              _canvasSize.width * _viewport.scale,
+                                              _canvasSize.width *
+                                                  _viewport.scale,
                                             );
                                             final int radiusY = tileRadius(
                                               _workspaceSize.height,
-                                              _canvasSize.height * _viewport.scale,
+                                              _canvasSize.height *
+                                                  _viewport.scale,
                                             );
                                             final List<Widget> tiledChildren =
                                                 <Widget>[];
-                                            for (int ty = -radiusY;
-                                                ty <= radiusY;
-                                                ty++) {
-                                              for (int tx = -radiusX;
-                                                  tx <= radiusX;
-                                                  tx++) {
+                                            for (
+                                              int ty = -radiusY;
+                                              ty <= radiusY;
+                                              ty++
+                                            ) {
+                                              for (
+                                                int tx = -radiusX;
+                                                tx <= radiusX;
+                                                tx++
+                                              ) {
                                                 if (tx == 0 && ty == 0) {
                                                   continue;
                                                 }
@@ -1019,109 +1087,112 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                                 keyedCentralContent,
                                               ],
                                             );
-	                                          },
-	                                        ),
-	                                      ),
-	                                    ),
-	                                  ),
-	                                ),
-	                              ),
-	                            ),
-	                          ),
-	                          if (_perspectivePenAnchor != null)
-	                            Positioned.fill(
-	                              child: IgnorePointer(
-		                                ignoring: true,
-		                                child: Transform.translate(
-		                                  offset: _boardRect.topLeft,
-		                                  child: Transform.scale(
-		                                    scale: _viewport.scale,
-		                                    alignment: Alignment.topLeft,
-		                                    child: Transform.rotate(
-		                                      angle: _viewport.rotation,
-		                                      alignment: Alignment.center,
-		                                      child: Builder(
-		                                        builder: (context) {
-		                                        Widget overlay = CustomPaint(
-		                                          size: _canvasSize,
-		                                          painter: _PerspectivePenPreviewPainter(
-		                                            anchor: _perspectivePenAnchor!,
-                                            target: _perspectivePenPreviewTarget ??
-                                                _perspectivePenAnchor!,
-                                            snapped: _perspectivePenSnappedTarget ??
-                                                _perspectivePenPreviewTarget ??
-                                                _perspectivePenAnchor!,
-                                            isValid: _perspectivePenPreviewValid,
-                                            viewportScale: _viewport.scale,
-                                          ),
-                                        );
-                                        if (_viewMirrorOverlay) {
-                                          overlay = Transform(
-                                            transform: _kViewMirrorTransform,
-                                            alignment: Alignment.center,
-                                            transformHitTests: false,
-                                            child: overlay,
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (_perspectivePenAnchor != null)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                ignoring: true,
+                                child: Transform.translate(
+                                  offset: _boardRect.topLeft,
+                                  child: Transform.scale(
+                                    scale: _viewport.scale,
+                                    alignment: Alignment.topLeft,
+                                    child: Transform.rotate(
+                                      angle: _viewport.rotation,
+                                      alignment: Alignment.center,
+                                      child: Builder(
+                                        builder: (context) {
+                                          Widget overlay = CustomPaint(
+                                            size: _canvasSize,
+                                            painter: _PerspectivePenPreviewPainter(
+                                              anchor: _perspectivePenAnchor!,
+                                              target:
+                                                  _perspectivePenPreviewTarget ??
+                                                  _perspectivePenAnchor!,
+                                              snapped:
+                                                  _perspectivePenSnappedTarget ??
+                                                  _perspectivePenPreviewTarget ??
+                                                  _perspectivePenAnchor!,
+                                              isValid:
+                                                  _perspectivePenPreviewValid,
+                                              viewportScale: _viewport.scale,
+                                            ),
                                           );
-	                                        }
-		                                        return overlay;
-		                                      },
-		                                      ),
-		                                    ),
-		                                  ),
-		                                ),
-		                              ),
-		                            ),
-	                          if (_perspectiveVisible &&
-	                              _perspectiveMode != PerspectiveGuideMode.off)
-	                            Positioned.fill(
-	                              child: IgnorePointer(
-		                                ignoring: true,
-		                                child: Transform.translate(
-		                                  offset: _boardRect.topLeft,
-		                                  child: Transform.scale(
-		                                    scale: _viewport.scale,
-		                                    alignment: Alignment.topLeft,
-		                                    child: Transform.rotate(
-		                                      angle: _viewport.rotation,
-		                                      alignment: Alignment.center,
-		                                      child: Builder(
-		                                        builder: (context) {
-		                                        Widget overlay = CustomPaint(
-		                                          size: _canvasSize,
-                                          painter: _PerspectiveGuidePainter(
-                                            canvasSize: _canvasSize,
-                                            vp1: _perspectiveVp1,
-                                            vp2: _perspectiveVp2,
-                                            vp3: _perspectiveVp3,
-                                            mode: _perspectiveMode,
-                                            activeHandle:
-                                                _activePerspectiveHandle,
-                                            viewportScale: _viewport.scale,
-                                          ),
-                                        );
-                                        if (_viewMirrorOverlay) {
-                                          overlay = Transform(
-                                            transform: _kViewMirrorTransform,
-                                            alignment: Alignment.center,
-                                            transformHitTests: false,
-                                            child: overlay,
+                                          if (_viewMirrorOverlay) {
+                                            overlay = Transform(
+                                              transform: _kViewMirrorTransform,
+                                              alignment: Alignment.center,
+                                              transformHitTests: false,
+                                              child: overlay,
+                                            );
+                                          }
+                                          return overlay;
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (_perspectiveVisible &&
+                              _perspectiveMode != PerspectiveGuideMode.off)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                ignoring: true,
+                                child: Transform.translate(
+                                  offset: _boardRect.topLeft,
+                                  child: Transform.scale(
+                                    scale: _viewport.scale,
+                                    alignment: Alignment.topLeft,
+                                    child: Transform.rotate(
+                                      angle: _viewport.rotation,
+                                      alignment: Alignment.center,
+                                      child: Builder(
+                                        builder: (context) {
+                                          Widget overlay = CustomPaint(
+                                            size: _canvasSize,
+                                            painter: _PerspectiveGuidePainter(
+                                              canvasSize: _canvasSize,
+                                              vp1: _perspectiveVp1,
+                                              vp2: _perspectiveVp2,
+                                              vp3: _perspectiveVp3,
+                                              mode: _perspectiveMode,
+                                              activeHandle:
+                                                  _activePerspectiveHandle,
+                                              viewportScale: _viewport.scale,
+                                            ),
                                           );
-                                        }
-                                        if (_viewBlackWhiteOverlay) {
-                                          overlay = ColorFiltered(
-                                            colorFilter:
-                                                _kViewBlackWhiteColorFilter,
-                                            child: overlay,
-                                          );
-	                                        }
-		                                        return overlay;
-		                                      },
-		                                      ),
-		                                    ),
-		                                  ),
-		                                ),
-		                              ),
-		                            ),
+                                          if (_viewMirrorOverlay) {
+                                            overlay = Transform(
+                                              transform: _kViewMirrorTransform,
+                                              alignment: Alignment.center,
+                                              transformHitTests: false,
+                                              child: overlay,
+                                            );
+                                          }
+                                          if (_viewBlackWhiteOverlay) {
+                                            overlay = ColorFiltered(
+                                              colorFilter:
+                                                  _kViewBlackWhiteColorFilter,
+                                              child: overlay,
+                                            );
+                                          }
+                                          return overlay;
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           if (textHoverOverlay != null) textHoverOverlay,
                           if (textOverlay != null) textOverlay,
                           ...toolbarLayoutResult.widgets,
@@ -1166,7 +1237,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                             ),
                                             seed: _isDrawing
                                                 ? _controller
-                                                    .activeStrokeRotationSeed
+                                                      .activeStrokeRotationSeed
                                                 : _brushRandomRotationPreviewSeed,
                                           )
                                         : 0.0,
@@ -1176,7 +1247,8 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                     diameter:
                                         overlayBrushDiameter * _viewport.scale,
                                     shape: overlayBrushShape,
-                                    rotation: _brushRandomRotationEnabled &&
+                                    rotation:
+                                        _brushRandomRotationEnabled &&
                                             overlayBrushShape !=
                                                 BrushShape.circle
                                         ? brushRandomRotationRadians(
@@ -1185,7 +1257,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                             ),
                                             seed: _isDrawing
                                                 ? _controller
-                                                    .activeStrokeRotationSeed
+                                                      .activeStrokeRotationSeed
                                                 : _brushRandomRotationPreviewSeed,
                                           )
                                         : 0.0,

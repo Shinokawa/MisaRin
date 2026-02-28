@@ -1,6 +1,7 @@
 part of 'painting_board.dart';
 
-extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin {
+extension _PaintingBoardInteractionBackendImpl
+    on _PaintingBoardInteractionMixin {
   bool _isBackendDrawingPointer(PointerEvent event) {
     if (_isStylusEvent(event)) {
       return true;
@@ -98,8 +99,9 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     _cpuStrokeProcessing = true;
     try {
       while (_cpuStrokeQueue.isNotEmpty) {
-        final List<_CpuStrokeEvent> batch =
-            List<_CpuStrokeEvent>.from(_cpuStrokeQueue);
+        final List<_CpuStrokeEvent> batch = List<_CpuStrokeEvent>.from(
+          _cpuStrokeQueue,
+        );
         _cpuStrokeQueue.clear();
         for (final _CpuStrokeEvent item in batch) {
           await _processCpuStrokeEvent(item);
@@ -195,8 +197,9 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       return null;
     }
     final double curve = _stylusCurve.isFinite ? _stylusCurve : 1.0;
-    final double curved =
-        math.pow(normalized.clamp(0.0, 1.0), curve).toDouble();
+    final double curved = math
+        .pow(normalized.clamp(0.0, 1.0), curve)
+        .toDouble();
     return curved.clamp(0.0, 1.0);
   }
 
@@ -204,13 +207,16 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     required PointerEvent event,
     required Offset enginePos,
     required bool isInitialSample,
+    double? stylusPressureOverride,
   }) {
     if (!_backendActiveStrokeUsesPressure) {
       return 1.0;
     }
-    final bool isUpEvent = event is PointerUpEvent || event is PointerCancelEvent;
-    double? stylusPressure =
-        _backendUseStylusPressure ? _normalizePointerPressure(event) : null;
+    final bool isUpEvent =
+        event is PointerUpEvent || event is PointerCancelEvent;
+    double? stylusPressure = _backendUseStylusPressure
+        ? (stylusPressureOverride ?? _normalizePointerPressure(event))
+        : null;
     if (_backendUseStylusPressure) {
       if (!isUpEvent && stylusPressure != null) {
         _backendLastStylusPressure = stylusPressure;
@@ -218,7 +224,8 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
         stylusPressure = _backendLastStylusPressure ?? stylusPressure;
       }
     }
-    final bool shouldSimulate = _backendSimulatePressure || _autoSharpPeakEnabled;
+    final bool shouldSimulate =
+        _backendSimulatePressure || _autoSharpPeakEnabled;
     if (!shouldSimulate) {
       return stylusPressure ?? 1.0;
     }
@@ -228,8 +235,8 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       _backendPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
       final double stylusBlend =
           _backendUseStylusPressure && _backendSimulatePressure
-              ? _kStylusSimulationBlend
-              : 1.0;
+          ? _kStylusSimulationBlend
+          : 1.0;
       final double? initialPressure = _backendPressureSimulator.beginStroke(
         position: enginePos,
         timestampMillis: timestampMillis,
@@ -281,8 +288,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     if (base <= 0.0) {
       return 0.0;
     }
-    final double clamped =
-        pressure.isFinite ? pressure.clamp(0.0, 1.0) : 0.0;
+    final double clamped = pressure.isFinite ? pressure.clamp(0.0, 1.0) : 0.0;
     return base *
         (_kBackendPressureMinFactor +
             (1.0 - _kBackendPressureMinFactor) * clamped);
@@ -307,8 +313,9 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       return null;
     }
     final double base = math.max(baseRadius, 0.1);
-    final double movement =
-        length > 0.001 ? length : _backendLastMovementDistance;
+    final double movement = length > 0.001
+        ? length
+        : _backendLastMovementDistance;
     final double taperMax = base * 6.5;
     final double taperDynamic = movement * 2.4 + 2.0;
     final double taperLength = math.min(taperMax, taperDynamic);
@@ -325,17 +332,18 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       return;
     }
     _backendWaitingForFirstMove = false;
-    if (!_autoSharpPeakEnabled || !_backendPressureSimulator.isSimulatingStroke) {
+    if (!_autoSharpPeakEnabled ||
+        !_backendPressureSimulator.isSimulatingStroke) {
       return;
     }
     final Offset? startPos = _backendStrokeStartPoint;
     if (startPos == null) {
       return;
     }
-    final double baseWidth =
-        _activeTool == CanvasTool.eraser ? _eraserStrokeWidth : _penStrokeWidth;
-    final double baseRadius =
-        (baseWidth / 2).clamp(0.0, 4096.0).toDouble();
+    final double baseWidth = _activeTool == CanvasTool.eraser
+        ? _eraserStrokeWidth
+        : _penStrokeWidth;
+    final double baseRadius = (baseWidth / 2).clamp(0.0, 4096.0).toDouble();
     final Offset deltaToCurrent = currentPos - startPos;
     final double distToCurrent = deltaToCurrent.distance;
     if (!distToCurrent.isFinite || distToCurrent <= 0.001) {
@@ -343,8 +351,10 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     }
     final double startPressure = _backendStrokeStartPressure.clamp(0.0, 1.0);
     final double r0 = _backendRadiusFromPressure(startPressure, baseRadius);
-    final double r1 =
-        _backendRadiusFromPressure(currentPressure.clamp(0.0, 1.0), baseRadius);
+    final double r1 = _backendRadiusFromPressure(
+      currentPressure.clamp(0.0, 1.0),
+      baseRadius,
+    );
     if (distToCurrent + r0 >= r1) {
       return;
     }
@@ -353,7 +363,8 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       previousPoint: currentPos,
       baseRadius: baseRadius,
     );
-    if (headPoint == null || _backendStrokeStartIndex >= _backendPoints.length) {
+    if (headPoint == null ||
+        _backendStrokeStartIndex >= _backendPoints.length) {
       return;
     }
     _backendPoints.updateAt(
@@ -368,8 +379,10 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     final double dist = delta.distance;
     if (dist.isFinite && dist > 0.5 && startPressure > 0.001) {
       final double spacing = math.max(baseRadius * 0.35, 0.75);
-      final int segments =
-          math.max(2, (dist / spacing).ceil()).clamp(2, 10).toInt();
+      final int segments = math
+          .max(2, (dist / spacing).ceil())
+          .clamp(2, 10)
+          .toInt();
       for (int i = 1; i < segments; i++) {
         final double t = i / segments;
         final double eased = math.pow(t, 1.6).toDouble();
@@ -448,6 +461,54 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     _scheduleBackendFlush();
   }
 
+  void _enqueueBackendPointFromStylusSample(
+    PointerEvent anchorEvent,
+    TabletStylusPoint sample,
+    int flags, {
+    bool isInitialSample = false,
+  }) {
+    final int? handle = _backendCanvasEngineHandle;
+    if (!_backend.supportsInputQueue || handle == null) {
+      return;
+    }
+    final Offset localPosition =
+        anchorEvent.localPosition + (sample.position - anchorEvent.position);
+    final Offset boardLocal = _toBoardLocal(localPosition);
+    final Offset sanitized = _sanitizeBackendStrokePosition(
+      boardLocal,
+      isInitialSample: isInitialSample,
+    );
+    final Offset enginePos = _backendToEngineSpace(sanitized);
+    final double pressure = _resolveBackendPressure(
+      event: anchorEvent,
+      enginePos: enginePos,
+      isInitialSample: isInitialSample,
+      stylusPressureOverride: sample.pressure,
+    );
+    final int timestampUs = anchorEvent.timeStamp.inMicroseconds;
+    if (flags == _kBackendPointFlagMove) {
+      _maybeEmitBackendSharpStart(
+        currentPos: enginePos,
+        currentPressure: pressure,
+        timestampUs: timestampUs,
+        pointerId: anchorEvent.pointer,
+      );
+    }
+    if (flags == _kBackendPointFlagDown) {
+      _backendStrokeStartPoint = enginePos;
+      _backendStrokeStartPressure = pressure;
+      _backendStrokeStartIndex = _backendPoints.length;
+    }
+    _appendBackendPoint(
+      enginePos: enginePos,
+      pressure: pressure,
+      timestampUs: timestampUs,
+      flags: flags,
+      pointerId: anchorEvent.pointer,
+    );
+    _scheduleBackendFlush();
+  }
+
   void _scheduleBackendFlush() {
     if (_backendWaitingForFirstMove && _backendPoints.length <= 1) {
       if (_kDebugBackendCanvasInput && _backendPoints.length == 1) {
@@ -519,6 +580,119 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     }
   }
 
+  void _clearBackendPredictedOverlay({bool scheduleRepaint = true}) {
+    if (_backendPredictedPoints.isEmpty && _backendPredictedRadii.isEmpty) {
+      return;
+    }
+    _backendPredictedPoints.clear();
+    _backendPredictedRadii.clear();
+    _backendPredictedOverlayRevision += 1;
+    if (scheduleRepaint) {
+      _scheduleBackendPredictedOverlayRepaint();
+    }
+  }
+
+  void _updateBackendPredictedOverlay(
+    PointerEvent sourceEvent,
+    List<TabletStylusPoint> predictedEvents, {
+    List<TabletStylusPoint>? coalescedEvents,
+    bool requireBackendPointer = true,
+    Offset? anchorOverride,
+    double? pressureOverride,
+  }) {
+    final List<TabletStylusPoint> trailingEvents =
+        coalescedEvents ?? const <TabletStylusPoint>[];
+    if ((requireBackendPointer &&
+            _backendActivePointer != sourceEvent.pointer) ||
+        (predictedEvents.isEmpty && trailingEvents.isEmpty)) {
+      _clearBackendPredictedOverlay();
+      return;
+    }
+
+    final List<TabletStylusPoint> drawEvents = <TabletStylusPoint>[];
+    if (trailingEvents.isNotEmpty) {
+      final int start = trailingEvents.length > 10
+          ? trailingEvents.length - 10
+          : 0;
+      drawEvents.addAll(trailingEvents.sublist(start));
+    }
+    drawEvents.addAll(predictedEvents);
+
+    final double baseWidth = _activeTool == CanvasTool.eraser
+        ? _eraserStrokeWidth
+        : _penStrokeWidth;
+    final double baseRadius = (baseWidth / 2).clamp(0.1, 4096.0).toDouble();
+    final List<Offset> nextPoints = <Offset>[];
+    final List<double> nextRadii = <double>[];
+    final bool hasPredictedPressure = drawEvents.any(
+      (TabletStylusPoint point) => point.pressure != null,
+    );
+    final bool usePressureForPreview =
+        _backendActiveStrokeUsesPressure ||
+        _backendUseStylusPressure ||
+        pressureOverride != null ||
+        hasPredictedPressure;
+
+    Offset? anchor = anchorOverride ?? _lastStrokeBoardPosition;
+    if (anchor != null) {
+      final double anchorPressure =
+          (pressureOverride ?? _backendLastResolvedPressure).isFinite
+          ? (pressureOverride ?? _backendLastResolvedPressure).clamp(0.0, 1.0)
+          : (_backendLastResolvedPressure.isFinite
+                ? _backendLastResolvedPressure.clamp(0.0, 1.0)
+                : 1.0);
+      final double anchorRadius = usePressureForPreview
+          ? _backendRadiusFromPressure(anchorPressure, baseRadius)
+          : baseRadius;
+      nextPoints.add(anchor);
+      nextRadii.add(math.max(anchorRadius, 0.12));
+    }
+
+    for (int i = 0; i < drawEvents.length; i++) {
+      final TabletStylusPoint sample = drawEvents[i];
+      final Offset localPosition =
+          sourceEvent.localPosition + (sample.position - sourceEvent.position);
+      final Offset boardLocal = _toBoardLocal(localPosition);
+      final Offset sanitized = _sanitizeStrokePosition(
+        boardLocal,
+        anchor: anchor,
+        clampToCanvas: true,
+        applyStabilizer: false,
+      );
+      if (anchor != null && (sanitized - anchor).distanceSquared <= 0.0025) {
+        continue;
+      }
+      final double predictedPressure =
+          sample.pressure ??
+          pressureOverride ??
+          _backendLastStylusPressure ??
+          _backendLastResolvedPressure;
+      final double resolvedPressure = predictedPressure.isFinite
+          ? predictedPressure.clamp(0.0, 1.0)
+          : 1.0;
+      final double radius = usePressureForPreview
+          ? _backendRadiusFromPressure(resolvedPressure, baseRadius)
+          : baseRadius;
+      nextPoints.add(sanitized);
+      nextRadii.add(math.max(radius, 0.12));
+      anchor = sanitized;
+    }
+
+    if (nextPoints.length < 2 || nextPoints.length != nextRadii.length) {
+      _clearBackendPredictedOverlay();
+      return;
+    }
+
+    _backendPredictedPoints
+      ..clear()
+      ..addAll(nextPoints);
+    _backendPredictedRadii
+      ..clear()
+      ..addAll(nextRadii);
+    _backendPredictedOverlayRevision += 1;
+    _scheduleBackendPredictedOverlayRepaint();
+  }
+
   void _recordBackendStrokeLatency() {
     StrokeLatencyMonitor.instance.recordStrokeStart();
     _backendLatencyPending = true;
@@ -565,12 +739,15 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     _backendStrokeStartPoint = null;
     _backendStrokeStartPressure = 1.0;
     _backendStrokeStartIndex = 0;
+    _clearBackendPredictedOverlay(scheduleRepaint: false);
     final bool supportsPressure = _isStylusEvent(event);
     _backendPressureSimulator.resetTracking();
     _backendSimulatePressure = _simulatePenPressure;
     _backendUseStylusPressure = _stylusPressureEnabled && supportsPressure;
     _backendActiveStrokeUsesPressure =
-        _backendUseStylusPressure || _backendSimulatePressure || _autoSharpPeakEnabled;
+        _backendUseStylusPressure ||
+        _backendSimulatePressure ||
+        _autoSharpPeakEnabled;
     _backendPressureSimulator.setSharpTipsEnabled(_autoSharpPeakEnabled);
     _backendActivePointer = event.pointer;
     _recordBackendStrokeLatency();
@@ -616,15 +793,16 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
         final double baseWidth = _activeTool == CanvasTool.eraser
             ? _eraserStrokeWidth
             : _penStrokeWidth;
-        final double baseRadius =
-            (baseWidth / 2).clamp(0.0, 4096.0).toDouble();
+        final double baseRadius = (baseWidth / 2).clamp(0.0, 4096.0).toDouble();
         Offset? tailPoint = _computeBackendSharpTail(
           tip: enginePos,
           previousPoint: previousPoint,
           baseRadius: baseRadius,
         );
-        final double lastRadius =
-            _backendRadiusFromPressure(startPressure, baseRadius);
+        final double lastRadius = _backendRadiusFromPressure(
+          startPressure,
+          baseRadius,
+        );
         final double endRadius = _backendRadiusFromPressure(0.0, baseRadius);
         if (tailPoint == null &&
             _backendLastMovementUnit != null &&
@@ -652,13 +830,14 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
           final double dist = delta.distance;
           if (dist.isFinite && dist > 0.5 && tailPressure > 0.001) {
             final double spacing = math.max(baseRadius * 0.35, 0.75);
-            final int segments =
-                math.max(2, (dist / spacing).ceil()).clamp(2, 10).toInt();
+            final int segments = math
+                .max(2, (dist / spacing).ceil())
+                .clamp(2, 10)
+                .toInt();
             for (int i = 1; i < segments; i++) {
               final double t = i / segments;
               final double eased = math.pow(1.0 - t, 1.6).toDouble();
-              final double midPressure =
-                  (tailPressure * eased).clamp(0.0, 1.0);
+              final double midPressure = (tailPressure * eased).clamp(0.0, 1.0);
               if (midPressure <= 0.001) {
                 continue;
               }
@@ -708,6 +887,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
         }
       }
     }
+    _clearBackendPredictedOverlay();
     _backendActivePointer = null;
     _backendActiveStrokeUsesPressure = true;
     _backendSimulatePressure = false;
@@ -739,8 +919,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       return false;
     }
     final bool shouldOverrideSnap =
-        snapToPixelOverride != null &&
-        snapToPixelOverride != _brushSnapToPixel;
+        snapToPixelOverride != null && snapToPixelOverride != _brushSnapToPixel;
     if (shouldOverrideSnap) {
       _applyBackendBrushOverride(
         handle,
@@ -753,8 +932,10 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
     final Offset endEngine = _backendToEngineSpace(endClamped);
     final int startTimestampUs = event.timeStamp.inMicroseconds;
     final int endTimestampUs = startTimestampUs + 1000;
-    final double pressure =
-        (_normalizePointerPressure(event) ?? 1.0).clamp(0.0, 1.0);
+    final double pressure = (_normalizePointerPressure(event) ?? 1.0).clamp(
+      0.0,
+      1.0,
+    );
 
     _backendLastEnginePoint = null;
     _backendLastMovementUnit = null;
@@ -783,10 +964,7 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
         pointerId: event.pointer,
       );
       _scheduleBackendFlush();
-      _recordBackendHistoryAction(
-        layerId: _activeLayerId,
-        deferPreview: true,
-      );
+      _recordBackendHistoryAction(layerId: _activeLayerId, deferPreview: true);
       if (mounted) {
         setState(() {});
       }
@@ -802,5 +980,4 @@ extension _PaintingBoardInteractionBackendImpl on _PaintingBoardInteractionMixin
       }
     }
   }
-
 }
