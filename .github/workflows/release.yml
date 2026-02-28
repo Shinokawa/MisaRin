@@ -81,22 +81,13 @@ jobs:
       arch: x64
     secrets: inherit
 
-  web:
-    needs: prepare
-    if: ${{ needs.prepare.outputs.should_run == 'true' }}
-    uses: ./.github/workflows/web-build.yml
-    with:
-      version: ${{ needs.prepare.outputs.version }}
-    secrets: inherit
-
   publish_release:
     needs:
       - prepare
       - macos
       - windows
       - linux
-      - web
-    if: ${{ needs.prepare.outputs.should_run == 'true' && needs.macos.result == 'success' && needs.windows.result == 'success' && needs.linux.result == 'success' && needs.web.result == 'success' }}
+    if: ${{ needs.prepare.outputs.should_run == 'true' && needs.macos.result == 'success' && needs.windows.result == 'success' && needs.linux.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: 下载构建产物
@@ -118,7 +109,6 @@ jobs:
             - Windows x64 ZIP
             - Windows x64 安装程序 EXE
             - Linux x64 TAR.GZ
-            - Web ZIP
           files: dist/*
 
   version_bump:
@@ -127,7 +117,6 @@ jobs:
       - macos
       - windows
       - linux
-      - web
       - publish_release
     if: ${{ needs.prepare.outputs.should_run == 'true' && needs.publish_release.result == 'success' }}
     uses: ./.github/workflows/version-bump.yml
