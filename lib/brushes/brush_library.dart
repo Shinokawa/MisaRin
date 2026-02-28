@@ -54,6 +54,7 @@ class BrushLibrary extends ChangeNotifier {
     'assets/brushes/cel.mrb',
     'assets/brushes/pen.mrb',
     'assets/brushes/sumi_e.mrb',
+    'assets/brushes/chalk.mrb',
     'assets/brushes/screentone.mrb',
     'assets/brushes/pixel.mrb',
     'assets/brushes/triangle.mrb',

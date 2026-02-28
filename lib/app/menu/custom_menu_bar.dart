@@ -284,18 +284,21 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
     if (!hasMenuButtons && !canDrag && !showWindowControls) {
       return const SizedBox.shrink();
     }
-    final Widget dragArea = canDrag
-        ? Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: WindowDragArea(
-                enableDoubleClickToMaximize: true,
-                canDragAtPosition: (_) => true,
-                child: const SizedBox.expand(),
-              ),
-            ),
-          )
-        : const SizedBox.shrink();
+    Widget buildDragArea(Widget? overlay) {
+      if (!canDrag) {
+        return const SizedBox.shrink();
+      }
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: WindowDragArea(
+            enableDoubleClickToMaximize: true,
+            canDragAtPosition: (_) => true,
+            child: overlay ?? const SizedBox.expand(),
+          ),
+        ),
+      );
+    }
     final Widget rowContent = ValueListenableBuilder<bool>(
       valueListenable: _menuOpenNotifier,
       builder: (context, anyMenuOpen, _) {
@@ -320,24 +323,20 @@ class _CustomMenuBarState extends State<CustomMenuBar> {
               ],
             ];
 
+            Widget? dragOverlay;
             if (!isMac && overlay != null) {
+              dragOverlay = IgnorePointer(
+                ignoring: true,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: overlay,
+                ),
+              );
               if (children.isNotEmpty) {
                 children.add(const SizedBox(width: 8));
               }
-              children.add(
-                Flexible(
-                  child: IgnorePointer(
-                    ignoring: true,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: overlay,
-                    ),
-                  ),
-                ),
-              );
             }
-
-            children.add(dragArea);
+            children.add(buildDragArea(dragOverlay));
             if (showWindowControls) {
               children.addAll(const <Widget>[
                 SizedBox(width: 8),
