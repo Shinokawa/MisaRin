@@ -57,6 +57,14 @@ Future<void> _saveAppPreferences() async {
   final int sai2LayerSplitEncoded = _encodeRatioByte(
     prefs.sai2LayerPanelWidthSplit,
   );
+  final int spraySliderRangeEncoded = _encodeOptionalStrokeSliderRange(
+    prefs.sprayStrokeSliderRange,
+    _defaultSprayStrokeSliderRange,
+  );
+  final int eraserSliderRangeEncoded = _encodeOptionalStrokeSliderRange(
+    prefs.eraserStrokeSliderRange,
+    _defaultEraserStrokeSliderRange,
+  );
   final int primaryColorValue = prefs.primaryColor.value;
   final double hollowStrokeRatio = prefs.hollowStrokeRatio.clamp(0.0, 1.0);
   prefs.hollowStrokeRatio = hollowStrokeRatio;
@@ -118,8 +126,8 @@ Future<void> _saveAppPreferences() async {
     (sai2ColorEncoded >> 8) & 0xff,
     sai2ToolSplitEncoded,
     sai2LayerSplitEncoded,
-    0,
-    0,
+    spraySliderRangeEncoded,
+    eraserSliderRangeEncoded,
     prefs.shapeToolFillEnabled ? 1 : 0,
     sprayWidth & 0xff,
     (sprayWidth >> 8) & 0xff,

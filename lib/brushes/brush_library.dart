@@ -53,6 +53,8 @@ class BrushLibrary extends ChangeNotifier {
     'assets/brushes/pencil.mrb',
     'assets/brushes/cel.mrb',
     'assets/brushes/pen.mrb',
+    'assets/brushes/sumi_e.mrb',
+    'assets/brushes/screentone.mrb',
     'assets/brushes/pixel.mrb',
     'assets/brushes/triangle.mrb',
     'assets/brushes/square.mrb',
@@ -785,6 +787,12 @@ class BrushLibrary extends ChangeNotifier {
           AppPreferences.defaultHollowStrokeEraseOccludedParts,
       autoSharpTaper: AppPreferences.defaultAutoSharpPeakEnabled,
       snapToPixel: false,
+      screentoneEnabled: false,
+      screentoneSpacing: 10.0,
+      screentoneDotSize: 0.6,
+      screentoneRotation: 45.0,
+      screentoneSoftness: 0.0,
+      screentoneShape: BrushShape.circle,
     ).sanitized();
   }
 
@@ -949,6 +957,7 @@ class _DefaultPresetNames {
     required this.pencil,
     required this.cel,
     required this.pen,
+    required this.screentone,
     required this.pixel,
     required this.triangle,
     required this.square,
@@ -958,6 +967,7 @@ class _DefaultPresetNames {
   final String pencil;
   final String cel;
   final String pen;
+  final String screentone;
   final String pixel;
   final String triangle;
   final String square;
@@ -968,6 +978,7 @@ class _DefaultPresetNames {
       pencil: l10n.brushPresetPencil,
       cel: l10n.brushPresetCel,
       pen: l10n.brushPresetPen,
+      screentone: l10n.brushPresetScreentone,
       pixel: l10n.brushPresetPixel,
       triangle: l10n.triangle,
       square: l10n.square,
@@ -983,6 +994,8 @@ class _DefaultPresetNames {
         return cel;
       case 'pen':
         return pen;
+      case 'screentone':
+        return screentone;
       case 'pixel':
         return pixel;
       case 'triangle':

@@ -605,6 +605,20 @@ class MenuDefinitionBuilder {
         ),
       );
     }
+    if (handler.toggleViewTiled != null) {
+      if (entries.isNotEmpty) {
+        entries.add(const MenuSeparatorEntry());
+      }
+      entries.add(
+        MenuActionEntry(
+          label: handler.viewTiledEnabled
+              ? l10n.menuDisableTiledPreview
+              : l10n.menuTiledPreview,
+          action: handler.toggleViewTiled,
+          checked: handler.viewTiledEnabled,
+        ),
+      );
+    }
     if (handler.togglePerspectiveGuide != null) {
       if (entries.isNotEmpty) {
         entries.add(const MenuSeparatorEntry());

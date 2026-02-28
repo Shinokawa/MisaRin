@@ -278,29 +278,174 @@ bool _controllerApplyAntialiasToActiveLayerRustCpu(
   if (layer.locked) {
     return false;
   }
-  final Uint32List pixels = layer.surface.pixels;
-  if (pixels.isEmpty) {
-    return false;
-  }
-  if (!RustCpuFiltersFfi.instance.isSupported ||
-      layer.surface.pointerAddress == 0) {
-    return false;
-  }
-  final bool ok = RustCpuFiltersFfi.instance.applyAntialias(
-    pixelsPtr: layer.surface.pointerAddress,
-    pixelsLen: pixels.length,
-    width: controller._width,
-    height: controller._height,
-    level: level.clamp(0, 9),
-    previewOnly: previewOnly,
-  );
-  if (!ok) {
-    return false;
-  }
-  if (!previewOnly) {
-    layer.surface.markDirty();
-    controller._markDirty(layerId: layer.id, pixelsDirty: true);
+  final LayerSurface layerSurface = layer.surface;
+  if (layerSurface.isTiled) {
+    if (!RustCpuFiltersFfi.instance.isSupported) {
+      return false;
+    }
+    final TiledSurface tiled = layerSurface.tiledSurface!;
+    final RasterIntRect? contentBounds = tiled.contentBounds();
+    if (contentBounds == null || contentBounds.isEmpty) {
+      return false;
+    }
+    const int pad = 2;
+    final int expandedLeft = math.max(0, contentBounds.left - pad);
+    final int expandedTop = math.max(0, contentBounds.top - pad);
+    final int expandedRight =
+        math.min(controller._width, contentBounds.right + pad);
+    final int expandedBottom =
+        math.min(controller._height, contentBounds.bottom + pad);
+    if (expandedLeft >= expandedRight || expandedTop >= expandedBottom) {
+      return false;
+    }
+    final RasterIntRect expandedBounds = RasterIntRect(
+      expandedLeft,
+      expandedTop,
+      expandedRight,
+      expandedBottom,
+    );
+    final Uint32List snapshot = layerSurface.readRect(expandedBounds);
+    if (snapshot.isEmpty) {
+      return false;
+    }
+
+    final int tileSize = tiled.tileSize;
+    final int startTx = tileIndexForCoord(expandedBounds.left, tileSize);
+    final int endTx = tileIndexForCoord(expandedBounds.right - 1, tileSize);
+    final int startTy = tileIndexForCoord(expandedBounds.top, tileSize);
+    final int endTy = tileIndexForCoord(expandedBounds.bottom - 1, tileSize);
+
+    bool anyChange = false;
+    final List<RasterIntRect> patchRects = <RasterIntRect>[];
+    final List<Uint32List> patchPixels = <Uint32List>[];
+
+    for (int ty = startTy; ty <= endTy; ty++) {
+      for (int tx = startTx; tx <= endTx; tx++) {
+        final RasterIntRect tileRect = tileBounds(tx, ty, tileSize);
+        final int tileLeft = tileRect.left.clamp(0, controller._width);
+        final int tileTop = tileRect.top.clamp(0, controller._height);
+        final int tileRight = tileRect.right.clamp(0, controller._width);
+        final int tileBottom = tileRect.bottom.clamp(0, controller._height);
+        if (tileLeft >= tileRight || tileTop >= tileBottom) {
+          continue;
+        }
+        final RasterIntRect clippedTile =
+            RasterIntRect(tileLeft, tileTop, tileRight, tileBottom);
+
+        final int expLeft = math.max(expandedBounds.left, tileLeft - pad);
+        final int expTop = math.max(expandedBounds.top, tileTop - pad);
+        final int expRight =
+            math.min(expandedBounds.right, tileRight + pad);
+        final int expBottom =
+            math.min(expandedBounds.bottom, tileBottom + pad);
+        if (expLeft >= expRight || expTop >= expBottom) {
+          continue;
+        }
+        final RasterIntRect expandedRect =
+            RasterIntRect(expLeft, expTop, expRight, expBottom);
+        final RasterIntRect snapshotLocal = RasterIntRect(
+          expandedRect.left - expandedBounds.left,
+          expandedRect.top - expandedBounds.top,
+          expandedRect.right - expandedBounds.left,
+          expandedRect.bottom - expandedBounds.top,
+        );
+        final Uint32List expandedPixels = _controllerCopySurfaceRegion(
+          snapshot,
+          expandedBounds.width,
+          snapshotLocal,
+        );
+        if (expandedPixels.isEmpty) {
+          continue;
+        }
+        final BitmapSurface tempSurface = BitmapSurface(
+          width: expandedRect.width,
+          height: expandedRect.height,
+        );
+        tempSurface.pixels.setAll(0, expandedPixels);
+        final bool ok = RustCpuFiltersFfi.instance.applyAntialias(
+          pixelsPtr: tempSurface.pointerAddress,
+          pixelsLen: tempSurface.pixels.length,
+          width: expandedRect.width,
+          height: expandedRect.height,
+          level: level.clamp(0, 9),
+          previewOnly: previewOnly,
+        );
+        if (!ok) {
+          tempSurface.dispose();
+          continue;
+        }
+        anyChange = true;
+        if (previewOnly) {
+          tempSurface.dispose();
+          return true;
+        }
+
+        final RasterIntRect localCore = RasterIntRect(
+          clippedTile.left - expandedRect.left,
+          clippedTile.top - expandedRect.top,
+          clippedTile.right - expandedRect.left,
+          clippedTile.bottom - expandedRect.top,
+        );
+        if (!localCore.isEmpty) {
+          final Uint32List patch = _controllerCopySurfaceRegion(
+            tempSurface.pixels,
+            expandedRect.width,
+            localCore,
+          );
+          patchRects.add(clippedTile);
+          patchPixels.add(patch);
+        }
+        tempSurface.dispose();
+      }
+    }
+
+    if (!anyChange || previewOnly) {
+      return anyChange;
+    }
+    for (int i = 0; i < patchRects.length; i++) {
+      layerSurface.writeRect(patchRects[i], patchPixels[i]);
+    }
+    controller._markDirty(
+      region: Rect.fromLTRB(
+        expandedBounds.left.toDouble(),
+        expandedBounds.top.toDouble(),
+        expandedBounds.right.toDouble(),
+        expandedBounds.bottom.toDouble(),
+      ),
+      layerId: layer.id,
+      pixelsDirty: true,
+    );
     controller._notify();
+    return true;
   }
-  return true;
+  return layerSurface.withBitmapSurface(
+    writeBack: !previewOnly,
+    action: (BitmapSurface surface) {
+      final Uint32List pixels = surface.pixels;
+      if (pixels.isEmpty) {
+        return false;
+      }
+      if (!RustCpuFiltersFfi.instance.isSupported ||
+          surface.pointerAddress == 0) {
+        return false;
+      }
+      final bool ok = RustCpuFiltersFfi.instance.applyAntialias(
+        pixelsPtr: surface.pointerAddress,
+        pixelsLen: pixels.length,
+        width: controller._width,
+        height: controller._height,
+        level: level.clamp(0, 9),
+        previewOnly: previewOnly,
+      );
+      if (!ok) {
+        return false;
+      }
+      if (!previewOnly) {
+        surface.markDirty();
+        controller._markDirty(layerId: layer.id, pixelsDirty: true);
+        controller._notify();
+      }
+      return true;
+    },
+  );
 }

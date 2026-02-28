@@ -95,6 +95,8 @@ class MenuActionHandler {
     this.viewBlackWhiteEnabled = false,
     this.toggleViewMirror,
     this.viewMirrorEnabled = false,
+    this.toggleViewTiled,
+    this.viewTiledEnabled = false,
     this.togglePerspectiveGuide,
     this.setPerspectiveOnePoint,
     this.setPerspectiveTwoPoint,
@@ -178,6 +180,8 @@ class MenuActionHandler {
       viewBlackWhiteEnabled = false,
       toggleViewMirror = null,
       viewMirrorEnabled = false,
+      toggleViewTiled = null,
+      viewTiledEnabled = false,
       togglePerspectiveGuide = null,
       setPerspectiveOnePoint = null,
       setPerspectiveTwoPoint = null,
@@ -259,6 +263,8 @@ class MenuActionHandler {
   final bool viewBlackWhiteEnabled;
   final MenuAsyncAction? toggleViewMirror;
   final bool viewMirrorEnabled;
+  final MenuAsyncAction? toggleViewTiled;
+  final bool viewTiledEnabled;
   final MenuAsyncAction? togglePerspectiveGuide;
   final MenuAsyncAction? setPerspectiveOnePoint;
   final MenuAsyncAction? setPerspectiveTwoPoint;

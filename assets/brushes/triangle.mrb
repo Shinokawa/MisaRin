@@ -1,6 +1,6 @@
 MRB-TEXT 1
 [brush.json]
-length:546
+length:544
 {
   "formatVersion": 1,
   "id": "triangle",
@@ -11,13 +11,13 @@ length:546
   "shapeId": "triangle",
   "shapeFile": "triangle.svg",
   "shapeType": "svg",
-  "spacing": 0.15,
-  "hardness": 0.85,
+  "spacing": 0.2,
+  "hardness": 0.4,
   "flow": 1.0,
   "scatter": 0.0,
-  "randomRotation": false,
+  "randomRotation": true,
   "smoothRotation": false,
-  "rotationJitter": 0.0,
+  "rotationJitter": 1.0,
   "antialiasLevel": 1,
   "hollowEnabled": false,
   "hollowRatio": 0.0,
@@ -27,14 +27,13 @@ length:546
   "langFile": "brush_lang.txt"
 }
 [brush_lang.txt]
-length:86
-triangle|en|Triangle
-triangle|ja|三角形
-triangle|ko|삼각형
-triangle|zh|三角形
+length:87
+triangle|en|Dry Ink
+triangle|ja|枯墨
+triangle|ko|드라이 잉크
+triangle|zh|枯墨
 [triangle.svg]
 length:121
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <polygon points="50,8 92,92 8,92" fill="black"/>
 </svg>
-

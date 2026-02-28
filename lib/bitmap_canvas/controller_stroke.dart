@@ -110,6 +110,12 @@ void _strokeBegin(
   double scatter = 0.0,
   double rotationJitter = 1.0,
   bool snapToPixel = false,
+  bool screentoneEnabled = false,
+  double screentoneSpacing = 10.0,
+  double screentoneDotSize = 0.6,
+  double screentoneRotation = 45.0,
+  double screentoneSoftness = 0.0,
+  BrushShape screentoneShape = BrushShape.circle,
   double streamlineStrength = 0.0,
   bool erase = false,
   bool hollow = false,
@@ -217,6 +223,16 @@ void _strokeBegin(
   final double rotationValue = rotationJitter.isFinite ? rotationJitter : 1.0;
   controller._currentStrokeRotationJitter = rotationValue.clamp(0.0, 1.0);
   controller._currentStrokeSnapToPixel = snapToPixel;
+  controller._currentStrokeScreentoneEnabled = screentoneEnabled;
+  controller._currentStrokeScreentoneSpacing =
+      screentoneSpacing.isFinite ? screentoneSpacing.clamp(2.0, 200.0) : 10.0;
+  controller._currentStrokeScreentoneDotSize =
+      screentoneDotSize.isFinite ? screentoneDotSize.clamp(0.0, 1.0) : 0.6;
+  controller._currentStrokeScreentoneRotation =
+      screentoneRotation.isFinite ? screentoneRotation.clamp(-180.0, 180.0) : 45.0;
+  controller._currentStrokeScreentoneSoftness =
+      screentoneSoftness.isFinite ? screentoneSoftness.clamp(0.0, 1.0) : 0.0;
+  controller._currentStrokeScreentoneShape = screentoneShape;
   final double streamlineValue =
       streamlineStrength.isFinite ? streamlineStrength.clamp(0.0, 1.0) : 0.0;
   controller._currentStrokeStreamlineStrength = streamlineValue;
@@ -412,6 +428,12 @@ void _strokeEnd(BitmapCanvasController controller) {
             antialiasLevel: controller._currentStrokeAntialiasLevel,
             includeStart: false,
             erase: controller._currentStrokeEraseMode,
+            screentoneEnabled: controller._currentStrokeScreentoneEnabled,
+            screentoneSpacing: controller._currentStrokeScreentoneSpacing,
+            screentoneDotSize: controller._currentStrokeScreentoneDotSize,
+            screentoneRotation: controller._currentStrokeScreentoneRotation,
+            screentoneSoftness: controller._currentStrokeScreentoneSoftness,
+            screentoneShapeIndex: controller._currentStrokeScreentoneShape.index,
           ),
         );
       } else if (tailInstruction.isPoint) {
@@ -434,6 +456,12 @@ void _strokeEnd(BitmapCanvasController controller) {
             antialiasLevel: controller._currentStrokeAntialiasLevel,
             softness: controller._currentStrokeSoftness,
             erase: controller._currentStrokeEraseMode,
+            screentoneEnabled: controller._currentStrokeScreentoneEnabled,
+            screentoneSpacing: controller._currentStrokeScreentoneSpacing,
+            screentoneDotSize: controller._currentStrokeScreentoneDotSize,
+            screentoneRotation: controller._currentStrokeScreentoneRotation,
+            screentoneSoftness: controller._currentStrokeScreentoneSoftness,
+            screentoneShapeIndex: controller._currentStrokeScreentoneShape.index,
           ),
         );
       }
@@ -475,6 +503,12 @@ void _strokeEnd(BitmapCanvasController controller) {
   controller._currentStrokeRandomRotationEnabled = false;
   controller._currentStrokeSmoothRotationEnabled = false;
   controller._currentStrokeRotationSeed = 0;
+  controller._currentStrokeScreentoneEnabled = false;
+  controller._currentStrokeScreentoneSpacing = 10.0;
+  controller._currentStrokeScreentoneDotSize = 0.6;
+  controller._currentStrokeScreentoneRotation = 45.0;
+  controller._currentStrokeScreentoneSoftness = 0.0;
+  controller._currentStrokeScreentoneShape = BrushShape.circle;
   controller._currentStrokeSpacing = 0.15;
   controller._currentStrokeSoftness = 0.0;
   controller._currentStrokeScatter = 0.0;
@@ -509,6 +543,12 @@ void _strokeCancel(BitmapCanvasController controller) {
   controller._currentStrokeRandomRotationEnabled = false;
   controller._currentStrokeSmoothRotationEnabled = false;
   controller._currentStrokeRotationSeed = 0;
+  controller._currentStrokeScreentoneEnabled = false;
+  controller._currentStrokeScreentoneSpacing = 10.0;
+  controller._currentStrokeScreentoneDotSize = 0.6;
+  controller._currentStrokeScreentoneRotation = 45.0;
+  controller._currentStrokeScreentoneSoftness = 0.0;
+  controller._currentStrokeScreentoneShape = BrushShape.circle;
   controller._currentStrokeSpacing = 0.15;
   controller._currentStrokeSoftness = 0.0;
   controller._currentStrokeScatter = 0.0;
@@ -632,6 +672,12 @@ bool _strokeApplyStreamline(BitmapCanvasController controller) {
         antialiasLevel: controller._currentStrokeAntialiasLevel,
         softness: controller._currentStrokeSoftness,
         erase: controller._currentStrokeEraseMode,
+        screentoneEnabled: controller._currentStrokeScreentoneEnabled,
+        screentoneSpacing: controller._currentStrokeScreentoneSpacing,
+        screentoneDotSize: controller._currentStrokeScreentoneDotSize,
+        screentoneRotation: controller._currentStrokeScreentoneRotation,
+        screentoneSoftness: controller._currentStrokeScreentoneSoftness,
+        screentoneShapeIndex: controller._currentStrokeScreentoneShape.index,
       ),
     );
     return true;
@@ -667,6 +713,12 @@ bool _strokeApplyStreamline(BitmapCanvasController controller) {
         antialiasLevel: controller._currentStrokeAntialiasLevel,
         includeStart: i == 1,
         erase: controller._currentStrokeEraseMode,
+        screentoneEnabled: controller._currentStrokeScreentoneEnabled,
+        screentoneSpacing: controller._currentStrokeScreentoneSpacing,
+        screentoneDotSize: controller._currentStrokeScreentoneDotSize,
+        screentoneRotation: controller._currentStrokeScreentoneRotation,
+        screentoneSoftness: controller._currentStrokeScreentoneSoftness,
+        screentoneShapeIndex: controller._currentStrokeScreentoneShape.index,
       ),
     );
   }
@@ -802,6 +854,12 @@ void _strokeDrawPoint(
       antialiasLevel: controller._currentStrokeAntialiasLevel,
       softness: controller._currentStrokeSoftness,
       erase: erase,
+      screentoneEnabled: controller._currentStrokeScreentoneEnabled,
+      screentoneSpacing: controller._currentStrokeScreentoneSpacing,
+      screentoneDotSize: controller._currentStrokeScreentoneDotSize,
+      screentoneRotation: controller._currentStrokeScreentoneRotation,
+      screentoneSoftness: controller._currentStrokeScreentoneSoftness,
+      screentoneShapeIndex: controller._currentStrokeScreentoneShape.index,
     ),
   );
   controller._flushRealtimeStrokeCommands();
@@ -841,6 +899,12 @@ void _strokeStampSegment(
       antialiasLevel: controller._currentStrokeAntialiasLevel,
       includeStart: includeStart,
       erase: controller._currentStrokeEraseMode,
+      screentoneEnabled: controller._currentStrokeScreentoneEnabled,
+      screentoneSpacing: controller._currentStrokeScreentoneSpacing,
+      screentoneDotSize: controller._currentStrokeScreentoneDotSize,
+      screentoneRotation: controller._currentStrokeScreentoneRotation,
+      screentoneSoftness: controller._currentStrokeScreentoneSoftness,
+      screentoneShapeIndex: controller._currentStrokeScreentoneShape.index,
     ),
   );
   controller._flushRealtimeStrokeCommands();

@@ -34,7 +34,7 @@ Future<void> showSettingsDialog(
         content: _SettingsDialogContent(
           key: contentKey,
           initialSection:
-              openAboutTab ? _SettingsSection.about : _SettingsSection.language,
+              openAboutTab ? _SettingsSection.about : _SettingsSection.general,
         ),
         contentWidth: null,
         maxWidth: 920,
@@ -67,12 +67,9 @@ enum _AppLocaleOption {
 }
 
 enum _SettingsSection {
-  language,
-  theme,
-  stylus,
-  brush,
-  history,
-  developer,
+  general,
+  input,
+  storage,
   about,
 }
 
@@ -93,7 +90,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late _AppLocaleOption _localeOption;
   late bool _stylusPressureEnabled;
   late double _stylusCurve;
-  late PenStrokeSliderRange _penSliderRange;
   late bool _fpsOverlayEnabled;
   late int _autoSaveCleanupThresholdMb;
   late _SettingsSection _selectedSection;
@@ -107,7 +103,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     _localeOption = _optionForLocale(AppPreferences.instance.localeOverride);
     _stylusPressureEnabled = AppPreferences.instance.stylusPressureEnabled;
     _stylusCurve = AppPreferences.instance.stylusPressureCurve;
-    _penSliderRange = AppPreferences.instance.penStrokeSliderRange;
     _fpsOverlayEnabled = AppPreferences.instance.showFpsOverlay;
     _autoSaveCleanupThresholdMb =
         AppPreferences.instance.autoSaveCleanupThresholdMb;
@@ -129,12 +124,9 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final List<_SettingsSection> sections = [
-      _SettingsSection.language,
-      _SettingsSection.theme,
-      _SettingsSection.stylus,
-      _SettingsSection.brush,
-      _SettingsSection.history,
-      if (!kIsWeb) _SettingsSection.developer,
+      _SettingsSection.general,
+      _SettingsSection.input,
+      _SettingsSection.storage,
       _SettingsSection.about,
     ];
 
@@ -228,156 +220,171 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     final l10n = context.l10n;
     final theme = FluentTheme.of(context);
     switch (section) {
-      case _SettingsSection.language:
-        return InfoLabel(
-          label: l10n.languageLabel,
-          child: ComboBox<_AppLocaleOption>(
-            isExpanded: true,
-            value: _localeOption,
-            items: _AppLocaleOption.values
-                .map(
-                  (option) => ComboBoxItem<_AppLocaleOption>(
-                    value: option,
-                    child: Text(_localeOptionLabel(option)),
-                  ),
-                )
-                .toList(growable: false),
-            onChanged: (option) {
-              if (option == null || option == _localeOption) {
-                return;
-              }
-              setState(() => _localeOption = option);
-              final Locale? locale = _localeForOption(option);
-              final LocaleController controller = LocaleController.of(context);
-              controller.onLocaleChanged(locale);
-              final AppPreferences prefs = AppPreferences.instance;
-              if (prefs.localeOverride != locale) {
-                prefs.localeOverride = locale;
-                unawaited(AppPreferences.save());
-              }
-            },
-          ),
-        );
-      case _SettingsSection.theme:
+      case _SettingsSection.general:
         final ThemeController controller = ThemeController.of(context);
         final ThemeMode themeMode = controller.themeMode;
-        return InfoLabel(
-          label: l10n.themeModeLabel,
-          child: ComboBox<ThemeMode>(
-            isExpanded: true,
-            value: themeMode,
-            items: [
-              ComboBoxItem(value: ThemeMode.light, child: Text(l10n.themeLight)),
-              ComboBoxItem(value: ThemeMode.dark, child: Text(l10n.themeDark)),
-              ComboBoxItem(value: ThemeMode.system, child: Text(l10n.themeSystem)),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InfoLabel(
+              label: l10n.languageLabel,
+              child: ComboBox<_AppLocaleOption>(
+                isExpanded: true,
+                value: _localeOption,
+                items: _AppLocaleOption.values
+                    .map(
+                      (option) => ComboBoxItem<_AppLocaleOption>(
+                        value: option,
+                        child: Text(_localeOptionLabel(option)),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (option) {
+                  if (option == null || option == _localeOption) {
+                    return;
+                  }
+                  setState(() => _localeOption = option);
+                  final Locale? locale = _localeForOption(option);
+                  final LocaleController controller =
+                      LocaleController.of(context);
+                  controller.onLocaleChanged(locale);
+                  final AppPreferences prefs = AppPreferences.instance;
+                  if (prefs.localeOverride != locale) {
+                    prefs.localeOverride = locale;
+                    unawaited(AppPreferences.save());
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+            InfoLabel(
+              label: l10n.themeModeLabel,
+              child: ComboBox<ThemeMode>(
+                isExpanded: true,
+                value: themeMode,
+                items: [
+                  ComboBoxItem(
+                      value: ThemeMode.light, child: Text(l10n.themeLight)),
+                  ComboBoxItem(
+                      value: ThemeMode.dark, child: Text(l10n.themeDark)),
+                  ComboBoxItem(
+                      value: ThemeMode.system, child: Text(l10n.themeSystem)),
+                ],
+                onChanged: (mode) {
+                  if (mode == null) {
+                    return;
+                  }
+                  controller.onThemeModeChanged(mode);
+                  final AppPreferences prefs = AppPreferences.instance;
+                  if (prefs.themeMode != mode) {
+                    prefs.themeMode = mode;
+                    unawaited(AppPreferences.save());
+                  }
+                },
+              ),
+            ),
+            if (!kIsWeb) ...[
+              const SizedBox(height: 16),
+              InfoLabel(
+                label: l10n.developerOptionsLabel,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: Text(l10n.performanceOverlayLabel)),
+                        ToggleSwitch(
+                          checked: _fpsOverlayEnabled,
+                          onChanged: (value) {
+                            setState(() => _fpsOverlayEnabled = value);
+                            final AppPreferences prefs = AppPreferences.instance;
+                            prefs.updateShowFpsOverlay(value);
+                            unawaited(AppPreferences.save());
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.performanceOverlayDesc,
+                      style: theme.typography.caption,
+                    ),
+                  ],
+                ),
+              ),
             ],
-            onChanged: (mode) {
-              if (mode == null) {
-                return;
-              }
-              controller.onThemeModeChanged(mode);
-              final AppPreferences prefs = AppPreferences.instance;
-              if (prefs.themeMode != mode) {
-                prefs.themeMode = mode;
-                unawaited(AppPreferences.save());
-              }
-            },
-          ),
+          ],
         );
-      case _SettingsSection.stylus:
-        return InfoLabel(
-          label: l10n.stylusPressureSettingsLabel,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      case _SettingsSection.input:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InfoLabel(
+              label: l10n.stylusPressureSettingsLabel,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.enableStylusPressure),
-                  const SizedBox(width: 12),
-                  ToggleSwitch(
-                    checked: _stylusPressureEnabled,
+                  Row(
+                    children: [
+                      Text(l10n.enableStylusPressure),
+                      const SizedBox(width: 12),
+                      ToggleSwitch(
+                        checked: _stylusPressureEnabled,
+                        onChanged: (value) {
+                          setState(() => _stylusPressureEnabled = value);
+                          final AppPreferences prefs = AppPreferences.instance;
+                          prefs.stylusPressureEnabled = value;
+                          unawaited(AppPreferences.save());
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _StylusSliderTile(
+                    label: l10n.responseCurveLabel,
+                    description: l10n.responseCurveDesc,
+                    value: _stylusCurve,
+                    min: AppPreferences.stylusCurveLowerBound,
+                    max: AppPreferences.stylusCurveUpperBound,
+                    enabled: _stylusPressureEnabled,
+                    asMultiplier: false,
                     onChanged: (value) {
-                      setState(() => _stylusPressureEnabled = value);
+                      setState(() => _stylusCurve = value);
                       final AppPreferences prefs = AppPreferences.instance;
-                      prefs.stylusPressureEnabled = value;
+                      prefs.stylusPressureCurve = _stylusCurve;
                       unawaited(AppPreferences.save());
                     },
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              _StylusSliderTile(
-                label: l10n.responseCurveLabel,
-                description: l10n.responseCurveDesc,
-                value: _stylusCurve,
-                min: AppPreferences.stylusCurveLowerBound,
-                max: AppPreferences.stylusCurveUpperBound,
-                enabled: _stylusPressureEnabled,
-                asMultiplier: false,
-                onChanged: (value) {
-                  setState(() => _stylusCurve = value);
-                  final AppPreferences prefs = AppPreferences.instance;
-                  prefs.stylusPressureCurve = _stylusCurve;
-                  unawaited(AppPreferences.save());
-                },
-              ),
-            ],
-          ),
-        );
-      case _SettingsSection.brush:
-        return InfoLabel(
-          label: l10n.brushSizeSliderRangeLabel,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ComboBox<PenStrokeSliderRange>(
-                isExpanded: true,
-                value: _penSliderRange,
-                items: PenStrokeSliderRange.values
-                    .map(
-                      (range) => ComboBoxItem<PenStrokeSliderRange>(
-                        value: range,
-                        child: Text(_sliderRangeLabel(range)),
+            ),
+            if (!kIsWeb) ...[
+              const SizedBox(height: 16),
+              InfoLabel(
+                label: l10n.brushShapeFolderLabel,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Button(
+                      onPressed: _brushShapeFolderPath == null
+                          ? null
+                          : () => revealInFileManager(_brushShapeFolderPath!),
+                      child: Text(l10n.openBrushShapesFolder),
+                    ),
+                    if (_brushShapeFolderPath != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _brushShapeFolderPath!,
+                        style: theme.typography.caption,
                       ),
-                    )
-                    .toList(),
-                onChanged: (range) {
-                  if (range == null) {
-                    return;
-                  }
-                  _updatePenSliderRange(range);
-                },
-              ),
-              const SizedBox(height: 8),
-              Text(
-                l10n.brushSizeSliderRangeDesc,
-                style: theme.typography.caption,
-              ),
-              if (!kIsWeb) ...[
-                const SizedBox(height: 16),
-                Text(
-                  l10n.brushShapeFolderLabel,
-                  style: theme.typography.bodyStrong,
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Button(
-                  onPressed: _brushShapeFolderPath == null
-                      ? null
-                      : () => revealInFileManager(_brushShapeFolderPath!),
-                  child: Text(l10n.openBrushShapesFolder),
-                ),
-                if (_brushShapeFolderPath != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    _brushShapeFolderPath!,
-                    style: theme.typography.caption,
-                  ),
-                ],
-              ],
+              ),
             ],
-          ),
+          ],
         );
-      case _SettingsSection.history:
+      case _SettingsSection.storage:
         final int minHistory = AppPreferences.minHistoryLimit;
         final int maxHistory = AppPreferences.maxHistoryLimit;
         final int minAutoSave =
@@ -468,37 +475,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
             ),
           ],
         );
-      case _SettingsSection.developer:
-        if (kIsWeb) {
-          return const SizedBox.shrink();
-        }
-        return InfoLabel(
-          label: l10n.developerOptionsLabel,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: Text(l10n.performanceOverlayLabel)),
-                  ToggleSwitch(
-                    checked: _fpsOverlayEnabled,
-                    onChanged: (value) {
-                      setState(() => _fpsOverlayEnabled = value);
-                      final AppPreferences prefs = AppPreferences.instance;
-                      prefs.updateShowFpsOverlay(value);
-                      unawaited(AppPreferences.save());
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                l10n.performanceOverlayDesc,
-                style: theme.typography.caption,
-              ),
-            ],
-          ),
-        );
       case _SettingsSection.about:
         final PackageInfo? info = _packageInfo;
         return Column(
@@ -537,20 +513,14 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   String _sectionLabel(BuildContext context, _SettingsSection section) {
     final l10n = context.l10n;
     switch (section) {
-      case _SettingsSection.language:
-        return l10n.languageLabel;
-      case _SettingsSection.theme:
-        return l10n.themeModeLabel;
-      case _SettingsSection.stylus:
-        return l10n.stylusPressureSettingsLabel;
-      case _SettingsSection.brush:
-        return l10n.brushSizeSliderRangeLabel;
-      case _SettingsSection.history:
-        return l10n.historyLimitLabel;
-      case _SettingsSection.developer:
-        return l10n.developerOptionsLabel;
+      case _SettingsSection.general:
+        return l10n.settingsTabGeneral;
+      case _SettingsSection.input:
+        return l10n.settingsTabInput;
+      case _SettingsSection.storage:
+        return l10n.settingsTabStorage;
       case _SettingsSection.about:
-        return l10n.aboutTitle;
+        return l10n.settingsTabAbout;
     }
   }
 
@@ -565,36 +535,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       });
     } catch (_) {
       // Ignore lookup failures; show placeholder instead.
-    }
-  }
-
-  void _updatePenSliderRange(PenStrokeSliderRange range) {
-    setState(() => _penSliderRange = range);
-    final AppPreferences prefs = AppPreferences.instance;
-    prefs.penStrokeSliderRange = range;
-    _clampPenWidthForRange(prefs, range);
-    unawaited(AppPreferences.save());
-  }
-
-  void _clampPenWidthForRange(
-    AppPreferences prefs,
-    PenStrokeSliderRange range,
-  ) {
-    final double adjusted = range.clamp(prefs.penStrokeWidth);
-    if ((adjusted - prefs.penStrokeWidth).abs() > 0.0001) {
-      prefs.penStrokeWidth = adjusted;
-    }
-  }
-
-  String _sliderRangeLabel(PenStrokeSliderRange range) {
-    final l10n = context.l10n;
-    switch (range) {
-      case PenStrokeSliderRange.compact:
-        return l10n.penSliderRangeCompact;
-      case PenStrokeSliderRange.medium:
-        return l10n.penSliderRangeMedium;
-      case PenStrokeSliderRange.full:
-        return l10n.penSliderRangeFull;
     }
   }
 
@@ -663,7 +603,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       _localeOption = _optionForLocale(defaultLocale);
       _stylusPressureEnabled = AppPreferences.defaultStylusPressureEnabled;
       _stylusCurve = AppPreferences.defaultStylusCurve;
-      _penSliderRange = AppPreferences.defaultPenStrokeSliderRange;
       _fpsOverlayEnabled = AppPreferences.defaultShowFpsOverlay;
       _autoSaveCleanupThresholdMb =
           AppPreferences.defaultAutoSaveCleanupThresholdMb;
@@ -673,10 +612,8 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     prefs.localeOverride = defaultLocale;
     prefs.stylusPressureEnabled = _stylusPressureEnabled;
     prefs.stylusPressureCurve = _stylusCurve;
-    prefs.penStrokeSliderRange = _penSliderRange;
     prefs.updateShowFpsOverlay(_fpsOverlayEnabled);
     prefs.autoSaveCleanupThresholdMb = _autoSaveCleanupThresholdMb;
-    _clampPenWidthForRange(prefs, _penSliderRange);
     unawaited(AppPreferences.save());
   }
 

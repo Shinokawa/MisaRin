@@ -146,7 +146,10 @@ Future<void> _controllerEnsureWorkerSelectionMaskSynced(
     return;
   }
   final CanvasPaintingWorker worker = controller._ensurePaintingWorker();
-  await worker.updateSelectionMask(controller._selectionMask);
+  final Uint8List? selectionMask = controller._selectionMaskIsFull
+      ? null
+      : controller._selectionMask;
+  await worker.updateSelectionMask(selectionMask);
   controller._paintingWorkerSelectionDirty = false;
 }
 
@@ -231,42 +234,68 @@ void _controllerApplyWorkerPatch(
   if (maxRight <= effectiveLeft || maxBottom <= effectiveTop) {
     return;
   }
-  final BitmapSurface surface = controller._activeSurface;
-  final Uint32List destination = surface.pixels;
-  // Keep BitmapSurface.isClean in sync so filters that gate on coverage can run.
-  final bool checkCoverage = surface.isClean;
-  bool wroteCoverage = false;
+  final LayerSurface surface = controller._activeSurface;
   final int copyWidth = maxRight - effectiveLeft;
   final int copyHeight = maxBottom - effectiveTop;
   final int srcLeftOffset = effectiveLeft - patch.left;
   final int srcTopOffset = effectiveTop - patch.top;
-  for (int row = 0; row < copyHeight; row++) {
-    final int srcRow = srcTopOffset + row;
-    final int destY = effectiveTop + row;
-    final int srcOffset = srcRow * patch.width + srcLeftOffset;
-    final int destOffset = destY * controller._width + effectiveLeft;
-    if (checkCoverage && !wroteCoverage) {
-      final int rowEnd = srcOffset + copyWidth;
-      for (int i = srcOffset; i < rowEnd; i++) {
-        if ((patch.pixels[i] & 0xff000000) != 0) {
-          wroteCoverage = true;
-          break;
-        }
+  if (surface.isTiled) {
+    final RasterIntRect rect =
+        RasterIntRect(effectiveLeft, effectiveTop, maxRight, maxBottom);
+    Uint32List patchPixels;
+    if (srcLeftOffset == 0 &&
+        srcTopOffset == 0 &&
+        copyWidth == patch.width &&
+        copyHeight == patch.height) {
+      patchPixels = patch.pixels;
+    } else {
+      patchPixels = Uint32List(copyWidth * copyHeight);
+      for (int row = 0; row < copyHeight; row++) {
+        final int srcRow = srcTopOffset + row;
+        final int srcOffset = srcRow * patch.width + srcLeftOffset;
+        final int dstOffset = row * copyWidth;
+        patchPixels.setRange(
+          dstOffset,
+          dstOffset + copyWidth,
+          patch.pixels,
+          srcOffset,
+        );
       }
     }
-    destination.setRange(
-      destOffset,
-      destOffset + copyWidth,
-      patch.pixels,
-      srcOffset,
-    );
+    surface.writeRect(rect, patchPixels);
+  } else {
+    final Uint32List destination = surface.pixels;
+    // Keep BitmapSurface.isClean in sync so filters that gate on coverage can run.
+    final bool checkCoverage = surface.isClean;
+    bool wroteCoverage = false;
+    for (int row = 0; row < copyHeight; row++) {
+      final int srcRow = srcTopOffset + row;
+      final int destY = effectiveTop + row;
+      final int srcOffset = srcRow * patch.width + srcLeftOffset;
+      final int destOffset = destY * controller._width + effectiveLeft;
+      if (checkCoverage && !wroteCoverage) {
+        final int rowEnd = srcOffset + copyWidth;
+        for (int i = srcOffset; i < rowEnd; i++) {
+          if ((patch.pixels[i] & 0xff000000) != 0) {
+            wroteCoverage = true;
+            break;
+          }
+        }
+      }
+      destination.setRange(
+        destOffset,
+        destOffset + copyWidth,
+        patch.pixels,
+        srcOffset,
+      );
+    }
+    if (wroteCoverage) {
+      surface.markDirty();
+    }
+    final BitmapLayerState layer = controller._activeLayer;
+    controller._paintingWorkerSyncedLayerId = layer.id;
+    controller._paintingWorkerSyncedRevision = layer.revision + 1;
   }
-  if (wroteCoverage) {
-    surface.markDirty();
-  }
-  final BitmapLayerState layer = controller._activeLayer;
-  controller._paintingWorkerSyncedLayerId = layer.id;
-  controller._paintingWorkerSyncedRevision = layer.revision + 1;
   final Rect dirtyRegion = Rect.fromLTWH(
     effectiveLeft.toDouble(),
     effectiveTop.toDouble(),
@@ -275,7 +304,7 @@ void _controllerApplyWorkerPatch(
   );
   controller._markDirty(
     region: dirtyRegion,
-    layerId: layer.id,
+    layerId: controller._activeLayer.id,
     pixelsDirty: true,
   );
 }
@@ -323,6 +352,44 @@ Future<PaintingWorkerPatch?> _controllerExecuteWorkerDraw(
   final RasterIntRect bounds = _controllerClipRectToSurface(controller, region);
   if (bounds.isEmpty) {
     return null;
+  }
+  final LayerSurface surface = controller._activeSurface;
+  if (surface.isTiled) {
+    final Uint32List basePixels = surface.readRect(bounds);
+    final TransferableTypedData baseData = TransferableTypedData.fromList(
+      <Uint8List>[
+        Uint8List.view(
+          basePixels.buffer,
+          basePixels.offsetInBytes,
+          basePixels.lengthInBytes,
+        ),
+      ],
+    );
+    TransferableTypedData? maskData;
+    final Uint8List? selectionMask =
+        controller._selectionMaskIsFull ? null : controller._selectionMask;
+    if (selectionMask != null) {
+      final Uint8List localMask =
+          _controllerCopyMaskRegion(selectionMask, controller._width, bounds);
+      if (!_controllerMaskHasCoverage(localMask)) {
+        return null;
+      }
+      maskData = TransferableTypedData.fromList(<Uint8List>[localMask]);
+    }
+    final PaintingWorkerPatch patch = await controller
+        ._ensurePaintingWorker()
+        .drawPatch(
+          PaintingDrawRequest(
+            left: bounds.left,
+            top: bounds.top,
+            width: bounds.width,
+            height: bounds.height,
+            commands: commands,
+            basePixels: baseData,
+            mask: maskData,
+          ),
+        );
+    return patch;
   }
   await controller._ensureWorkerSurfaceSynced();
   await controller._ensureWorkerSelectionMaskSynced();
@@ -426,8 +493,15 @@ RasterIntRect _controllerClipRectToSurface(
 ) =>
     controller._rasterBackend.clipRectToSurface(rect);
 
-bool _controllerIsSurfaceEmpty(BitmapSurface surface) {
-  for (final int pixel in surface.pixels) {
+bool _controllerIsSurfaceEmpty(LayerSurface surface) {
+  if (surface.isClean) {
+    return true;
+  }
+  if (surface.isTiled) {
+    return false;
+  }
+  final Uint32List pixels = surface.pixels;
+  for (final int pixel in pixels) {
     if ((pixel >> 24) != 0) {
       return false;
     }
@@ -435,10 +509,11 @@ bool _controllerIsSurfaceEmpty(BitmapSurface surface) {
   return true;
 }
 
-Uint8List _controllerSurfaceToRgba(BitmapSurface surface) {
-  final Uint8List rgba = Uint8List(surface.pixels.length * 4);
-  for (int i = 0; i < surface.pixels.length; i++) {
-    final int argb = surface.pixels[i];
+Uint8List _controllerSurfaceToRgba(LayerSurface surface) {
+  final Uint32List pixels = surface.pixels;
+  final Uint8List rgba = Uint8List(pixels.length * 4);
+  for (int i = 0; i < pixels.length; i++) {
+    final int argb = pixels[i];
     final int offset = i * 4;
     rgba[offset] = (argb >> 16) & 0xff;
     rgba[offset + 1] = (argb >> 8) & 0xff;
@@ -476,7 +551,7 @@ Rect _controllerUnionRects(Rect a, Rect b) {
 }
 
 Uint8List _controllerSurfaceToMaskedRgba(
-  BitmapSurface surface,
+  LayerSurface surface,
   Uint8List mask,
 ) {
   final Uint32List pixels = surface.pixels;
@@ -502,6 +577,45 @@ bool _controllerMaskHasCoverage(Uint8List mask) {
     }
   }
   return false;
+}
+
+RasterIntRect? _controllerMaskBounds(
+  Uint8List mask,
+  int width,
+  int height,
+) {
+  int minX = width;
+  int minY = height;
+  int maxX = -1;
+  int maxY = -1;
+  for (int i = 0; i < mask.length; i++) {
+    if (mask[i] == 0) {
+      continue;
+    }
+    final int x = i % width;
+    final int y = i ~/ width;
+    if (x < minX) {
+      minX = x;
+    }
+    if (x > maxX) {
+      maxX = x;
+    }
+    if (y < minY) {
+      minY = y;
+    }
+    if (y > maxY) {
+      maxY = y;
+    }
+  }
+  if (maxX < minX || maxY < minY) {
+    return null;
+  }
+  final int right = math.min(width, maxX + 1);
+  final int bottom = math.min(height, maxY + 1);
+  if (minX >= right || minY >= bottom) {
+    return null;
+  }
+  return RasterIntRect(minX, minY, right, bottom);
 }
 
 double _controllerClampUnit(double value) {

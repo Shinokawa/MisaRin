@@ -29,7 +29,17 @@ typedef _RustCpuBrushDrawStampNative =
       ffi.Uint8 smoothRotation,
       ffi.Uint32 rotationSeed,
       ffi.Float rotationJitter,
+      ffi.Uint8 screentoneEnabled,
+      ffi.Float screentoneSpacing,
+      ffi.Float screentoneDotSize,
+      ffi.Float screentoneRotation,
+      ffi.Float screentoneSoftness,
+      ffi.Uint32 screentoneShape,
       ffi.Uint8 snapToPixel,
+      ffi.Uint32 customMaskWidth,
+      ffi.Uint32 customMaskHeight,
+      ffi.Pointer<ffi.Uint8> customMask,
+      ffi.Uint64 customMaskLen,
       ffi.Pointer<ffi.Uint8> selection,
       ffi.Uint64 selectionLen,
     );
@@ -52,7 +62,17 @@ typedef _RustCpuBrushDrawStampDart =
       int smoothRotation,
       int rotationSeed,
       double rotationJitter,
+      int screentoneEnabled,
+      double screentoneSpacing,
+      double screentoneDotSize,
+      double screentoneRotation,
+      double screentoneSoftness,
+      int screentoneShape,
       int snapToPixel,
+      int customMaskWidth,
+      int customMaskHeight,
+      ffi.Pointer<ffi.Uint8> customMask,
+      int customMaskLen,
       ffi.Pointer<ffi.Uint8> selection,
       int selectionLen,
     );
@@ -73,6 +93,12 @@ typedef _RustCpuBrushDrawCapsuleNative =
       ffi.Uint32 antialiasLevel,
       ffi.Uint8 includeStartCap,
       ffi.Uint8 erase,
+      ffi.Uint8 screentoneEnabled,
+      ffi.Float screentoneSpacing,
+      ffi.Float screentoneDotSize,
+      ffi.Float screentoneRotation,
+      ffi.Float screentoneSoftness,
+      ffi.Uint32 screentoneShape,
       ffi.Pointer<ffi.Uint8> selection,
       ffi.Uint64 selectionLen,
     );
@@ -93,6 +119,12 @@ typedef _RustCpuBrushDrawCapsuleDart =
       int antialiasLevel,
       int includeStartCap,
       int erase,
+      int screentoneEnabled,
+      double screentoneSpacing,
+      double screentoneDotSize,
+      double screentoneRotation,
+      double screentoneSoftness,
+      int screentoneShape,
       ffi.Pointer<ffi.Uint8> selection,
       int selectionLen,
     );
@@ -202,11 +234,21 @@ typedef _RustCpuBrushDrawStampSegmentNative =
       ffi.Uint8 smoothRotation,
       ffi.Uint32 rotationSeed,
       ffi.Float rotationJitter,
+      ffi.Uint8 screentoneEnabled,
+      ffi.Float screentoneSpacing,
+      ffi.Float screentoneDotSize,
+      ffi.Float screentoneRotation,
+      ffi.Float screentoneSoftness,
+      ffi.Uint32 screentoneShape,
       ffi.Float spacing,
       ffi.Float scatter,
       ffi.Float softness,
       ffi.Uint8 snapToPixel,
       ffi.Uint8 accumulate,
+      ffi.Uint32 customMaskWidth,
+      ffi.Uint32 customMaskHeight,
+      ffi.Pointer<ffi.Uint8> customMask,
+      ffi.Uint64 customMaskLen,
       ffi.Pointer<ffi.Uint8> selection,
       ffi.Uint64 selectionLen,
     );
@@ -232,11 +274,21 @@ typedef _RustCpuBrushDrawStampSegmentDart =
       int smoothRotation,
       int rotationSeed,
       double rotationJitter,
+      int screentoneEnabled,
+      double screentoneSpacing,
+      double screentoneDotSize,
+      double screentoneRotation,
+      double screentoneSoftness,
+      int screentoneShape,
       double spacing,
       double scatter,
       double softness,
       int snapToPixel,
       int accumulate,
+      int customMaskWidth,
+      int customMaskHeight,
+      ffi.Pointer<ffi.Uint8> customMask,
+      int customMaskLen,
       ffi.Pointer<ffi.Uint8> selection,
       int selectionLen,
     );
@@ -355,7 +407,16 @@ class RustCpuBrushFfi {
     required bool smoothRotation,
     required int rotationSeed,
     required double rotationJitter,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
+    int screentoneShape = 0,
     required bool snapToPixel,
+    Uint8List? customMask,
+    int customMaskWidth = 0,
+    int customMaskHeight = 0,
     Uint8List? selectionMask,
   }) {
     if (!isSupported || pixelsPtr == 0 || pixelsLen <= 0) {
@@ -389,6 +450,19 @@ class RustCpuBrushFfi {
       selectionPtr.asTypedList(selectionLen).setAll(0, selectionMask);
     }
 
+    ffi.Pointer<ffi.Uint8> customMaskPtr = ffi.nullptr;
+    int customMaskLen = 0;
+    if (customMask != null && customMask.isNotEmpty) {
+      final int expectedLen = customMaskWidth * customMaskHeight * 2;
+      if (customMaskWidth > 0 &&
+          customMaskHeight > 0 &&
+          expectedLen == customMask.length) {
+        customMaskLen = customMask.length;
+        customMaskPtr = malloc.allocate<ffi.Uint8>(customMaskLen);
+        customMaskPtr.asTypedList(customMaskLen).setAll(0, customMask);
+      }
+    }
+
     try {
       final int result = _drawStamp(
         ffi.Pointer<ffi.Uint32>.fromAddress(pixelsPtr),
@@ -407,7 +481,17 @@ class RustCpuBrushFfi {
         smoothRotation ? 1 : 0,
         rotationSeed,
         rotationJitter,
+        screentoneEnabled ? 1 : 0,
+        screentoneSpacing,
+        screentoneDotSize,
+        screentoneRotation,
+        screentoneSoftness,
+        screentoneShape,
         snapToPixel ? 1 : 0,
+        customMaskWidth,
+        customMaskHeight,
+        customMaskPtr,
+        customMaskLen,
         selectionPtr,
         selectionLen,
       );
@@ -421,6 +505,9 @@ class RustCpuBrushFfi {
     } finally {
       if (selectionPtr != ffi.nullptr) {
         malloc.free(selectionPtr);
+      }
+      if (customMaskPtr != ffi.nullptr) {
+        malloc.free(customMaskPtr);
       }
     }
   }
@@ -440,6 +527,12 @@ class RustCpuBrushFfi {
     required int antialiasLevel,
     required bool includeStartCap,
     required bool erase,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
+    int screentoneShape = 0,
     Uint8List? selectionMask,
   }) {
     if (!isSupported || pixelsPtr == 0 || pixelsLen <= 0) {
@@ -489,6 +582,12 @@ class RustCpuBrushFfi {
         antialiasLevel,
         includeStartCap ? 1 : 0,
         erase ? 1 : 0,
+        screentoneEnabled ? 1 : 0,
+        screentoneSpacing,
+        screentoneDotSize,
+        screentoneRotation,
+        screentoneSoftness,
+        screentoneShape,
         selectionPtr,
         selectionLen,
       );
@@ -609,11 +708,20 @@ class RustCpuBrushFfi {
     required bool smoothRotation,
     required int rotationSeed,
     required double rotationJitter,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
+    int screentoneShape = 0,
     required double spacing,
     required double scatter,
     required double softness,
     required bool snapToPixel,
     required bool accumulate,
+    Uint8List? customMask,
+    int customMaskWidth = 0,
+    int customMaskHeight = 0,
     Uint8List? selectionMask,
   }) {
     final _RustCpuBrushDrawStampSegmentDart? fn = _drawStampSegment;
@@ -648,6 +756,19 @@ class RustCpuBrushFfi {
       selectionPtr.asTypedList(selectionLen).setAll(0, selectionMask);
     }
 
+    ffi.Pointer<ffi.Uint8> customMaskPtr = ffi.nullptr;
+    int customMaskLen = 0;
+    if (customMask != null && customMask.isNotEmpty) {
+      final int expectedLen = customMaskWidth * customMaskHeight * 2;
+      if (customMaskWidth > 0 &&
+          customMaskHeight > 0 &&
+          expectedLen == customMask.length) {
+        customMaskLen = customMask.length;
+        customMaskPtr = malloc.allocate<ffi.Uint8>(customMaskLen);
+        customMaskPtr.asTypedList(customMaskLen).setAll(0, customMask);
+      }
+    }
+
     try {
       final int result = fn(
         ffi.Pointer<ffi.Uint32>.fromAddress(pixelsPtr),
@@ -669,11 +790,21 @@ class RustCpuBrushFfi {
         smoothRotation ? 1 : 0,
         rotationSeed,
         rotationJitter,
+        screentoneEnabled ? 1 : 0,
+        screentoneSpacing,
+        screentoneDotSize,
+        screentoneRotation,
+        screentoneSoftness,
+        screentoneShape,
         spacing,
         scatter,
         softness,
         snapToPixel ? 1 : 0,
         accumulate ? 1 : 0,
+        customMaskWidth,
+        customMaskHeight,
+        customMaskPtr,
+        customMaskLen,
         selectionPtr,
         selectionLen,
       );
@@ -688,6 +819,9 @@ class RustCpuBrushFfi {
     } finally {
       if (selectionPtr != ffi.nullptr) {
         malloc.free(selectionPtr);
+      }
+      if (customMaskPtr != ffi.nullptr) {
+        malloc.free(customMaskPtr);
       }
     }
   }

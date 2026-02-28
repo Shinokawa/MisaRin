@@ -22,12 +22,19 @@ pub(crate) struct EngineBrushSettings {
     pub(crate) scatter: f32,
     pub(crate) rotation_jitter: f32,
     pub(crate) snap_to_pixel: bool,
+    pub(crate) screentone_enabled: bool,
+    pub(crate) screentone_spacing: f32,
+    pub(crate) screentone_dot_size: f32,
+    pub(crate) screentone_rotation: f32,
+    pub(crate) screentone_softness: f32,
+    pub(crate) screentone_shape: BrushShape,
     pub(crate) hollow_enabled: bool,
     pub(crate) hollow_ratio: f32,
     pub(crate) hollow_erase_occluded: bool,
     pub(crate) streamline_strength: f32,
     pub(crate) smoothing_mode: u8,
     pub(crate) stabilizer_strength: f32,
+    pub(crate) custom_mask_enabled: bool,
 }
 
 impl Default for EngineBrushSettings {
@@ -48,12 +55,19 @@ impl Default for EngineBrushSettings {
             scatter: 0.0,
             rotation_jitter: 1.0,
             snap_to_pixel: false,
+            screentone_enabled: false,
+            screentone_spacing: 10.0,
+            screentone_dot_size: 0.6,
+            screentone_rotation: 45.0,
+            screentone_softness: 0.0,
+            screentone_shape: BrushShape::Circle,
             hollow_enabled: false,
             hollow_ratio: 0.0,
             hollow_erase_occluded: false,
             streamline_strength: 0.0,
             smoothing_mode: 1,
             stabilizer_strength: 0.0,
+            custom_mask_enabled: false,
         }
     }
 }
@@ -91,6 +105,26 @@ impl EngineBrushSettings {
         } else {
             self.rotation_jitter = self.rotation_jitter.clamp(0.0, 1.0);
         }
+        if !self.screentone_spacing.is_finite() {
+            self.screentone_spacing = 10.0;
+        } else {
+            self.screentone_spacing = self.screentone_spacing.clamp(2.0, 200.0);
+        }
+        if !self.screentone_dot_size.is_finite() {
+            self.screentone_dot_size = 0.6;
+        } else {
+            self.screentone_dot_size = self.screentone_dot_size.clamp(0.0, 1.0);
+        }
+        if !self.screentone_rotation.is_finite() {
+            self.screentone_rotation = 45.0;
+        } else {
+            self.screentone_rotation = self.screentone_rotation.clamp(-180.0, 180.0);
+        }
+        if !self.screentone_softness.is_finite() {
+            self.screentone_softness = 0.0;
+        } else {
+            self.screentone_softness = self.screentone_softness.clamp(0.0, 1.0);
+        }
         if !self.hollow_ratio.is_finite() {
             self.hollow_ratio = 0.0;
         } else {
@@ -119,6 +153,10 @@ impl EngineBrushSettings {
 
     pub(crate) fn softness(&self) -> f32 {
         (1.0 - self.hardness).clamp(0.0, 1.0)
+    }
+
+    pub(crate) fn supports_rotation(&self) -> bool {
+        self.custom_mask_enabled || !matches!(self.shape, BrushShape::Circle)
     }
 
     fn smoothing_mode(&self) -> SmoothingMode {
@@ -877,12 +915,17 @@ impl StrokeResampler {
                 SmoothingMode::Stabilizer => {
                     let stabilized = self.stabilizer.process(sample, is_down, is_up);
                     for stab in stabilized {
-                        if let Some(prev) = self.smooth_previous {
-                            self.emit_line_segment(prev, stab, true, brush_settings, &mut emitted);
-                        } else {
-                            self.emit_point(stab.pos, stab.pressure, &mut emitted);
-                        }
-                        self.smooth_previous = Some(stab);
+                        // Feed stabilizer samples into the same weighted + bezier smoothing
+                        // pipeline so corners stay rounded.
+                        self.process_smoothing_sample(
+                            stab,
+                            SmoothingMode::Weighted,
+                            brush_settings,
+                            &mut emitted,
+                        );
+                    }
+                    if is_up {
+                        self.finish_smoothing(brush_settings, &mut emitted);
                     }
                 }
                 SmoothingMode::Weighted | SmoothingMode::Simple => {
@@ -1053,6 +1096,14 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
     brush.set_canvas_size(canvas_width, canvas_height);
     let softness = brush_settings.softness();
     brush.set_softness(softness);
+    brush.set_screentone(
+        brush_settings.screentone_enabled,
+        brush_settings.screentone_spacing,
+        brush_settings.screentone_dot_size,
+        brush_settings.screentone_rotation.to_radians(),
+        brush_settings.screentone_softness,
+        brush_settings.screentone_shape,
+    );
 
     let hollow_enabled = brush_settings.hollow_enabled
         && !brush_settings.erase
@@ -1078,7 +1129,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
         let dirty = compute_dirty_rect_i32(&points, &dirty_radii, canvas_width, canvas_height);
         before_draw(brush, dirty);
 
-        let supports_rotation = !matches!(brush_settings.shape, BrushShape::Circle);
+        let supports_rotation = brush_settings.supports_rotation();
         let use_smooth = brush_settings.smooth_rotation && supports_rotation;
         let use_random =
             brush_settings.random_rotation && brush_settings.rotation_jitter > 0.0001 && supports_rotation;
@@ -1123,6 +1174,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
                 pts,
                 rs,
                 None,
+                None,
                 rot_slice,
                 color,
                 brush_settings.shape,
@@ -1134,6 +1186,8 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
                 hollow_erase,
                 hollow_enabled,
                 true,
+                0,
+                None,
             ) {
                 Ok(()) => {
                     any_drawn = true;
@@ -1162,7 +1216,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
         before_draw(brush, dirty);
         let rotation = if brush_settings.random_rotation
             && brush_settings.rotation_jitter > 0.0001
-            && !matches!(brush_settings.shape, BrushShape::Circle)
+            && brush_settings.supports_rotation()
         {
             brush_random_rotation_radians(p0, brush_settings.rotation_seed)
                 * brush_settings.rotation_jitter
@@ -1203,7 +1257,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
         before_draw(brush, dirty);
         let rotation = if brush_settings.random_rotation
             && brush_settings.rotation_jitter > 0.0001
-            && !matches!(brush_settings.shape, BrushShape::Circle)
+            && brush_settings.supports_rotation()
         {
             brush_random_rotation_radians(points[0], brush_settings.rotation_seed)
                 * brush_settings.rotation_jitter
@@ -1242,7 +1296,7 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
         let needs_per_segment_rotation =
             brush_settings.random_rotation
                 && brush_settings.rotation_jitter > 0.0001
-                && !matches!(brush_settings.shape, BrushShape::Circle);
+                && brush_settings.supports_rotation();
         let color = Color {
             argb: brush_settings.color_argb,
         };
@@ -1386,8 +1440,11 @@ fn draw_emitted_points_internal<F: FnMut(&mut BrushRenderer, (i32, i32, i32, i32
     (drew_any, dirty_union)
 }
 
+
 const RUST_PRESSURE_MIN_FACTOR: f32 = 0.09;
-const MAX_SEGMENT_SAMPLES: usize = 64;
+// Allow dense resampling on long straight segments (e.g., line/perspective tools)
+// so small brushes don't turn into dashed strokes.
+const MAX_SEGMENT_SAMPLES: usize = 4096;
 const MAX_EMITTED_POINTS: usize = 4096;
 
 fn brush_radius_from_pressure(pressure: f32, base_radius: f32, use_pressure: bool) -> f32 {
@@ -1525,6 +1582,89 @@ fn downsample_emitted(points: &[(Point2D, f32)], target_count: usize) -> Vec<(Po
     output
 }
 
+fn average_segment_length(points: &[(Point2D, f32)]) -> f32 {
+    if points.len() < 2 {
+        return 0.0;
+    }
+    let mut total = 0.0f32;
+    let mut count = 0u32;
+    for i in 1..points.len() {
+        let dist = point_distance(points[i - 1].0, points[i].0);
+        if dist.is_finite() {
+            total += dist;
+            count += 1;
+        }
+    }
+    if count == 0 {
+        0.0
+    } else {
+        total / count as f32
+    }
+}
+
+fn gaussian_kernel(radius: usize, sigma: f32) -> Vec<f32> {
+    let sigma = if sigma.is_finite() { sigma.max(0.1) } else { 1.0 };
+    let size = radius.saturating_mul(2).saturating_add(1);
+    if size == 0 {
+        return Vec::new();
+    }
+    let mut kernel = Vec::with_capacity(size);
+    let mut sum = 0.0f32;
+    let two_sigma2 = 2.0 * sigma * sigma;
+    for i in 0..size {
+        let x = i as i32 - radius as i32;
+        let v = (-(x as f32 * x as f32) / two_sigma2).exp();
+        kernel.push(v);
+        sum += v;
+    }
+    if sum > 1.0e-6 {
+        for k in kernel.iter_mut() {
+            *k /= sum;
+        }
+    }
+    kernel
+}
+
+fn gaussian_smooth_points(
+    points: &[(Point2D, f32)],
+    kernel: &[f32],
+) -> Vec<(Point2D, f32)> {
+    if points.len() < 3 || kernel.is_empty() {
+        return points.to_vec();
+    }
+    let radius = kernel.len() / 2;
+    let len = points.len();
+    let mut output: Vec<(Point2D, f32)> = Vec::with_capacity(len);
+    for i in 0..len {
+        let mut sum_w = 0.0f32;
+        let mut x = 0.0f32;
+        let mut y = 0.0f32;
+        let mut p = 0.0f32;
+        for (k, &w) in kernel.iter().enumerate() {
+            let offset = k as isize - radius as isize;
+            let idx = if offset < 0 {
+                i.saturating_sub((-offset) as usize)
+            } else {
+                (i + offset as usize).min(len - 1)
+            };
+            let (pos, pres) = points[idx];
+            x += pos.x * w;
+            y += pos.y * w;
+            p += pres * w;
+            sum_w += w;
+        }
+        if sum_w > 1.0e-6 {
+            x /= sum_w;
+            y /= sum_w;
+            p /= sum_w;
+        }
+        output.push((Point2D { x, y }, p));
+    }
+    output[0] = points[0];
+    output[len - 1] = points[len - 1];
+    output
+}
+
 pub(crate) fn apply_streamline(
     points: &[(Point2D, f32)],
     strength: f32,
@@ -1537,25 +1677,40 @@ pub(crate) fn apply_streamline(
     if strength <= 0.0001 || points.len() < 3 {
         return points.to_vec();
     }
-    let eased = strength.powf(0.7);
-    let passes = ((eased * 2.0).ceil() as usize).clamp(1, 3);
-    let mut smoothed = adaptive_resample_spline(points, points.len());
-    for _ in 1..passes {
-        smoothed = adaptive_resample_spline(&smoothed, smoothed.len());
-    }
-    if smoothed.len() != points.len() {
+    let eased = strength.powf(0.32);
+    let avg_dist = average_segment_length(points);
+    if avg_dist <= 1.0e-4 {
         return points.to_vec();
     }
+    let avg_dist = avg_dist.clamp(0.25, 50.0);
+    let target_px = 3.0 + 45.0 * eased;
+    let mut radius = (target_px / avg_dist).round() as usize;
+    let max_radius = (points.len().saturating_sub(1) / 2).clamp(2, 96);
+    radius = radius.clamp(2, max_radius);
+    let sigma = radius as f32 * 0.8 + 0.5;
+    let kernel = gaussian_kernel(radius, sigma);
+    let passes = if eased < 0.25 { 2 } else if eased < 0.6 { 3 } else { 4 };
+    let mut smoothed = points.to_vec();
+    for _ in 0..passes {
+        smoothed = gaussian_smooth_points(&smoothed, &kernel);
+    }
+    let mut resampled = adaptive_resample_spline(&smoothed, points.len());
+    if resampled.len() != points.len() {
+        return points.to_vec();
+    }
+    let last_idx = resampled.len() - 1;
+    resampled[0] = points[0];
+    resampled[last_idx] = points[points.len() - 1];
+    for (idx, sample) in resampled.iter_mut().enumerate() {
+        let pres = points[idx].1;
+        sample.1 = if pres.is_finite() { pres.clamp(0.0, 1.0) } else { 0.0 };
+    }
     let mut output: Vec<(Point2D, f32)> = Vec::with_capacity(points.len());
-    for (orig, smooth) in points.iter().zip(smoothed.iter()) {
-        let x = orig.0.x + (smooth.0.x - orig.0.x) * eased;
-        let y = orig.0.y + (smooth.0.y - orig.0.y) * eased;
-        let blended = orig.1 + (smooth.1 - orig.1) * (eased * 0.5);
-        let pres = if blended.is_finite() {
-            blended.clamp(0.0, 1.0)
-        } else {
-            orig.1
-        };
+    let pos_mix = eased;
+    for (orig, smooth) in points.iter().zip(resampled.iter()) {
+        let x = orig.0.x + (smooth.0.x - orig.0.x) * pos_mix;
+        let y = orig.0.y + (smooth.0.y - orig.0.y) * pos_mix;
+        let pres = orig.1;
         output.push((Point2D { x, y }, pres));
     }
     output
@@ -1948,6 +2103,30 @@ fn brush_scatter_offset(center: Point2D, seed: u32, radius: f32, salt: u32) -> P
     Point2D {
         x: angle.cos() * dist,
         y: angle.sin() * dist,
+    }
+}
+
+struct LcgRng {
+    state: u32,
+}
+
+impl LcgRng {
+    fn new(seed: u32) -> Self {
+        Self {
+            state: if seed == 0 { 0x6d2b_79f5 } else { seed },
+        }
+    }
+
+    fn next_u32(&mut self) -> u32 {
+        self.state = self
+            .state
+            .wrapping_mul(1664525)
+            .wrapping_add(1013904223);
+        self.state
+    }
+
+    fn next_f32(&mut self) -> f32 {
+        (self.next_u32() as f64 / 4294967296.0) as f32
     }
 }
 

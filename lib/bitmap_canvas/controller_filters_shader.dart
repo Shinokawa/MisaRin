@@ -32,6 +32,9 @@ bool _canApplyAntialias(BitmapCanvasController controller, int level) {
   if (layer.locked) {
     return false;
   }
+  if (layer.surface.isTiled) {
+    return false;
+  }
   final List<double>? profile =
       BitmapCanvasController._kAntialiasBlendProfiles[level];
   if (profile == null || profile.isEmpty || profile.every((double f) => f <= 0)) {

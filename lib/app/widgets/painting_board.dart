@@ -73,6 +73,7 @@ import 'package:flutter_localizations/flutter_localizations.dart'
     show GlobalMaterialLocalizations;
 import 'package:misa_rin/canvas/canvas_backend.dart';
 import 'package:misa_rin/canvas/canvas_backend_state.dart';
+import 'package:misa_rin/bitmap_canvas/raster_int_rect.dart';
 import 'package:misa_rin/src/rust/rust_cpu_filters_ffi.dart';
 import 'package:path/path.dart' as p;
 import 'package:vector_math/vector_math_64.dart' show Matrix4, Vector3;
@@ -116,8 +117,10 @@ import '../toolbars/widgets/tool_settings_card.dart';
 import '../toolbars/layouts/layouts.dart';
 import '../toolbars/widgets/measured_size.dart';
 import '../../painting/krita_spray_engine.dart';
+import '../../painting/stroke_stabilizer_curve.dart';
 import 'tool_cursor_overlay.dart';
 import 'adaptive_canvas_surface.dart';
+import 'bitmap_canvas_surface.dart';
 import 'package:misa_rin/canvas/canvas_engine_bridge.dart';
 import '../shortcuts/toolbar_shortcuts.dart';
 import '../menu/menu_action_dispatcher.dart';

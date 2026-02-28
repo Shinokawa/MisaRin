@@ -559,7 +559,9 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       return _maybeSnapToPerspective(clamped, anchor: anchor);
     }
 
-    final bool enableStabilizer = _strokeStabilizerStrength > 0.0001;
+    final double stabilizerStrength =
+        mapStrokeStabilizerStrength(_strokeStabilizerStrength);
+    final bool enableStabilizer = stabilizerStrength > 0.0001;
     if (!enableStabilizer) {
       if (isInitialSample) {
         _strokeStabilizer.reset();
@@ -574,7 +576,7 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     }
     final Offset filtered = _strokeStabilizer.filter(
       clamped,
-      _strokeStabilizerStrength,
+      stabilizerStrength,
     );
     return _maybeSnapToPerspective(filtered, anchor: anchor);
   }

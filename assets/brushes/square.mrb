@@ -1,6 +1,6 @@
 MRB-TEXT 1
 [brush.json]
-length:538
+length:539
 {
   "formatVersion": 1,
   "id": "square",
@@ -11,10 +11,10 @@ length:538
   "shapeId": "square",
   "shapeFile": "square.svg",
   "shapeType": "svg",
-  "spacing": 0.15,
-  "hardness": 0.85,
+  "spacing": 0.24,
+  "hardness": 0.45,
   "flow": 1.0,
-  "scatter": 0.0,
+  "scatter": 0.66,
   "randomRotation": false,
   "smoothRotation": false,
   "rotationJitter": 0.0,
@@ -23,18 +23,17 @@ length:538
   "hollowRatio": 0.0,
   "hollowEraseOccludedParts": false,
   "autoSharpTaper": false,
-  "snapToPixel": false,
+  "snapToPixel": true,
   "langFile": "brush_lang.txt"
 }
 [brush_lang.txt]
-length:79
-square|en|Square
-square|ja|正方形
-square|ko|정사각형
-square|zh|正方形
+length:70
+square|en|Charcoal
+square|ja|木炭
+square|ko|차콜
+square|zh|炭笔
 [square.svg]
 length:130
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <rect x="10" y="10" width="80" height="80" fill="black"/>
 </svg>
-

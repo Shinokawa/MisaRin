@@ -12,6 +12,7 @@ import 'package:window_manager/window_manager.dart';
 import 'dialogs/misarin_dialog.dart';
 import 'l10n/locale_controller.dart';
 import 'l10n/l10n.dart';
+import 'menu/custom_menu_bar.dart';
 import 'menu/custom_menu_shell.dart';
 import 'menu/macos_menu_shell.dart';
 import 'preferences/app_preferences.dart';
@@ -442,6 +443,17 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
                   if (!kIsWeb && Platform.isMacOS) {
                     appBody = MacosMenuShell(child: appBody);
                   }
+
+                  appBody = Listener(
+                    behavior: HitTestBehavior.translucent,
+                    onPointerDown: (event) =>
+                        CustomMenuBarOverlay.reportPointerKind(event.kind),
+                    onPointerHover: (event) =>
+                        CustomMenuBarOverlay.reportPointerKind(event.kind),
+                    onPointerMove: (event) =>
+                        CustomMenuBarOverlay.reportPointerKind(event.kind),
+                    child: appBody,
+                  );
 
                   final FluentThemeData theme = FluentTheme.of(context);
                   final Color selectionColor =

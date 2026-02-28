@@ -24,7 +24,16 @@ CpuBrushResult cpuBrushDrawStampRgba({
   required bool smoothRotation,
   required int rotationSeed,
   required double rotationJitter,
+  required bool screentoneEnabled,
+  required double screentoneSpacing,
+  required double screentoneDotSize,
+  required double screentoneRotation,
+  required double screentoneSoftness,
+  required int screentoneShape,
   required bool snapToPixel,
+  required int customMaskWidth,
+  required int customMaskHeight,
+  Uint8List? customMask,
   Uint8List? selection,
 }) => RustLib.instance.api.crateApiCpuBrushCpuBrushDrawStampRgba(
   pixels: pixels,
@@ -42,7 +51,16 @@ CpuBrushResult cpuBrushDrawStampRgba({
   smoothRotation: smoothRotation,
   rotationSeed: rotationSeed,
   rotationJitter: rotationJitter,
+  screentoneEnabled: screentoneEnabled,
+  screentoneSpacing: screentoneSpacing,
+  screentoneDotSize: screentoneDotSize,
+  screentoneRotation: screentoneRotation,
+  screentoneSoftness: screentoneSoftness,
+  screentoneShape: screentoneShape,
   snapToPixel: snapToPixel,
+  customMaskWidth: customMaskWidth,
+  customMaskHeight: customMaskHeight,
+  customMask: customMask,
   selection: selection,
 );
 
@@ -60,6 +78,12 @@ CpuBrushResult cpuBrushDrawCapsuleSegmentRgba({
   required int antialiasLevel,
   required bool includeStartCap,
   required bool erase,
+  required bool screentoneEnabled,
+  required double screentoneSpacing,
+  required double screentoneDotSize,
+  required double screentoneRotation,
+  required double screentoneSoftness,
+  required int screentoneShape,
   Uint8List? selection,
 }) => RustLib.instance.api.crateApiCpuBrushCpuBrushDrawCapsuleSegmentRgba(
   pixels: pixels,
@@ -75,6 +99,12 @@ CpuBrushResult cpuBrushDrawCapsuleSegmentRgba({
   antialiasLevel: antialiasLevel,
   includeStartCap: includeStartCap,
   erase: erase,
+  screentoneEnabled: screentoneEnabled,
+  screentoneSpacing: screentoneSpacing,
+  screentoneDotSize: screentoneDotSize,
+  screentoneRotation: screentoneRotation,
+  screentoneSoftness: screentoneSoftness,
+  screentoneShape: screentoneShape,
   selection: selection,
 );
 
@@ -121,11 +151,20 @@ CpuBrushResult cpuBrushDrawStampSegmentRgba({
   required bool smoothRotation,
   required int rotationSeed,
   required double rotationJitter,
+  required bool screentoneEnabled,
+  required double screentoneSpacing,
+  required double screentoneDotSize,
+  required double screentoneRotation,
+  required double screentoneSoftness,
+  required int screentoneShape,
   required double spacing,
   required double scatter,
   required double softness,
   required bool snapToPixel,
   required bool accumulate,
+  required int customMaskWidth,
+  required int customMaskHeight,
+  Uint8List? customMask,
   Uint8List? selection,
 }) => RustLib.instance.api.crateApiCpuBrushCpuBrushDrawStampSegmentRgba(
   pixels: pixels,
@@ -146,11 +185,20 @@ CpuBrushResult cpuBrushDrawStampSegmentRgba({
   smoothRotation: smoothRotation,
   rotationSeed: rotationSeed,
   rotationJitter: rotationJitter,
+  screentoneEnabled: screentoneEnabled,
+  screentoneSpacing: screentoneSpacing,
+  screentoneDotSize: screentoneDotSize,
+  screentoneRotation: screentoneRotation,
+  screentoneSoftness: screentoneSoftness,
+  screentoneShape: screentoneShape,
   spacing: spacing,
   scatter: scatter,
   softness: softness,
   snapToPixel: snapToPixel,
   accumulate: accumulate,
+  customMaskWidth: customMaskWidth,
+  customMaskHeight: customMaskHeight,
+  customMask: customMask,
   selection: selection,
 );
 
@@ -226,6 +274,12 @@ class CpuBrushCommand {
   final double rotationJitter;
   final double spacing;
   final double scatter;
+  final bool screentoneEnabled;
+  final double screentoneSpacing;
+  final double screentoneDotSize;
+  final double screentoneRotation;
+  final double screentoneSoftness;
+  final int screentoneShape;
   final bool snapToPixel;
 
   const CpuBrushCommand({
@@ -252,6 +306,12 @@ class CpuBrushCommand {
     required this.rotationJitter,
     required this.spacing,
     required this.scatter,
+    required this.screentoneEnabled,
+    required this.screentoneSpacing,
+    required this.screentoneDotSize,
+    required this.screentoneRotation,
+    required this.screentoneSoftness,
+    required this.screentoneShape,
     required this.snapToPixel,
   });
 
@@ -280,6 +340,12 @@ class CpuBrushCommand {
       rotationJitter.hashCode ^
       spacing.hashCode ^
       scatter.hashCode ^
+      screentoneEnabled.hashCode ^
+      screentoneSpacing.hashCode ^
+      screentoneDotSize.hashCode ^
+      screentoneRotation.hashCode ^
+      screentoneSoftness.hashCode ^
+      screentoneShape.hashCode ^
       snapToPixel.hashCode;
 
   @override
@@ -310,6 +376,12 @@ class CpuBrushCommand {
           rotationJitter == other.rotationJitter &&
           spacing == other.spacing &&
           scatter == other.scatter &&
+          screentoneEnabled == other.screentoneEnabled &&
+          screentoneSpacing == other.screentoneSpacing &&
+          screentoneDotSize == other.screentoneDotSize &&
+          screentoneRotation == other.screentoneRotation &&
+          screentoneSoftness == other.screentoneSoftness &&
+          screentoneShape == other.screentoneShape &&
           snapToPixel == other.snapToPixel;
 }
 

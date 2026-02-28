@@ -30,6 +30,12 @@ class AdaptiveCanvasSurface extends StatelessWidget {
     required this.brushScatter,
     required this.brushRotationJitter,
     required this.brushSnapToPixel,
+    required this.brushScreentoneEnabled,
+    required this.brushScreentoneSpacing,
+    required this.brushScreentoneDotSize,
+    required this.brushScreentoneRotation,
+    required this.brushScreentoneSoftness,
+    required this.brushScreentoneShape,
     this.hollowStrokeEnabled = false,
     this.hollowStrokeRatio = 0.0,
     this.hollowStrokeEraseOccludedParts = false,
@@ -62,6 +68,12 @@ class AdaptiveCanvasSurface extends StatelessWidget {
   final double brushScatter;
   final double brushRotationJitter;
   final bool brushSnapToPixel;
+  final bool brushScreentoneEnabled;
+  final double brushScreentoneSpacing;
+  final double brushScreentoneDotSize;
+  final double brushScreentoneRotation;
+  final double brushScreentoneSoftness;
+  final BrushShape brushScreentoneShape;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
   final bool hollowStrokeEraseOccludedParts;
@@ -76,6 +88,7 @@ class AdaptiveCanvasSurface extends StatelessWidget {
     int? handle,
     ui.Size? engineSize,
     bool isNewEngine,
+    int? textureId,
   )? onEngineInfoChanged;
 
   @override
@@ -101,6 +114,12 @@ class AdaptiveCanvasSurface extends StatelessWidget {
         brushScatter: brushScatter,
         brushRotationJitter: brushRotationJitter,
         brushSnapToPixel: brushSnapToPixel,
+        brushScreentoneEnabled: brushScreentoneEnabled,
+        brushScreentoneSpacing: brushScreentoneSpacing,
+        brushScreentoneDotSize: brushScreentoneDotSize,
+        brushScreentoneRotation: brushScreentoneRotation,
+        brushScreentoneSoftness: brushScreentoneSoftness,
+        brushScreentoneShape: brushScreentoneShape,
         hollowStrokeEnabled: hollowStrokeEnabled,
         hollowStrokeRatio: hollowStrokeRatio,
         hollowStrokeEraseOccludedParts: hollowStrokeEraseOccludedParts,

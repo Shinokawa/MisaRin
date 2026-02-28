@@ -165,6 +165,18 @@ class AppLocalizationsKo extends AppLocalizations {
   String get settingsTitle => '설정';
 
   @override
+  String get settingsTabGeneral => '일반';
+
+  @override
+  String get settingsTabInput => '입력 및 브러시';
+
+  @override
+  String get settingsTabStorage => '기록 및 저장소';
+
+  @override
+  String get settingsTabAbout => '정보';
+
+  @override
   String get tabletTest => '태블릿 테스트';
 
   @override
@@ -523,6 +535,12 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get menuDisableMirror => '미러 해제';
+
+  @override
+  String get menuTiledPreview => '타일 미리보기';
+
+  @override
+  String get menuDisableTiledPreview => '타일 미리보기 끄기';
 
   @override
   String get menuShowPerspectiveGuide => '원근 가이드 표시';
@@ -1059,7 +1077,19 @@ class AppLocalizationsKo extends AppLocalizations {
   String get brushPresetPen => '펜';
 
   @override
+  String get brushPresetScreentone => '스크린톤';
+
+  @override
   String get brushPresetPixel => '픽셀';
+
+  @override
+  String get brushPresetDryInk => '드라이 잉크';
+
+  @override
+  String get brushPresetCharcoal => '차콜';
+
+  @override
+  String get brushPresetStarBrush => '별 브러시';
 
   @override
   String get brushSpacing => '간격';
@@ -1078,6 +1108,24 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get brushSnapToPixel => '픽셀 스냅';
+
+  @override
+  String get screentoneEnabled => '스크린톤';
+
+  @override
+  String get screentoneShape => '도트 모양';
+
+  @override
+  String get screentoneSpacing => '도트 간격';
+
+  @override
+  String get screentoneDotSize => '도트 크기';
+
+  @override
+  String get screentoneRotation => '도트 회전';
+
+  @override
+  String get screentoneSoftness => '도트 부드러움';
 
   @override
   String get brushShape => '브러시 모양';
@@ -2114,6 +2162,11 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String mirrorLabel(Object state) {
     return '미러: $state';
+  }
+
+  @override
+  String tileLabel(Object state) {
+    return '타일: $state';
   }
 
   @override

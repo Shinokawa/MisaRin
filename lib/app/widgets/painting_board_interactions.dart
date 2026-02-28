@@ -446,7 +446,8 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _updateSprayStrokeWidth(double value) {
-    final double clamped = value.clamp(kSprayStrokeMin, kSprayStrokeMax);
+    final double clamped =
+        _sprayStrokeSliderRange.clamp(value).roundToDouble();
     if ((_sprayStrokeWidth - clamped).abs() < 0.0005) {
       return;
     }
@@ -460,12 +461,61 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _updateEraserStrokeWidth(double value) {
-    final double clamped = value.clamp(kEraserStrokeMin, kEraserStrokeMax);
+    final double clamped =
+        _eraserStrokeSliderRange.clamp(value).roundToDouble();
     if ((_eraserStrokeWidth - clamped).abs() < 0.0005) {
       return;
     }
     setState(() => _eraserStrokeWidth = clamped);
     final AppPreferences prefs = AppPreferences.instance;
+    prefs.eraserStrokeWidth = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updatePenStrokeSliderRange(PenStrokeSliderRange range) {
+    if (_penStrokeSliderRange == range) {
+      return;
+    }
+    final double clamped = range.clamp(_penStrokeWidth);
+    setState(() {
+      _penStrokeSliderRange = range;
+      _penStrokeWidth = clamped;
+    });
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.penStrokeSliderRange = range;
+    prefs.penStrokeWidth = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateSprayStrokeSliderRange(PenStrokeSliderRange range) {
+    if (_sprayStrokeSliderRange == range) {
+      return;
+    }
+    final double clamped = range.clamp(_sprayStrokeWidth).roundToDouble();
+    setState(() {
+      _sprayStrokeSliderRange = range;
+      _sprayStrokeWidth = clamped;
+    });
+    if (_sprayMode == SprayMode.splatter) {
+      _kritaSprayEngine?.updateSettings(_buildKritaSpraySettings());
+    }
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.sprayStrokeSliderRange = range;
+    prefs.sprayStrokeWidth = clamped;
+    unawaited(AppPreferences.save());
+  }
+
+  void _updateEraserStrokeSliderRange(PenStrokeSliderRange range) {
+    if (_eraserStrokeSliderRange == range) {
+      return;
+    }
+    final double clamped = range.clamp(_eraserStrokeWidth).roundToDouble();
+    setState(() {
+      _eraserStrokeSliderRange = range;
+      _eraserStrokeWidth = clamped;
+    });
+    final AppPreferences prefs = AppPreferences.instance;
+    prefs.eraserStrokeSliderRange = range;
     prefs.eraserStrokeWidth = clamped;
     unawaited(AppPreferences.save());
   }

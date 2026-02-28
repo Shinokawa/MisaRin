@@ -10,6 +10,7 @@ import 'package:misa_rin/canvas/canvas_engine_bridge.dart';
 
 import '../debug/backend_canvas_timeline.dart';
 import '../../canvas/canvas_tools.dart';
+import '../../painting/stroke_stabilizer_curve.dart';
 import '../utils/tablet_input_bridge.dart';
 
 const MethodChannel _backendCanvasChannel = MethodChannel(
@@ -319,6 +320,12 @@ class BackendCanvasSurface extends StatefulWidget {
     required this.brushScatter,
     required this.brushRotationJitter,
     required this.brushSnapToPixel,
+    required this.brushScreentoneEnabled,
+    required this.brushScreentoneSpacing,
+    required this.brushScreentoneDotSize,
+    required this.brushScreentoneRotation,
+    required this.brushScreentoneSoftness,
+    required this.brushScreentoneShape,
     this.hollowStrokeEnabled = false,
     this.hollowStrokeRatio = 0.0,
     this.hollowStrokeEraseOccludedParts = false,
@@ -380,6 +387,12 @@ class BackendCanvasSurface extends StatefulWidget {
   final double brushScatter;
   final double brushRotationJitter;
   final bool brushSnapToPixel;
+  final bool brushScreentoneEnabled;
+  final double brushScreentoneSpacing;
+  final double brushScreentoneDotSize;
+  final double brushScreentoneRotation;
+  final double brushScreentoneSoftness;
+  final BrushShape brushScreentoneShape;
   final bool hollowStrokeEnabled;
   final double hollowStrokeRatio;
   final bool hollowStrokeEraseOccludedParts;
@@ -394,6 +407,7 @@ class BackendCanvasSurface extends StatefulWidget {
     int? handle,
     Size? engineSize,
     bool isNewEngine,
+    int? textureId,
   )? onEngineInfoChanged;
 
   @override
@@ -416,6 +430,7 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
   bool _activeStrokeUsesPressure = true;
   int? _lastNotifiedEngineHandle;
   Size? _lastNotifiedEngineSize;
+  int? _lastNotifiedTextureId;
 
   @override
   void initState() {
@@ -471,6 +486,20 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
         (oldWidget.brushRotationJitter - widget.brushRotationJitter).abs() >
             1e-6 ||
         oldWidget.brushSnapToPixel != widget.brushSnapToPixel ||
+        oldWidget.brushScreentoneEnabled != widget.brushScreentoneEnabled ||
+        (oldWidget.brushScreentoneSpacing - widget.brushScreentoneSpacing)
+                .abs() >
+            1e-6 ||
+        (oldWidget.brushScreentoneDotSize - widget.brushScreentoneDotSize)
+                .abs() >
+            1e-6 ||
+        (oldWidget.brushScreentoneRotation - widget.brushScreentoneRotation)
+                .abs() >
+            1e-6 ||
+        (oldWidget.brushScreentoneSoftness - widget.brushScreentoneSoftness)
+                .abs() >
+            1e-6 ||
+        oldWidget.brushScreentoneShape != widget.brushScreentoneShape ||
         oldWidget.hollowStrokeEnabled != widget.hollowStrokeEnabled ||
         (oldWidget.hollowStrokeRatio - widget.hollowStrokeRatio).abs() > 1e-6 ||
         oldWidget.hollowStrokeEraseOccludedParts !=
@@ -634,14 +663,17 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
   void _notifyEngineInfoChanged({bool isNewEngine = false}) {
     final int? handle = _engineHandle;
     final Size? size = _engineSize;
+    final int? textureId = _textureId;
     if (!isNewEngine &&
         _lastNotifiedEngineHandle == handle &&
-        _lastNotifiedEngineSize == size) {
+        _lastNotifiedEngineSize == size &&
+        _lastNotifiedTextureId == textureId) {
       return;
     }
     _lastNotifiedEngineHandle = handle;
     _lastNotifiedEngineSize = size;
-    widget.onEngineInfoChanged?.call(handle, size, isNewEngine);
+    _lastNotifiedTextureId = textureId;
+    widget.onEngineInfoChanged?.call(handle, size, isNewEngine, textureId);
   }
 
   @override
@@ -654,7 +686,7 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
     _BackendSurfaceWarmupCache.instance.drop(_surfaceId);
     unawaited(_disposeSurface());
     if (_lastNotifiedEngineHandle != null || _lastNotifiedEngineSize != null) {
-      widget.onEngineInfoChanged?.call(null, null, false);
+      widget.onEngineInfoChanged?.call(null, null, false, null);
     }
     super.dispose();
   }
@@ -707,7 +739,7 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
       }
     }
     final double stabilizer =
-        widget.strokeStabilizerStrength.clamp(0.0, 1.0);
+        mapStrokeStabilizerStrength(widget.strokeStabilizerStrength);
     final int smoothingMode = stabilizer > 0.0001 ? 3 : 1;
     CanvasBackendFacade.instance.setBrush(
       handle: handle,
@@ -726,6 +758,12 @@ class _BackendCanvasSurfaceState extends State<BackendCanvasSurface> {
       scatter: widget.brushScatter,
       rotationJitter: widget.brushRotationJitter,
       snapToPixel: widget.brushSnapToPixel,
+      screentoneEnabled: widget.brushScreentoneEnabled,
+      screentoneSpacing: widget.brushScreentoneSpacing,
+      screentoneDotSize: widget.brushScreentoneDotSize,
+      screentoneRotation: widget.brushScreentoneRotation,
+      screentoneSoftness: widget.brushScreentoneSoftness,
+      screentoneShape: widget.brushScreentoneShape.index,
       hollow: widget.hollowStrokeEnabled,
       hollowRatio: widget.hollowStrokeRatio,
       hollowEraseOccludedParts: widget.hollowStrokeEraseOccludedParts,

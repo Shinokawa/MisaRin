@@ -13,6 +13,7 @@ class CanvasViewInfo {
     required this.pixelGridVisible,
     required this.viewBlackWhiteEnabled,
     required this.viewMirrorEnabled,
+    required this.viewTiledEnabled,
     required this.perspectiveMode,
     required this.perspectiveEnabled,
     required this.perspectiveVisible,
@@ -24,6 +25,7 @@ class CanvasViewInfo {
   final bool pixelGridVisible;
   final bool viewBlackWhiteEnabled;
   final bool viewMirrorEnabled;
+  final bool viewTiledEnabled;
   final PerspectiveGuideMode perspectiveMode;
   final bool perspectiveEnabled;
   final bool perspectiveVisible;
@@ -37,6 +39,7 @@ class CanvasViewInfo {
         other.pixelGridVisible == pixelGridVisible &&
         other.viewBlackWhiteEnabled == viewBlackWhiteEnabled &&
         other.viewMirrorEnabled == viewMirrorEnabled &&
+        other.viewTiledEnabled == viewTiledEnabled &&
         other.perspectiveMode == perspectiveMode &&
         other.perspectiveEnabled == perspectiveEnabled &&
         other.perspectiveVisible == perspectiveVisible;
@@ -56,6 +59,7 @@ class CanvasViewInfo {
         pixelGridVisible,
         viewBlackWhiteEnabled,
         viewMirrorEnabled,
+        viewTiledEnabled,
         perspectiveMode,
         perspectiveEnabled,
         perspectiveVisible,

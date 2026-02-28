@@ -761,8 +761,14 @@ mixin _PaintingBoardSelectionMixin on _PaintingBoardBase {
     int? handle,
     Size? engineSize,
     bool isNewEngine,
+    int? textureId,
   ) {
-    super._handleBackendCanvasEngineInfoChanged(handle, engineSize, isNewEngine);
+    super._handleBackendCanvasEngineInfoChanged(
+      handle,
+      engineSize,
+      isNewEngine,
+      textureId,
+    );
     _syncBackendSelectionMask();
   }
 

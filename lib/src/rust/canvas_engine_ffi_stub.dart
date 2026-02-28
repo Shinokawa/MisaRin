@@ -6,6 +6,11 @@ class CanvasEngineFfi {
   static final CanvasEngineFfi instance = CanvasEngineFfi._();
 
   bool get isSupported => false;
+  bool get canCreateEngine => false;
+
+  int createEngine({required int width, required int height}) => 0;
+
+  void disposeEngine({required int handle}) {}
 
   void pushPointsPacked({
     required int handle,
@@ -38,6 +43,12 @@ class CanvasEngineFfi {
     double scatter = 0.0,
     double rotationJitter = 1.0,
     bool snapToPixel = false,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
+    int screentoneShape = 0,
     bool hollow = false,
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,
@@ -45,6 +56,15 @@ class CanvasEngineFfi {
     int smoothingMode = 1,
     double stabilizerStrength = 0.0,
   }) {}
+
+  void setBrushMask({
+    required int handle,
+    required int width,
+    required int height,
+    required Uint8List mask,
+  }) {}
+
+  void clearBrushMask({required int handle}) {}
 
   void beginSpray({required int handle}) {}
 

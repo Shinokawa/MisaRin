@@ -45,8 +45,10 @@ struct ShaderStrokePoint {
     pos: [f32; 2],
     radius: f32,
     alpha: f32,
+    sat: f32,
     rot_sin: f32,
     rot_cos: f32,
+    pad: f32,
 }
 
 #[repr(C)]
@@ -61,6 +63,7 @@ struct BrushShaderConfig {
     point_count: u32,
     brush_shape: u32,
     erase_mode: u32,
+    composite_mode: u32,
     antialias_level: u32,
     color_argb: u32,
     softness: f32,
@@ -74,6 +77,14 @@ struct BrushShaderConfig {
     stroke_accumulate_mode: u32,
     stroke_mode: u32,
     selection_mask_mode: u32,
+    custom_mask_mode: u32,
+    screentone_enabled: u32,
+    screentone_spacing: f32,
+    screentone_dot_size: f32,
+    screentone_rotation_sin: f32,
+    screentone_rotation_cos: f32,
+    screentone_softness: f32,
+    screentone_shape: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -118,6 +129,11 @@ pub struct BrushRenderer {
     selection_mask_width: u32,
     selection_mask_height: u32,
     selection_mask_enabled: bool,
+    custom_mask: wgpu::Texture,
+    custom_mask_view: wgpu::TextureView,
+    custom_mask_width: u32,
+    custom_mask_height: u32,
+    custom_mask_enabled: bool,
     layer_read: Option<wgpu::Texture>,
     layer_read_view: Option<wgpu::TextureView>,
     layer_read_width: u32,
@@ -126,6 +142,13 @@ pub struct BrushRenderer {
     canvas_width: u32,
     canvas_height: u32,
     softness: f32,
+    screentone_enabled: bool,
+    screentone_spacing: f32,
+    screentone_dot_size: f32,
+    screentone_rotation_sin: f32,
+    screentone_rotation_cos: f32,
+    screentone_softness: f32,
+    screentone_shape: BrushShape,
 }
 
 impl BrushRenderer {
@@ -191,6 +214,16 @@ impl BrushRenderer {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -224,6 +257,7 @@ impl BrushRenderer {
         let (stroke_mask, stroke_mask_view) = create_stroke_mask(device.as_ref(), 1, 1);
         let (stroke_base, stroke_base_view) = create_stroke_base(device.as_ref(), 1, 1);
         let (selection_mask, selection_mask_view) = create_selection_mask(device.as_ref(), 1, 1);
+        let (custom_mask, custom_mask_view) = create_custom_mask(device.as_ref(), 1, 1);
 
         Ok(Self {
             device,
@@ -248,6 +282,11 @@ impl BrushRenderer {
             selection_mask_width: 1,
             selection_mask_height: 1,
             selection_mask_enabled: false,
+            custom_mask,
+            custom_mask_view,
+            custom_mask_width: 1,
+            custom_mask_height: 1,
+            custom_mask_enabled: false,
             layer_read: None,
             layer_read_view: None,
             layer_read_width: 0,
@@ -255,6 +294,13 @@ impl BrushRenderer {
             canvas_width: 0,
             canvas_height: 0,
             softness: 0.0,
+            screentone_enabled: false,
+            screentone_spacing: 10.0,
+            screentone_dot_size: 0.6,
+            screentone_rotation_sin: 0.0,
+            screentone_rotation_cos: 1.0,
+            screentone_softness: 0.0,
+            screentone_shape: BrushShape::Circle,
         })
     }
 
@@ -504,6 +550,41 @@ impl BrushRenderer {
         };
     }
 
+    pub fn set_screentone(
+        &mut self,
+        enabled: bool,
+        spacing: f32,
+        dot_size: f32,
+        rotation_radians: f32,
+        softness: f32,
+        shape: BrushShape,
+    ) {
+        self.screentone_enabled = enabled;
+        self.screentone_spacing = if spacing.is_finite() {
+            spacing.clamp(2.0, 200.0)
+        } else {
+            10.0
+        };
+        self.screentone_dot_size = if dot_size.is_finite() {
+            dot_size.clamp(0.0, 1.0)
+        } else {
+            0.6
+        };
+        let angle = if rotation_radians.is_finite() {
+            rotation_radians
+        } else {
+            0.0
+        };
+        self.screentone_rotation_sin = angle.sin();
+        self.screentone_rotation_cos = angle.cos();
+        self.screentone_softness = if softness.is_finite() {
+            softness.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        self.screentone_shape = shape;
+    }
+
     pub fn set_selection_mask(&mut self, mask: Option<&[u8]>) -> Result<(), String> {
         let Some(mask) = mask else {
             self.selection_mask_enabled = false;
@@ -536,6 +617,45 @@ impl BrushRenderer {
         Ok(())
     }
 
+    pub fn set_custom_mask(
+        &mut self,
+        width: u32,
+        height: u32,
+        mask: &[u8],
+    ) -> Result<(), String> {
+        if width == 0 || height == 0 {
+            self.custom_mask_enabled = false;
+            return Ok(());
+        }
+        let expected_len = (width as usize)
+            .checked_mul(height as usize)
+            .and_then(|v| v.checked_mul(2))
+            .ok_or_else(|| "custom mask size overflow".to_string())?;
+        if mask.len() != expected_len {
+            return Err(format!(
+                "custom mask length mismatch: {} vs {}",
+                mask.len(),
+                expected_len
+            ));
+        }
+
+        if self.custom_mask_width != width || self.custom_mask_height != height {
+            let (tex, view) = create_custom_mask(self.device.as_ref(), width, height);
+            self.custom_mask = tex;
+            self.custom_mask_view = view;
+            self.custom_mask_width = width;
+            self.custom_mask_height = height;
+        }
+
+        write_custom_mask(self.queue.as_ref(), &self.custom_mask, width, height, mask)?;
+        self.custom_mask_enabled = true;
+        Ok(())
+    }
+
+    pub fn clear_custom_mask(&mut self) {
+        self.custom_mask_enabled = false;
+    }
+
     pub fn draw_stroke(
         &mut self,
         layer_view: &wgpu::TextureView,
@@ -558,6 +678,7 @@ impl BrushRenderer {
             radii,
             None,
             None,
+            None,
             color,
             brush_shape,
             erase,
@@ -570,6 +691,8 @@ impl BrushRenderer {
             accumulate_segments,
             self.softness,
             BrushStrokeMode::Segments,
+            0,
+            None,
         )
     }
 
@@ -579,6 +702,7 @@ impl BrushRenderer {
         points: &[Point2D],
         radii: &[f32],
         alphas: Option<&[f32]>,
+        saturations: Option<&[f32]>,
         point_rotations: Option<&[PointRotation]>,
         color: Color,
         brush_shape: BrushShape,
@@ -590,12 +714,15 @@ impl BrushRenderer {
         hollow_erase_occluded: bool,
         use_stroke_mask: bool,
         accumulate: bool,
+        composite_mode: u32,
+        custom_mask_mode_override: Option<u32>,
     ) -> Result<(), String> {
         self.draw_stroke_internal(
             layer_view,
             points,
             radii,
             alphas,
+            saturations,
             point_rotations,
             color,
             brush_shape,
@@ -609,6 +736,8 @@ impl BrushRenderer {
             accumulate,
             softness,
             BrushStrokeMode::Points,
+            composite_mode,
+            custom_mask_mode_override,
         )
     }
 
@@ -618,6 +747,7 @@ impl BrushRenderer {
         points: &[Point2D],
         radii: &[f32],
         point_alphas: Option<&[f32]>,
+        point_saturations: Option<&[f32]>,
         point_rotations: Option<&[PointRotation]>,
         color: Color,
         brush_shape: BrushShape,
@@ -631,6 +761,8 @@ impl BrushRenderer {
         accumulate_segments: bool,
         softness: f32,
         stroke_mode: BrushStrokeMode,
+        composite_mode: u32,
+        custom_mask_mode_override: Option<u32>,
     ) -> Result<(), String> {
         if points.is_empty() {
             return Ok(());
@@ -764,6 +896,16 @@ impl BrushRenderer {
             } else {
                 1.0
             };
+            let sat = if let Some(sats) = point_saturations {
+                let value = sats[idx];
+                if value.is_finite() {
+                    value.clamp(0.0, 2.0)
+                } else {
+                    1.0
+                }
+            } else {
+                1.0
+            };
             let (rot_sin, rot_cos) = if use_point_rotation {
                 if let Some(rotations) = point_rotations {
                     let rot = rotations[idx];
@@ -778,14 +920,26 @@ impl BrushRenderer {
                 pos: [finite_f32(p.x), finite_f32(p.y)],
                 radius,
                 alpha,
+                sat,
                 rot_sin,
                 rot_cos,
+                pad: 0.0,
             });
         }
 
         self.queue
             .write_buffer(points_buffer, 0, bytemuck::cast_slice(&shader_points));
 
+        let custom_mask_mode = match custom_mask_mode_override {
+            Some(mode) => mode.min(1),
+            None => {
+                if self.custom_mask_enabled {
+                    1
+                } else {
+                    0
+                }
+            }
+        };
         let config = BrushShaderConfig {
             canvas_width: self.canvas_width,
             canvas_height: self.canvas_height,
@@ -801,6 +955,7 @@ impl BrushRenderer {
                 BrushShape::Star => 3,
             },
             erase_mode: if erase { 1 } else { 0 },
+            composite_mode: composite_mode.min(1),
             antialias_level: antialias_level.clamp(0, 9),
             color_argb: color.argb,
             softness,
@@ -817,6 +972,19 @@ impl BrushRenderer {
                 BrushStrokeMode::Points => 1,
             },
             selection_mask_mode: if self.selection_mask_enabled { 1 } else { 0 },
+            custom_mask_mode,
+            screentone_enabled: if self.screentone_enabled { 1 } else { 0 },
+            screentone_spacing: self.screentone_spacing,
+            screentone_dot_size: self.screentone_dot_size,
+            screentone_rotation_sin: self.screentone_rotation_sin,
+            screentone_rotation_cos: self.screentone_rotation_cos,
+            screentone_softness: self.screentone_softness,
+            screentone_shape: match self.screentone_shape {
+                BrushShape::Circle => 0,
+                BrushShape::Triangle => 1,
+                BrushShape::Square => 2,
+                BrushShape::Star => 3,
+            },
         };
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&config));
@@ -846,6 +1014,10 @@ impl BrushRenderer {
         entries.push(wgpu::BindGroupEntry {
             binding: 4,
             resource: wgpu::BindingResource::TextureView(&self.selection_mask_view),
+        });
+        entries.push(wgpu::BindGroupEntry {
+            binding: 5,
+            resource: wgpu::BindingResource::TextureView(&self.custom_mask_view),
         });
         device_push_scopes(self.device.as_ref());
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -1133,6 +1305,31 @@ fn create_selection_mask(
     (texture, view)
 }
 
+fn create_custom_mask(
+    device: &wgpu::Device,
+    width: u32,
+    height: u32,
+) -> (wgpu::Texture, wgpu::TextureView) {
+    let format = wgpu::TextureFormat::Rg8Unorm;
+    let usage = wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST;
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("BrushRenderer custom mask"),
+        size: wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage,
+        view_formats: &[],
+    });
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    (texture, view)
+}
+
 fn antialias_feather(level: u32) -> f32 {
     match level {
         0 => 0.0,
@@ -1280,6 +1477,80 @@ fn write_selection_mask(
             for (i, &value) in src.iter().enumerate() {
                 data[dst_offset + i] = if value == 0 { 0 } else { 255 };
             }
+        }
+
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x: 0, y, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            &data,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row_padded),
+                rows_per_image: Some(chunk_h),
+            },
+            wgpu::Extent3d {
+                width,
+                height: chunk_h,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        y = y.saturating_add(chunk_h);
+    }
+
+    Ok(())
+}
+
+fn write_custom_mask(
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    width: u32,
+    height: u32,
+    mask: &[u8],
+) -> Result<(), String> {
+    if width == 0 || height == 0 {
+        return Ok(());
+    }
+
+    let expected_len = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|v| v.checked_mul(2))
+        .ok_or_else(|| "custom mask size overflow".to_string())?;
+    if mask.len() != expected_len {
+        return Err(format!(
+            "custom mask length mismatch: {} vs {}",
+            mask.len(),
+            expected_len
+        ));
+    }
+
+    const COPY_BYTES_PER_ROW_ALIGNMENT: u32 = 256;
+    const MAX_CHUNK_BYTES: usize = 4 * 1024 * 1024;
+
+    let bytes_per_row_unpadded = width
+        .checked_mul(2)
+        .ok_or_else(|| "custom mask bytes_per_row overflow".to_string())?;
+    let bytes_per_row_padded =
+        align_up_u32(bytes_per_row_unpadded, COPY_BYTES_PER_ROW_ALIGNMENT);
+    if bytes_per_row_padded == 0 {
+        return Err("custom mask bytes_per_row == 0".to_string());
+    }
+    let row_bytes = bytes_per_row_padded as usize;
+    let rows_per_chunk = (MAX_CHUNK_BYTES / row_bytes).max(1) as u32;
+
+    let mut y: u32 = 0;
+    while y < height {
+        let chunk_h = (height - y).min(rows_per_chunk);
+        let mut data: Vec<u8> = vec![0; row_bytes * chunk_h as usize];
+        for row in 0..chunk_h {
+            let src_offset = ((y + row) * width * 2) as usize;
+            let dst_offset = row as usize * row_bytes;
+            let src = &mask[src_offset..src_offset + (width * 2) as usize];
+            data[dst_offset..dst_offset + src.len()].copy_from_slice(src);
         }
 
         queue.write_texture(

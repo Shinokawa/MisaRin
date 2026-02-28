@@ -172,6 +172,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsTitle => 'Settings';
 
   @override
+  String get settingsTabGeneral => 'General';
+
+  @override
+  String get settingsTabInput => 'Input & Brushes';
+
+  @override
+  String get settingsTabStorage => 'History & Storage';
+
+  @override
+  String get settingsTabAbout => 'About';
+
+  @override
   String get tabletTest => 'Tablet Test';
 
   @override
@@ -537,6 +549,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get menuDisableMirror => 'Disable Mirror';
+
+  @override
+  String get menuTiledPreview => 'Tiled Preview';
+
+  @override
+  String get menuDisableTiledPreview => 'Disable Tiled Preview';
 
   @override
   String get menuShowPerspectiveGuide => 'Show Perspective Guide';
@@ -1078,7 +1096,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get brushPresetPen => 'Pen';
 
   @override
+  String get brushPresetScreentone => 'Screentone';
+
+  @override
   String get brushPresetPixel => 'Pixel';
+
+  @override
+  String get brushPresetDryInk => 'Dry Ink';
+
+  @override
+  String get brushPresetCharcoal => 'Charcoal';
+
+  @override
+  String get brushPresetStarBrush => 'Star Brush';
 
   @override
   String get brushSpacing => 'Spacing';
@@ -1097,6 +1127,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get brushSnapToPixel => 'Snap to Pixel';
+
+  @override
+  String get screentoneEnabled => 'Screentone';
+
+  @override
+  String get screentoneShape => 'Dot Shape';
+
+  @override
+  String get screentoneSpacing => 'Dot Spacing';
+
+  @override
+  String get screentoneDotSize => 'Dot Size';
+
+  @override
+  String get screentoneRotation => 'Dot Rotation';
+
+  @override
+  String get screentoneSoftness => 'Dot Softness';
 
   @override
   String get brushShape => 'Brush Shape';
@@ -2181,6 +2229,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String mirrorLabel(Object state) {
     return 'Mirror: $state';
+  }
+
+  @override
+  String tileLabel(Object state) {
+    return 'Tile: $state';
   }
 
   @override

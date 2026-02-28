@@ -58,6 +58,20 @@ Future<AppPreferences> _loadAppPreferences() async {
           final double decodedSai2LayerSplit = hasWorkspaceSplitPayload
               ? _decodeRatioByte(bytes[31])
               : _defaultSai2LayerPanelSplit;
+          final PenStrokeSliderRange decodedSprayStrokeSliderRange =
+              version >= 28 && bytes.length >= 35
+                  ? _decodeOptionalStrokeSliderRange(
+                      bytes[32],
+                      _defaultSprayStrokeSliderRange,
+                    )
+                  : _defaultSprayStrokeSliderRange;
+          final PenStrokeSliderRange decodedEraserStrokeSliderRange =
+              version >= 28 && bytes.length >= 35
+                  ? _decodeOptionalStrokeSliderRange(
+                      bytes[33],
+                      _defaultEraserStrokeSliderRange,
+                    )
+                  : _defaultEraserStrokeSliderRange;
           final bool decodedShapeToolFillEnabled =
               version >= 23 &&
                   ((version >= 28 && bytes.length >= 35) ||
@@ -187,6 +201,8 @@ Future<AppPreferences> _loadAppPreferences() async {
               sai2LayerPanelWidthSplit: decodedSai2LayerSplit,
               sprayStrokeWidth: decodedSprayStrokeWidth,
               eraserStrokeWidth: decodedEraserStrokeWidth,
+              sprayStrokeSliderRange: decodedSprayStrokeSliderRange,
+              eraserStrokeSliderRange: decodedEraserStrokeSliderRange,
               sprayMode: decodedSprayMode,
               pixelGridVisible: decodedPixelGridVisible,
               primaryColor: decodedPrimaryColor,

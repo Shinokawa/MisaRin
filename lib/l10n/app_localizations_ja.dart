@@ -164,6 +164,18 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsTitle => '設定';
 
   @override
+  String get settingsTabGeneral => '一般';
+
+  @override
+  String get settingsTabInput => '入力とブラシ';
+
+  @override
+  String get settingsTabStorage => '履歴とストレージ';
+
+  @override
+  String get settingsTabAbout => 'このアプリについて';
+
+  @override
   String get tabletTest => 'ペンタブテスト';
 
   @override
@@ -522,6 +534,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get menuDisableMirror => 'ミラーを解除';
+
+  @override
+  String get menuTiledPreview => 'タイルプレビュー';
+
+  @override
+  String get menuDisableTiledPreview => 'タイルプレビューを無効化';
 
   @override
   String get menuShowPerspectiveGuide => '透視線を表示';
@@ -1055,7 +1073,19 @@ class AppLocalizationsJa extends AppLocalizations {
   String get brushPresetPen => 'ペン';
 
   @override
+  String get brushPresetScreentone => 'スクリーントーン';
+
+  @override
   String get brushPresetPixel => 'ピクセル';
+
+  @override
+  String get brushPresetDryInk => '枯墨';
+
+  @override
+  String get brushPresetCharcoal => '木炭';
+
+  @override
+  String get brushPresetStarBrush => '星形ブラシ';
 
   @override
   String get brushSpacing => '間隔';
@@ -1074,6 +1104,24 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get brushSnapToPixel => 'ピクセルにスナップ';
+
+  @override
+  String get screentoneEnabled => 'スクリーントーン';
+
+  @override
+  String get screentoneShape => 'ドット形状';
+
+  @override
+  String get screentoneSpacing => 'ドット間隔';
+
+  @override
+  String get screentoneDotSize => 'ドットサイズ';
+
+  @override
+  String get screentoneRotation => 'ドット回転';
+
+  @override
+  String get screentoneSoftness => 'ドットの柔らかさ';
 
   @override
   String get brushShape => 'ブラシ形状';
@@ -2103,6 +2151,11 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String mirrorLabel(Object state) {
     return 'ミラー: $state';
+  }
+
+  @override
+  String tileLabel(Object state) {
+    return 'タイル: $state';
   }
 
   @override

@@ -696,8 +696,10 @@
 /Library/Afolder/FlutterProject/misa-rin/assets/brushes/pen.mrb
 /Library/Afolder/FlutterProject/misa-rin/assets/brushes/pencil.mrb
 /Library/Afolder/FlutterProject/misa-rin/assets/brushes/pixel.mrb
+/Library/Afolder/FlutterProject/misa-rin/assets/brushes/screentone.mrb
 /Library/Afolder/FlutterProject/misa-rin/assets/brushes/square.mrb
 /Library/Afolder/FlutterProject/misa-rin/assets/brushes/star.mrb
+/Library/Afolder/FlutterProject/misa-rin/assets/brushes/sumi_e.mrb
 /Library/Afolder/FlutterProject/misa-rin/assets/brushes/triangle.mrb
 /Library/Afolder/FlutterProject/misa-rin/icons/line.svg
 /Library/Afolder/FlutterProject/misa-rin/icons/line2.svg
@@ -898,6 +900,7 @@
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/controller_worker_queue.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/ffi/cpu_buffer.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/ffi/cpu_buffer_io.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/layer_surface.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/memory/native_memory_manager.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/memory/native_memory_manager_io.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/raster_frame.dart
@@ -907,6 +910,9 @@
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/stroke_dynamics.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/stroke_pressure_simulator.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/stroke_sample.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/tile_math.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/tiled_selection_mask.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/tiled_surface.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/bitmap_canvas/velocity_smoother.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/brushes/brush_library.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/brushes/brush_package.dart
@@ -945,6 +951,7 @@
 /Library/Afolder/FlutterProject/misa-rin/lib/minecraft/bedrock_animation.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/minecraft/bedrock_model.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/painting/krita_spray_engine.dart
+/Library/Afolder/FlutterProject/misa-rin/lib/painting/stroke_stabilizer_curve.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/performance/canvas_perf_stress.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/performance/stroke_latency_monitor.dart
 /Library/Afolder/FlutterProject/misa-rin/lib/src/rust/api/bucket_fill.dart

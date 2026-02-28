@@ -9,10 +9,7 @@ Future<String> _textLayerCreate(
   final BitmapLayerState layer = BitmapLayerState(
     id: generateLayerId(),
     name: name ?? '文字 ${controller._layers.length + 1}',
-    surface: BitmapSurface(
-      width: controller._width,
-      height: controller._height,
-    ),
+    surface: controller._createLayerSurface(),
     text: data,
   );
   int insertIndex = controller._layers.length;
@@ -59,7 +56,7 @@ Future<void> _textLayerRender(
   CanvasTextData data,
 ) async {
   final CanvasTextRaster raster = await controller._textRenderer.rasterize(data);
-  layer.surface.pixels.fillRange(0, layer.surface.pixels.length, 0);
+  layer.surface.fill(const Color(0x00000000));
   controller._mergeVectorPatchOnMainThread(
     rgbaPixels: raster.pixels,
     left: raster.left,

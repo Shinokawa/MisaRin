@@ -33,6 +33,13 @@ final class _EnginePointNative extends ffi.Struct {
   external int pointerId;
 }
 
+typedef _EngineCreateNative =
+    ffi.Uint64 Function(ffi.Uint32 width, ffi.Uint32 height);
+typedef _EngineCreateDart = int Function(int width, int height);
+
+typedef _EngineDisposeNative = ffi.Void Function(ffi.Uint64 handle);
+typedef _EngineDisposeDart = void Function(int handle);
+
 typedef _EnginePushPointsNative =
     ffi.Void Function(
       ffi.Uint64 handle,
@@ -330,6 +337,12 @@ typedef _EngineSetBrushNative =
       ffi.Float scatter,
       ffi.Float rotationJitter,
       ffi.Uint8 snapToPixel,
+      ffi.Uint8 screentoneEnabled,
+      ffi.Float screentoneSpacing,
+      ffi.Float screentoneDotSize,
+      ffi.Float screentoneRotation,
+      ffi.Float screentoneSoftness,
+      ffi.Uint32 screentoneShape,
       ffi.Uint8 hollow,
       ffi.Float hollowRatio,
       ffi.Uint8 hollowEraseOccludedParts,
@@ -355,6 +368,12 @@ typedef _EngineSetBrushDart =
       double scatter,
       double rotationJitter,
       int snapToPixel,
+      int screentoneEnabled,
+      double screentoneSpacing,
+      double screentoneDotSize,
+      double screentoneRotation,
+      double screentoneSoftness,
+      int screentoneShape,
       int hollow,
       double hollowRatio,
       int hollowEraseOccludedParts,
@@ -362,6 +381,26 @@ typedef _EngineSetBrushDart =
       int smoothingMode,
       double stabilizerStrength,
     );
+
+typedef _EngineSetBrushMaskNative =
+    ffi.Void Function(
+      ffi.Uint64 handle,
+      ffi.Uint32 width,
+      ffi.Uint32 height,
+      ffi.Pointer<ffi.Uint8> mask,
+      ffi.UintPtr maskLen,
+    );
+typedef _EngineSetBrushMaskDart =
+    void Function(
+      int handle,
+      int width,
+      int height,
+      ffi.Pointer<ffi.Uint8> mask,
+      int maskLen,
+    );
+
+typedef _EngineClearBrushMaskNative = ffi.Void Function(ffi.Uint64 handle);
+typedef _EngineClearBrushMaskDart = void Function(int handle);
 
 typedef _EngineSprayBeginNative = ffi.Void Function(ffi.Uint64 handle);
 typedef _EngineSprayBeginDart = void Function(int handle);
@@ -433,6 +472,22 @@ class CanvasEngineFfi {
   CanvasEngineFfi._() {
     try {
       _lib = _openLibrary();
+      try {
+        _createEngine = _lib
+            .lookupFunction<_EngineCreateNative, _EngineCreateDart>(
+              'engine_create',
+            );
+      } catch (_) {
+        _createEngine = null;
+      }
+      try {
+        _disposeEngine = _lib
+            .lookupFunction<_EngineDisposeNative, _EngineDisposeDart>(
+              'engine_dispose',
+            );
+      } catch (_) {
+        _disposeEngine = null;
+      }
       _pushPoints = _lib
           .lookupFunction<_EnginePushPointsNative, _EnginePushPointsDart>(
             'engine_push_points',
@@ -651,6 +706,23 @@ class CanvasEngineFfi {
         _setBrush = null;
       }
       try {
+        _setBrushMask = _lib
+            .lookupFunction<_EngineSetBrushMaskNative, _EngineSetBrushMaskDart>(
+              'engine_set_brush_mask',
+            );
+      } catch (_) {
+        _setBrushMask = null;
+      }
+      try {
+        _clearBrushMask = _lib
+            .lookupFunction<
+              _EngineClearBrushMaskNative,
+              _EngineClearBrushMaskDart
+            >('engine_clear_brush_mask');
+      } catch (_) {
+        _clearBrushMask = null;
+      }
+      try {
         _sprayBegin = _lib
             .lookupFunction<_EngineSprayBeginNative, _EngineSprayBeginDart>(
               'engine_spray_begin',
@@ -716,6 +788,8 @@ class CanvasEngineFfi {
   }
 
   late final ffi.DynamicLibrary _lib;
+  late final _EngineCreateDart? _createEngine;
+  late final _EngineDisposeDart? _disposeEngine;
   late final _EnginePushPointsDart _pushPoints;
   late final _EngineGetInputQueueLenDart _getQueueLen;
   late final _EngineIsValidDart? _isValid;
@@ -742,6 +816,8 @@ class CanvasEngineFfi {
   late final _EngineUndoDart? _undo;
   late final _EngineRedoDart? _redo;
   late final _EngineSetBrushDart? _setBrush;
+  late final _EngineSetBrushMaskDart? _setBrushMask;
+  late final _EngineClearBrushMaskDart? _clearBrushMask;
   late final _EngineSprayBeginDart? _sprayBegin;
   late final _EngineSprayDrawDart? _sprayDraw;
   late final _EngineSprayEndDart? _sprayEnd;
@@ -754,6 +830,25 @@ class CanvasEngineFfi {
   int _stagingCapacityBytes = 0;
 
   late final bool isSupported;
+
+  bool get canCreateEngine =>
+      isSupported && _createEngine != null && _disposeEngine != null;
+
+  int createEngine({required int width, required int height}) {
+    final fn = _createEngine;
+    if (!isSupported || fn == null || width <= 0 || height <= 0) {
+      return 0;
+    }
+    return fn(width, height);
+  }
+
+  void disposeEngine({required int handle}) {
+    final fn = _disposeEngine;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle);
+  }
 
   void pushPointsPacked({
     required int handle,
@@ -1312,6 +1407,12 @@ class CanvasEngineFfi {
     double scatter = 0.0,
     double rotationJitter = 1.0,
     bool snapToPixel = false,
+    bool screentoneEnabled = false,
+    double screentoneSpacing = 10.0,
+    double screentoneDotSize = 0.6,
+    double screentoneRotation = 45.0,
+    double screentoneSoftness = 0.0,
+    int screentoneShape = 0,
     bool hollow = false,
     double hollowRatio = 0.0,
     bool hollowEraseOccludedParts = false,
@@ -1357,6 +1458,32 @@ class CanvasEngineFfi {
       rotationValue = 1.0;
     }
     rotationValue = rotationValue.clamp(0.0, 1.0);
+    double screentoneSpacingValue = screentoneSpacing;
+    if (!screentoneSpacingValue.isFinite) {
+      screentoneSpacingValue = 10.0;
+    }
+    screentoneSpacingValue = screentoneSpacingValue.clamp(2.0, 200.0);
+    double screentoneDotSizeValue = screentoneDotSize;
+    if (!screentoneDotSizeValue.isFinite) {
+      screentoneDotSizeValue = 0.6;
+    }
+    screentoneDotSizeValue = screentoneDotSizeValue.clamp(0.0, 1.0);
+    double screentoneRotationValue = screentoneRotation;
+    if (!screentoneRotationValue.isFinite) {
+      screentoneRotationValue = 45.0;
+    }
+    screentoneRotationValue = screentoneRotationValue.clamp(-180.0, 180.0);
+    double screentoneSoftnessValue = screentoneSoftness;
+    if (!screentoneSoftnessValue.isFinite) {
+      screentoneSoftnessValue = 0.0;
+    }
+    screentoneSoftnessValue = screentoneSoftnessValue.clamp(0.0, 1.0);
+    int screentoneShapeValue = screentoneShape;
+    if (screentoneShapeValue < 0) {
+      screentoneShapeValue = 0;
+    } else if (screentoneShapeValue > 3) {
+      screentoneShapeValue = 3;
+    }
     double ratio = hollowRatio;
     if (!ratio.isFinite) {
       ratio = 0.0;
@@ -1396,6 +1523,12 @@ class CanvasEngineFfi {
       scatterValue,
       rotationValue,
       snapToPixel ? 1 : 0,
+      screentoneEnabled ? 1 : 0,
+      screentoneSpacingValue,
+      screentoneDotSizeValue,
+      screentoneRotationValue,
+      screentoneSoftnessValue,
+      screentoneShapeValue,
       hollow ? 1 : 0,
       ratio,
       hollowEraseOccludedParts ? 1 : 0,
@@ -1403,6 +1536,43 @@ class CanvasEngineFfi {
       smoothing,
       stabilizer,
     );
+  }
+
+  void setBrushMask({
+    required int handle,
+    required int width,
+    required int height,
+    required Uint8List mask,
+  }) {
+    final fn = _setBrushMask;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    if (width <= 0 || height <= 0 || mask.isEmpty) {
+      clearBrushMask(handle: handle);
+      return;
+    }
+    final int expectedLen = width * height * 2;
+    if (mask.length != expectedLen) {
+      clearBrushMask(handle: handle);
+      return;
+    }
+    final int maskLen = mask.length;
+    final ffi.Pointer<ffi.Uint8> ptr = malloc.allocate<ffi.Uint8>(maskLen);
+    ptr.asTypedList(maskLen).setAll(0, mask);
+    try {
+      fn(handle, width, height, ptr, maskLen);
+    } finally {
+      malloc.free(ptr);
+    }
+  }
+
+  void clearBrushMask({required int handle}) {
+    final fn = _clearBrushMask;
+    if (!isSupported || fn == null || handle == 0) {
+      return;
+    }
+    fn(handle);
   }
 
   void beginSpray({required int handle}) {

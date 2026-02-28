@@ -1,9 +1,7 @@
 {
   "@@locale": "ja",
-
-  "webLoadingInitializingCanvas": "キャンバスを初期化しています\u2026",
+  "webLoadingInitializingCanvas": "キャンバスを初期化しています…",
   "webLoadingMayTakeTime": "Web 版の読み込みには少し時間がかかります。しばらくお待ちください。",
-
   "closeAppTitle": "アプリを終了",
   "unsavedProjectsWarning": "{count, plural, =1{未保存のプロジェクトが 1 件あります。今終了すると、最新の変更が失われます。} other{未保存のプロジェクトが {count} 件あります。今終了すると、最新の変更が失われます。}}",
   "@unsavedProjectsWarning": {
@@ -13,7 +11,6 @@
   },
   "cancel": "キャンセル",
   "discardAndExit": "破棄して終了",
-
   "homeTagline": "ここから制作を始めましょう",
   "homeNewProject": "新規プロジェクト",
   "homeNewProjectDesc": "空のキャンバスから新しいアイデアを始める",
@@ -27,7 +24,6 @@
   "homeSettingsDesc": "近日公開のカスタマイズ項目をプレビュー",
   "homeAbout": "このアプリについて",
   "homeAboutDesc": "Misa Rin について",
-
   "createProjectFailed": "プロジェクトの作成に失敗しました: {error}",
   "@createProjectFailed": {
     "placeholders": {
@@ -35,7 +31,7 @@
     }
   },
   "openProjectDialogTitle": "プロジェクトを開く",
-  "openingProjectTitle": "プロジェクトを開いています\u2026",
+  "openingProjectTitle": "プロジェクトを開いています…",
   "openingProjectMessage": "{fileName} を読み込み中",
   "@openingProjectMessage": {
     "placeholders": {
@@ -57,7 +53,6 @@
       "error": {}
     }
   },
-
   "importImageDialogTitle": "画像をインポート",
   "importedImageInfo": "画像をインポートしました: {name}",
   "@importedImageInfo": {
@@ -80,17 +75,19 @@
       "error": {}
     }
   },
-  "webPreparingCanvasTitle": "キャンバスを準備しています\u2026",
+  "webPreparingCanvasTitle": "キャンバスを準備しています…",
   "webPreparingCanvasMessage": "Web 版の初期化には少し時間がかかります。しばらくお待ちください。",
-
   "aboutTitle": "Misa Rin について",
   "aboutDescription": "Misa Rin は、創作とプロジェクト管理に特化したアプリです。スムーズな描画体験と信頼できるプロジェクト保存機能を提供します。",
   "aboutAppIdLabel": "アプリ ID",
   "aboutAppVersionLabel": "バージョン",
   "aboutDeveloperLabel": "開発者",
   "close": "閉じる",
-
   "settingsTitle": "設定",
+  "settingsTabGeneral": "一般",
+  "settingsTabInput": "入力とブラシ",
+  "settingsTabStorage": "履歴とストレージ",
+  "settingsTabAbout": "このアプリについて",
   "tabletTest": "ペンタブテスト",
   "restoreDefaults": "既定に戻す",
   "ok": "OK",
@@ -136,7 +133,6 @@
   "performanceOverlayLabel": "パフォーマンス表示",
   "performanceOverlayDesc": "画面隅に Flutter Performance Pulse ダッシュボードを表示し、FPS、CPU、メモリ、ディスクなどをリアルタイムで確認できます。",
   "tabletInputTestTitle": "ペンタブ入力テスト",
-
   "recentProjectsTitle": "最近開いた",
   "recentProjectsLoadFailed": "最近のプロジェクトの読み込みに失敗しました: {error}",
   "@recentProjectsLoadFailed": {
@@ -159,7 +155,6 @@
       "height": {}
     }
   },
-
   "menuFile": "ファイル",
   "menuEdit": "編集",
   "menuImage": "画像",
@@ -170,58 +165,50 @@
   "menuView": "表示",
   "menuWorkspace": "ワークスペース",
   "menuWindow": "ウィンドウ",
-
   "menuAbout": "Misa Rin について",
-  "menuPreferences": "環境設定\u2026",
-  "menuNewEllipsis": "新規\u2026",
-  "menuOpenEllipsis": "開く\u2026",
-  "menuImportImageEllipsis": "画像をインポート\u2026",
+  "menuPreferences": "環境設定…",
+  "menuNewEllipsis": "新規…",
+  "menuOpenEllipsis": "開く…",
+  "menuImportImageEllipsis": "画像をインポート…",
   "menuImportImageFromClipboard": "クリップボードから画像をインポート",
   "menuSave": "保存",
-  "menuSaveAsEllipsis": "別名で保存\u2026",
-  "menuExportEllipsis": "書き出し\u2026",
+  "menuSaveAsEllipsis": "別名で保存…",
+  "menuExportEllipsis": "書き出し…",
   "menuCloseAll": "すべて閉じる",
-
   "menuUndo": "取り消し",
   "menuRedo": "やり直し",
   "menuCut": "切り取り",
   "menuCopy": "コピー",
   "menuPaste": "貼り付け",
-
   "menuImageTransform": "変形",
-  "menuRotate90CW": "90\u00b0 右回転",
-  "menuRotate90CCW": "90\u00b0 左回転",
-  "menuRotate180CW": "180\u00b0 右回転",
-  "menuRotate180CCW": "180\u00b0 左回転",
+  "menuRotate90CW": "90° 右回転",
+  "menuRotate90CCW": "90° 左回転",
+  "menuRotate180CW": "180° 右回転",
+  "menuRotate180CCW": "180° 左回転",
   "menuFlipHorizontal": "左右反転",
   "menuFlipVertical": "上下反転",
-  "menuImageSizeEllipsis": "画像サイズ\u2026",
-  "menuCanvasSizeEllipsis": "キャンバスサイズ\u2026",
-
+  "menuImageSizeEllipsis": "画像サイズ…",
+  "menuCanvasSizeEllipsis": "キャンバスサイズ…",
   "menuNewSubmenu": "新規",
-  "menuNewLayerEllipsis": "レイヤー\u2026",
+  "menuNewLayerEllipsis": "レイヤー…",
   "menuMergeDown": "下のレイヤーに結合",
   "menuRasterize": "ラスタライズ",
   "menuTransform": "変形",
-
   "menuSelectAll": "すべて選択",
   "menuDeselect": "選択解除",
   "menuInvertSelection": "選択範囲を反転",
-
   "menuPalette": "パレット",
-  "menuGeneratePaletteFromCanvasEllipsis": "現在のキャンバスからパレットを生成\u2026",
+  "menuGeneratePaletteFromCanvasEllipsis": "現在のキャンバスからパレットを生成…",
   "menuGenerateGradientPalette": "現在の色からグラデーションパレットを生成",
-  "menuImportPaletteEllipsis": "パレットをインポート\u2026",
-
+  "menuImportPaletteEllipsis": "パレットをインポート…",
   "menuReferenceImage": "参照画像",
   "menuCreateReferenceImage": "参照画像を作成",
-  "menuImportReferenceImageEllipsis": "参照画像をインポート\u2026",
-
+  "menuImportReferenceImageEllipsis": "参照画像をインポート…",
   "menuReferenceModel": "参照モデル",
   "menuReferenceModelSteve": "Steveモデル",
   "menuReferenceModelAlex": "Alexモデル",
   "menuReferenceModelCube": "キューブモデル",
-  "menuImportReferenceModelEllipsis": "モデルをインポート\u2026",
+  "menuImportReferenceModelEllipsis": "モデルをインポート…",
   "referenceModelRefreshTexture": "テクスチャを更新",
   "referenceModelRefreshTextureDesc": "現在のキャンバスからモデル用テクスチャを生成",
   "referenceModelResetView": "表示をリセット",
@@ -236,7 +223,6 @@
   "referenceModelViewBottom": "下面",
   "referenceModelViewLeft": "左面",
   "referenceModelViewRight": "右面",
-
   "menuZoomIn": "拡大",
   "menuZoomOut": "縮小",
   "menuShowGrid": "グリッドを表示",
@@ -245,37 +231,35 @@
   "menuDisableBlackWhite": "白黒を解除",
   "menuMirrorPreview": "ミラープレビュー",
   "menuDisableMirror": "ミラーを解除",
+  "menuTiledPreview": "タイルプレビュー",
+  "menuDisableTiledPreview": "タイルプレビューを無効化",
   "menuShowPerspectiveGuide": "透視線を表示",
   "menuHidePerspectiveGuide": "透視線を非表示",
   "menuPerspectiveMode": "透視モード",
   "menuPerspective1Point": "1 点透視",
   "menuPerspective2Point": "2 点透視",
   "menuPerspective3Point": "3 点透視",
-
   "menuWorkspaceDefault": "デフォルト",
   "menuWorkspaceSai2": "SAI2",
   "menuSwitchWorkspace": "ワークスペースを切り替え",
   "menuResetWorkspace": "ワークスペースをリセット",
-
-  "menuEdgeSofteningEllipsis": "エッジの柔化\u2026",
-  "menuNarrowLinesEllipsis": "線を細く\u2026",
-  "menuExpandFillEllipsis": "塗りの拡張\u2026",
-  "menuGaussianBlurEllipsis": "ガウスぼかし\u2026",
-  "menuRemoveColorLeakEllipsis": "色漏れを除去\u2026",
-  "menuHueSaturationEllipsis": "色相/彩度\u2026",
-  "menuBrightnessContrastEllipsis": "明るさ/コントラスト\u2026",
-  "menuColorRangeEllipsis": "色域\u2026",
-  "menuBlackWhiteEllipsis": "白黒\u2026",
-  "menuBinarizeEllipsis": "二値化\u2026",
-  "menuScanPaperDrawingEllipsis": "スキャン紙絵\u2026",
+  "menuEdgeSofteningEllipsis": "エッジの柔化…",
+  "menuNarrowLinesEllipsis": "線を細く…",
+  "menuExpandFillEllipsis": "塗りの拡張…",
+  "menuGaussianBlurEllipsis": "ガウスぼかし…",
+  "menuRemoveColorLeakEllipsis": "色漏れを除去…",
+  "menuHueSaturationEllipsis": "色相/彩度…",
+  "menuBrightnessContrastEllipsis": "明るさ/コントラスト…",
+  "menuColorRangeEllipsis": "色域…",
+  "menuBlackWhiteEllipsis": "白黒…",
+  "menuBinarizeEllipsis": "二値化…",
+  "menuScanPaperDrawingEllipsis": "スキャン紙絵…",
   "menuScanPaperDrawing": "スキャン紙絵",
   "menuInvertColors": "色を反転",
-
   "canvasSizeTitle": "キャンバスサイズ",
   "canvasSizeAnchorLabel": "アンカー",
   "canvasSizeAnchorDesc": "アンカーポイントを基準にキャンバスをリサイズします。",
   "confirm": "確認",
-
   "projectManagerTitle": "プロジェクト管理",
   "selectAll": "すべて選択",
   "openFolder": "フォルダを開く",
@@ -285,13 +269,10 @@
       "count": {}
     }
   },
-
   "imageSizeTitle": "画像サイズ",
   "lockAspectRatio": "縦横比を固定",
-
   "realtimeParams": "リアルタイムパラメータ",
   "clearScribble": "落書きを消去",
-
   "newCanvasSettingsTitle": "新規キャンバス設定",
   "custom": "カスタム",
   "colorWhite": "白",
@@ -305,7 +286,6 @@
       "name": {}
     }
   },
-
   "exportSettingsTitle": "書き出し設定",
   "exportTypeLabel": "書き出し形式",
   "exportTypePng": "ビットマップ PNG",
@@ -335,11 +315,9 @@
     }
   },
   "export": "書き出し",
-
   "invalidDimensions": "有効な寸法（px）を入力してください。",
   "widthPx": "幅 (px)",
   "heightPx": "高さ (px)",
-
   "noAutosavedProjects": "自動保存されたプロジェクトはありません",
   "revealProjectLocation": "選択したプロジェクトの場所を表示",
   "deleteSelectedProjects": "選択したプロジェクトを削除",
@@ -369,7 +347,6 @@
       "height": {}
     }
   },
-
   "samplingMethod": "サンプリング方式",
   "currentSize": "現在のサイズ: {width} x {height} px",
   "@currentSize": {
@@ -382,7 +359,6 @@
   "samplingNearestDesc": "エッジを保持します。ドット絵に適しています。",
   "samplingBilinearLabel": "バイリニア法",
   "samplingBilinearDesc": "滑らかに補間します。一般的なリサイズに適しています。",
-
   "tabletPressureLatest": "現在の筆圧",
   "tabletPressureMin": "最小筆圧",
   "tabletPressureMax": "最大筆圧",
@@ -391,14 +367,12 @@
   "tabletSampleCount": "サンプル数",
   "tabletSampleRateHz": "サンプリングレート (Hz)",
   "tabletPointerType": "ポインタタイプ",
-  
   "pointerKindMouse": "マウス",
   "pointerKindTouch": "タッチ",
   "pointerKindStylus": "スタイラス",
   "pointerKindInvertedStylus": "スタイラス（消しゴム）",
   "pointerKindTrackpad": "トラックパッド",
   "pointerKindUnknown": "不明",
-
   "presetMobilePortrait": "モバイル 縦向き (1080 x 1920)",
   "presetSquare": "正方形 (1024 x 1024)",
   "presetPixelArt": "ドット絵 ({width} x {height})",
@@ -452,7 +426,6 @@
   },
   "enterValidDimensions": "有効な寸法を入力してください",
   "backgroundColor": "背景色",
-
   "exportBitmapDesc": "ラスター形式が必要な通常の書き出しに適しており、拡大縮小やアンチエイリアスをサポートします。",
   "exportVectorDesc": "現在のキャンバスをベクターパスに自動変換します。ベクターツールでの編集に適しています。",
   "exampleScale": "例: 1.0",
@@ -485,7 +458,6 @@
   "antialiasLow": "レベル 1 (弱): エイリアシングをわずかに和らげ、線の密度を保ちつつエッジを滑らかにします。",
   "antialiasMedium": "レベル 2 (標準): シャープさと柔らかさのバランスを取り、Retas のような綺麗な線にします。",
   "antialiasHigh": "レベル 3 (強): 最も強い柔化効果。柔らかい遷移が必要な場合や大きく拡大する場合に適しています。",
-
   "tolerance": "許容値",
   "fillGap": "隙間閉じ",
   "sampleAllLayers": "全レイヤーを参照",
@@ -518,13 +490,23 @@
   "brushPresetPencil": "鉛筆",
   "brushPresetCel": "セル画ブラシ",
   "brushPresetPen": "ペン",
+  "brushPresetScreentone": "スクリーントーン",
   "brushPresetPixel": "ピクセル",
+  "brushPresetDryInk": "枯墨",
+  "brushPresetCharcoal": "木炭",
+  "brushPresetStarBrush": "星形ブラシ",
   "brushSpacing": "間隔",
   "brushHardness": "硬さ",
   "brushFlow": "流量",
   "brushScatter": "散布",
   "brushRotationJitter": "回転ジッター",
   "brushSnapToPixel": "ピクセルにスナップ",
+  "screentoneEnabled": "スクリーントーン",
+  "screentoneShape": "ドット形状",
+  "screentoneSpacing": "ドット間隔",
+  "screentoneDotSize": "ドットサイズ",
+  "screentoneRotation": "ドット回転",
+  "screentoneSoftness": "ドットの柔らかさ",
   "brushShape": "ブラシ形状",
   "brushAuthorLabel": "作者",
   "brushVersionLabel": "バージョン",
@@ -579,7 +561,6 @@
   "circle": "円",
   "square": "正方形",
   "star": "五芒星",
-
   "brushSizeDesc": "現在のブラシの直径（ピクセル）を設定します。値が大きいほど線が太くなり、小さいほど細部用になります。",
   "spraySizeDesc": "スプレー範囲の半径を決定します。半径が大きいほど広範囲をカバーしますが、粒子は分散します。",
   "toleranceDesc": "塗りつぶしや自動選択時の「色の類似性」の許容値を制御します。高いほど似た色を多く含みます。",
@@ -594,7 +575,6 @@
   "hollowStrokeDesc": "ストロークの中心をくり抜き、中空の輪郭線にします。",
   "hollowStrokeRatioDesc": "中空部分の大きさを調整します。値が大きいほど輪郭が細くなります。",
   "eraseOccludedPartsDesc": "同じレイヤーで後から描いた中空線が、他の線との重なり部分を消去します。",
-  
   "solidFillDesc": "図形ツールで塗りつぶされたブロックを描くか、中空の輪郭を描くかを決定します。オンにすると塗りつぶされます。",
   "randomRotationDesc": "オンにすると、四角形/三角形/五芒星のスタンプがストロークに沿ってランダムに回転します。",
   "autoSharpTaperDesc": "ストロークの始点と終点を自動的に細くし、アニメ塗りのようなシャープな線にします。",
@@ -614,9 +594,7 @@
   "cropOutsideCanvasDesc": "レイヤー調整時にキャンバス外のピクセルを切り取ります。オフにするとすべてのピクセルを保持します。",
   "textAntialiasingDesc": "テキスト描画のアンチエイリアスを有効にし、密度を保ちながら文字を滑らかにします。",
   "textStrokeDesc": "テキストの輪郭線チャンネルを有効にします。",
-  
   "sprayEffectDesc": "スプレーモデルを切り替えます。「ソフトスプレー」は霧状のグラデーション、「飛沫」は粒子状です。",
-  
   "rectSelectDesc": "長方形の領域を素早く選択します。",
   "ellipseSelectDesc": "円形または楕円形の選択範囲を作成します。",
   "polyLassoDesc": "点を打って任意の多角形選択範囲を描画します。",
@@ -627,7 +605,6 @@
   "circleTipDesc": "ブラシチップを円形に保ち、滑らかで柔らかいストロークにします。",
   "squareTipDesc": "四角形のチップを使用し、ハードエッジなピクセルストロークにします。",
   "starTipDesc": "五芒星のチップで装飾的なストロークを描きます。",
-
   "apply": "適用",
   "next": "次へ",
   "disableVectorDrawing": "ベクター描画を無効化",
@@ -658,11 +635,9 @@
   "repairRange": "修正範囲",
   "selectAntialiasLevel": "アンチエイリアスレベルを選択",
   "colorCountLabel": "色数",
-
   "completeTransformFirst": "現在の変形を先に完了してください。",
   "enablePerspectiveGuideFirst": "透視ペンを使用する前に透視ガイドを有効にしてください。",
   "lineNotAlignedWithPerspective": "現在の線は透視方向と一致していません。角度を調整してください。",
-
   "layerBackground": "背景",
   "layerDefaultName": "レイヤー {index}",
   "@layerDefaultName": {
@@ -683,12 +658,10 @@
   "createClippingMask": "クリッピングマスクを作成",
   "hide": "非表示",
   "show": "表示",
-
   "colorRangeTitle": "色域指定",
   "colorPickerTitle": "カラーピッカー",
   "layerManagerTitle": "レイヤー管理",
   "edgeSoftening": "エッジ柔化",
-
   "undo": "取り消し",
   "redo": "やり直し",
   "undoShortcut": "取り消し ({shortcut})",
@@ -719,7 +692,6 @@
   "unlockLayerDesc": "編集できるようにロックを解除します。",
   "clippingMaskDescOn": "通常のレイヤーに戻します。",
   "clippingMaskDescOff": "下のレイヤーでクリッピングします。",
-
   "red": "赤",
   "green": "緑",
   "blue": "青",
@@ -758,7 +730,6 @@
   "applyTransformFailed": "変形の適用に失敗しました。もう一度試してください。",
   "freeTransformTitle": "自由変形",
   "colorIndicatorDetail": "クリックしてカラーエディタを開くか、値を入力または HEX をコピーします。",
-
   "gplDesc": "GIMP, Krita, Clip Studio Paint などと互換性のあるテキスト形式。",
   "aseDesc": "Aseprite, LibreSprite ドット絵ソフトに適しています。",
   "asepriteDesc": "Aseprite で直接開ける .aseprite 拡張子を使用します。",
@@ -844,7 +815,6 @@
   "lightness": "明度",
   "brightness": "明るさ",
   "contrast": "コントラスト",
-
   "selectSaveFormat": "保存するファイル形式を選択してください。",
   "saveAsPsd": "PSD として保存",
   "saveAsSai2": "SAI2 として保存",
@@ -856,13 +826,11 @@
   "rename": "名前を変更",
   "canvasNotReady": "キャンバス準備中",
   "toolPanel": "ツールパネル",
-
   "toolbarTitle": "ツールバー",
   "toolOptionsTitle": "ツールオプション",
   "defaultProjectDirectory": "デフォルトのプロジェクト保存先",
   "minimize": "最小化",
   "maximizeRestore": "最大化/元に戻す",
-
   "fontFamily": "フォントファミリー",
   "fontSearchPlaceholder": "フォントを検索...",
   "noMatchingFonts": "一致するフォントがありません。",
@@ -1043,6 +1011,12 @@
       "state": {}
     }
   },
+  "tileLabel": "タイル: {state}",
+  "@tileLabel": {
+    "placeholders": {
+      "state": {}
+    }
+  },
   "perspectiveLabel": "透視: {perspective}",
   "@perspectiveLabel": {
     "placeholders": {
@@ -1053,7 +1027,6 @@
   "blackPoint": "黒点",
   "whitePoint": "白点",
   "midTone": "中間色",
-
   "rendererLabel": "レンダラー",
   "rendererNormal": "通常",
   "rendererNormalDesc": "リアルタイム、最速、プレビューに最適。",

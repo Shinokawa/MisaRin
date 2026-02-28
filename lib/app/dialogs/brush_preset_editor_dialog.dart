@@ -84,6 +84,12 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
   late bool _hollowEraseOccludedParts;
   late bool _autoSharpTaper;
   late bool _snapToPixel;
+  late bool _screentoneEnabled;
+  late double _screentoneSpacing;
+  late double _screentoneDotSize;
+  late double _screentoneRotation;
+  late double _screentoneSoftness;
+  late BrushShape _screentoneShape;
   ui.Locale? _lastLocale;
   bool _didSync = false;
 
@@ -150,6 +156,12 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
     _hollowEraseOccludedParts = sanitized.hollowEraseOccludedParts;
     _autoSharpTaper = sanitized.autoSharpTaper;
     _snapToPixel = sanitized.snapToPixel;
+    _screentoneEnabled = sanitized.screentoneEnabled;
+    _screentoneSpacing = sanitized.screentoneSpacing;
+    _screentoneDotSize = sanitized.screentoneDotSize;
+    _screentoneRotation = sanitized.screentoneRotation;
+    _screentoneSoftness = sanitized.screentoneSoftness;
+    _screentoneShape = sanitized.screentoneShape;
     if (stopwatch != null) {
       BrushPresetTimeline.mark(
         'editor_sync id=${sanitized.id} t=${stopwatch.elapsedMilliseconds}ms',
@@ -181,6 +193,12 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
       hollowEraseOccludedParts: _hollowEraseOccludedParts,
       autoSharpTaper: _autoSharpTaper,
       snapToPixel: _snapToPixel,
+      screentoneEnabled: _screentoneEnabled,
+      screentoneSpacing: _screentoneSpacing,
+      screentoneDotSize: _screentoneDotSize,
+      screentoneRotation: _screentoneRotation,
+      screentoneSoftness: _screentoneSoftness,
+      screentoneShape: _screentoneShape,
     );
   }
 
@@ -222,7 +240,19 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
         ? (Stopwatch()..start())
         : null;
     final AppLocalizations l10n = context.l10n;
+    final FluentThemeData theme = FluentTheme.of(context);
     final BrushShapeLibrary shapeLibrary = BrushLibrary.instance.shapeLibrary;
+    final List<ComboBoxItem<BrushShape>> screentoneShapeItems =
+        BrushShape.values
+            .map((shape) {
+              final String id = _shapeIdForBuiltIn(shape);
+              final String label = shapeLibrary.labelFor(l10n, id);
+              return ComboBoxItem<BrushShape>(
+                value: shape,
+                child: Text(label),
+              );
+            })
+            .toList(growable: false);
     final List<ComboBoxItem<String>> shapeItems = <ComboBoxItem<String>>[];
     final bool hasShapeId =
         shapeLibrary.shapes.any((shape) => shape.id == _shapeId);
@@ -392,6 +422,71 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
           value: _snapToPixel,
           onChanged: (value) => _setAndNotify(() => _snapToPixel = value),
         ),
+        const SizedBox(height: 12),
+        _buildToggleRow(
+          context,
+          label: l10n.screentoneEnabled,
+          value: _screentoneEnabled,
+          onChanged: (value) =>
+              _setAndNotify(() => _screentoneEnabled = value),
+        ),
+        if (_screentoneEnabled) ...[
+          const SizedBox(height: 12),
+          InfoLabel(
+            label: l10n.screentoneShape,
+            child: ComboBox<BrushShape>(
+              isExpanded: true,
+              value: _screentoneShape,
+              items: screentoneShapeItems,
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+                _setAndNotify(() => _screentoneShape = value);
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildSlider(
+            context,
+            label: l10n.screentoneSpacing,
+            value: _screentoneSpacing,
+            min: 2.0,
+            max: 200.0,
+            divisions: 198,
+            formatter: (value) => value.toStringAsFixed(1),
+            onChanged: (value) =>
+                _setAndNotify(() => _screentoneSpacing = value),
+          ),
+          const SizedBox(height: 12),
+          _buildPercentSlider(
+            context,
+            label: l10n.screentoneDotSize,
+            value: _screentoneDotSize,
+            onChanged: (value) =>
+                _setAndNotify(() => _screentoneDotSize = value),
+          ),
+          const SizedBox(height: 12),
+          _buildSlider(
+            context,
+            label: l10n.screentoneRotation,
+            value: _screentoneRotation,
+            min: -90.0,
+            max: 90.0,
+            divisions: 180,
+            formatter: (value) => '${value.round()}°',
+            onChanged: (value) =>
+                _setAndNotify(() => _screentoneRotation = value),
+          ),
+          const SizedBox(height: 12),
+          _buildPercentSlider(
+            context,
+            label: l10n.screentoneSoftness,
+            value: _screentoneSoftness,
+            onChanged: (value) =>
+                _setAndNotify(() => _screentoneSoftness = value),
+          ),
+        ],
       ],
     );
 
@@ -480,15 +575,19 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
     required String label,
     required bool value,
     required ValueChanged<bool> onChanged,
+    bool enabled = true,
   }) {
     final FluentThemeData theme = FluentTheme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(label, style: theme.typography.bodyStrong),
-        const SizedBox(width: 12),
-        ToggleSwitch(checked: value, onChanged: onChanged),
-      ],
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.55,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: theme.typography.bodyStrong),
+          const SizedBox(width: 12),
+          ToggleSwitch(checked: value, onChanged: enabled ? onChanged : null),
+        ],
+      ),
     );
   }
 
@@ -504,5 +603,18 @@ class BrushPresetEditorFormState extends State<BrushPresetEditorForm> {
         return BrushShape.star;
     }
     return null;
+  }
+
+  String _shapeIdForBuiltIn(BrushShape shape) {
+    switch (shape) {
+      case BrushShape.circle:
+        return 'circle';
+      case BrushShape.triangle:
+        return 'triangle';
+      case BrushShape.square:
+        return 'square';
+      case BrushShape.star:
+        return 'star';
+    }
   }
 }

@@ -164,6 +164,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsTitle => '设置';
 
   @override
+  String get settingsTabGeneral => '常规';
+
+  @override
+  String get settingsTabInput => '输入与笔刷';
+
+  @override
+  String get settingsTabStorage => '历史与存储';
+
+  @override
+  String get settingsTabAbout => '关于';
+
+  @override
   String get tabletTest => '数位板测试';
 
   @override
@@ -521,6 +533,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get menuDisableMirror => '取消镜像';
+
+  @override
+  String get menuTiledPreview => '平铺预览';
+
+  @override
+  String get menuDisableTiledPreview => '关闭平铺预览';
 
   @override
   String get menuShowPerspectiveGuide => '显示透视线';
@@ -1049,7 +1067,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get brushPresetPen => '钢笔';
 
   @override
+  String get brushPresetScreentone => '网点笔';
+
+  @override
   String get brushPresetPixel => '像素笔';
+
+  @override
+  String get brushPresetDryInk => '枯墨';
+
+  @override
+  String get brushPresetCharcoal => '炭笔';
+
+  @override
+  String get brushPresetStarBrush => '星星笔';
 
   @override
   String get brushSpacing => '间距';
@@ -1068,6 +1098,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get brushSnapToPixel => '像素对齐';
+
+  @override
+  String get screentoneEnabled => '网点';
+
+  @override
+  String get screentoneShape => '网点形状';
+
+  @override
+  String get screentoneSpacing => '网点间距';
+
+  @override
+  String get screentoneDotSize => '网点大小';
+
+  @override
+  String get screentoneRotation => '网点旋转';
+
+  @override
+  String get screentoneSoftness => '网点柔化';
 
   @override
   String get brushShape => '笔刷形状';
@@ -2094,6 +2142,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String tileLabel(Object state) {
+    return '平铺：$state';
+  }
+
+  @override
   String perspectiveLabel(Object perspective) {
     return 'Perspective: $perspective';
   }
@@ -2312,6 +2365,18 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get settingsTitle => '设置';
+
+  @override
+  String get settingsTabGeneral => '常规';
+
+  @override
+  String get settingsTabInput => '输入与笔刷';
+
+  @override
+  String get settingsTabStorage => '历史与存储';
+
+  @override
+  String get settingsTabAbout => '关于';
 
   @override
   String get tabletTest => '数位板测试';
@@ -2673,6 +2738,12 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get menuDisableMirror => '取消镜像';
 
   @override
+  String get menuTiledPreview => '平铺预览';
+
+  @override
+  String get menuDisableTiledPreview => '关闭平铺预览';
+
+  @override
   String get menuShowPerspectiveGuide => '显示透视线';
 
   @override
@@ -2784,7 +2855,19 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get brushPresetPen => '钢笔';
 
   @override
+  String get brushPresetScreentone => '网点笔';
+
+  @override
   String get brushPresetPixel => '像素笔';
+
+  @override
+  String get brushPresetDryInk => '枯墨';
+
+  @override
+  String get brushPresetCharcoal => '炭笔';
+
+  @override
+  String get brushPresetStarBrush => '星星笔';
 
   @override
   String get brushSpacing => '间距';
@@ -2803,6 +2886,24 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get brushSnapToPixel => '像素对齐';
+
+  @override
+  String get screentoneEnabled => '网点';
+
+  @override
+  String get screentoneShape => '网点形状';
+
+  @override
+  String get screentoneSpacing => '网点间距';
+
+  @override
+  String get screentoneDotSize => '网点大小';
+
+  @override
+  String get screentoneRotation => '网点旋转';
+
+  @override
+  String get screentoneSoftness => '网点柔化';
 
   @override
   String get brushAuthorLabel => '作者';
@@ -3088,6 +3189,11 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   }
 
   @override
+  String tileLabel(Object state) {
+    return '平铺：$state';
+  }
+
+  @override
   String perspectiveLabel(Object perspective) {
     return '透视：$perspective';
   }
@@ -3306,6 +3412,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get settingsTitle => '設定';
+
+  @override
+  String get settingsTabGeneral => '常規';
+
+  @override
+  String get settingsTabInput => '輸入與筆刷';
+
+  @override
+  String get settingsTabStorage => '歷史與儲存';
+
+  @override
+  String get settingsTabAbout => '關於';
 
   @override
   String get tabletTest => '數位板測試';
@@ -3625,6 +3743,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get menuDisableMirror => '取消鏡像';
 
   @override
+  String get menuTiledPreview => '平鋪預覽';
+
+  @override
+  String get menuDisableTiledPreview => '關閉平鋪預覽';
+
+  @override
   String get menuShowPerspectiveGuide => '顯示透視線';
 
   @override
@@ -3757,7 +3881,19 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get brushPresetPen => '鋼筆';
 
   @override
+  String get brushPresetScreentone => '網點筆';
+
+  @override
   String get brushPresetPixel => '像素筆';
+
+  @override
+  String get brushPresetDryInk => '枯墨';
+
+  @override
+  String get brushPresetCharcoal => '炭筆';
+
+  @override
+  String get brushPresetStarBrush => '星星筆';
 
   @override
   String get brushSpacing => '間距';
@@ -3776,6 +3912,24 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get brushSnapToPixel => '像素對齊';
+
+  @override
+  String get screentoneEnabled => '網點';
+
+  @override
+  String get screentoneShape => '網點形狀';
+
+  @override
+  String get screentoneSpacing => '網點間距';
+
+  @override
+  String get screentoneDotSize => '網點大小';
+
+  @override
+  String get screentoneRotation => '網點旋轉';
+
+  @override
+  String get screentoneSoftness => '網點柔化';
 
   @override
   String get brushAuthorLabel => '作者';
@@ -4098,6 +4252,11 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   @override
   String mirrorLabel(Object state) {
     return '鏡像：$state';
+  }
+
+  @override
+  String tileLabel(Object state) {
+    return '平鋪：$state';
   }
 
   @override

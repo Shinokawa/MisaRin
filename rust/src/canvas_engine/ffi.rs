@@ -540,6 +540,12 @@ pub extern "C" fn engine_set_brush(
     scatter: f32,
     rotation_jitter: f32,
     snap_to_pixel: u8,
+    screentone_enabled: u8,
+    screentone_spacing: f32,
+    screentone_dot_size: f32,
+    screentone_rotation: f32,
+    screentone_softness: f32,
+    screentone_shape: u32,
     hollow_enabled: u8,
     hollow_ratio: f32,
     hollow_erase_occluded: u8,
@@ -582,6 +588,12 @@ pub extern "C" fn engine_set_brush(
         scatter,
         rotation_jitter,
         snap_to_pixel: snap_to_pixel != 0,
+        screentone_enabled: screentone_enabled != 0,
+        screentone_spacing,
+        screentone_dot_size,
+        screentone_rotation,
+        screentone_softness,
+        screentone_shape,
         hollow_enabled: hollow_enabled != 0,
         hollow_ratio,
         hollow_erase_occluded: hollow_erase_occluded != 0,
@@ -610,6 +622,12 @@ pub extern "C" fn engine_set_brush(
     _scatter: f32,
     _rotation_jitter: f32,
     _snap_to_pixel: u8,
+    _screentone_enabled: u8,
+    _screentone_spacing: f32,
+    _screentone_dot_size: f32,
+    _screentone_rotation: f32,
+    _screentone_softness: f32,
+    _screentone_shape: u32,
     _hollow_enabled: u8,
     _hollow_ratio: f32,
     _hollow_erase_occluded: u8,
@@ -618,6 +636,59 @@ pub extern "C" fn engine_set_brush(
     _stabilizer_strength: f32,
 ) {
 }
+
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+#[no_mangle]
+pub extern "C" fn engine_set_brush_mask(
+    handle: u64,
+    width: u32,
+    height: u32,
+    mask_ptr: *const u8,
+    mask_len: usize,
+) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    if mask_ptr.is_null() || mask_len == 0 || width == 0 || height == 0 {
+        let _ = entry.cmd_tx.send(EngineCommand::ClearBrushMask);
+        return;
+    }
+    let expected_len = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|v| v.checked_mul(2));
+    if expected_len.is_none() || expected_len != Some(mask_len) {
+        let _ = entry.cmd_tx.send(EngineCommand::ClearBrushMask);
+        return;
+    }
+    let mask = unsafe { std::slice::from_raw_parts(mask_ptr, mask_len).to_vec() };
+    let _ = entry
+        .cmd_tx
+        .send(EngineCommand::SetBrushMask { width, height, mask });
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[no_mangle]
+pub extern "C" fn engine_set_brush_mask(
+    _handle: u64,
+    _width: u32,
+    _height: u32,
+    _mask_ptr: *const u8,
+    _mask_len: usize,
+) {
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
+#[no_mangle]
+pub extern "C" fn engine_clear_brush_mask(handle: u64) {
+    let Some(entry) = lookup_engine(handle) else {
+        return;
+    };
+    let _ = entry.cmd_tx.send(EngineCommand::ClearBrushMask);
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "ios")))]
+#[no_mangle]
+pub extern "C" fn engine_clear_brush_mask(_handle: u64) {}
 
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "ios"))]
 #[no_mangle]

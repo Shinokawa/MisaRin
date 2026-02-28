@@ -339,6 +339,12 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_capsule_segment_rgba_impl(
             let api_antialias_level = <u32>::sse_decode(&mut deserializer);
             let api_include_start_cap = <bool>::sse_decode(&mut deserializer);
             let api_erase = <bool>::sse_decode(&mut deserializer);
+            let api_screentone_enabled = <bool>::sse_decode(&mut deserializer);
+            let api_screentone_spacing = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_dot_size = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_rotation = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_softness = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_shape = <u32>::sse_decode(&mut deserializer);
             let api_selection = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
@@ -357,6 +363,12 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_capsule_segment_rgba_impl(
                         api_antialias_level,
                         api_include_start_cap,
                         api_erase,
+                        api_screentone_enabled,
+                        api_screentone_spacing,
+                        api_screentone_dot_size,
+                        api_screentone_rotation,
+                        api_screentone_softness,
+                        api_screentone_shape,
                         api_selection,
                     ),
                 )?;
@@ -454,7 +466,16 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_stamp_rgba_impl(
             let api_smooth_rotation = <bool>::sse_decode(&mut deserializer);
             let api_rotation_seed = <u32>::sse_decode(&mut deserializer);
             let api_rotation_jitter = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_enabled = <bool>::sse_decode(&mut deserializer);
+            let api_screentone_spacing = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_dot_size = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_rotation = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_softness = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_shape = <u32>::sse_decode(&mut deserializer);
             let api_snap_to_pixel = <bool>::sse_decode(&mut deserializer);
+            let api_custom_mask_width = <u32>::sse_decode(&mut deserializer);
+            let api_custom_mask_height = <u32>::sse_decode(&mut deserializer);
+            let api_custom_mask = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
             let api_selection = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
@@ -475,7 +496,16 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_stamp_rgba_impl(
                         api_smooth_rotation,
                         api_rotation_seed,
                         api_rotation_jitter,
+                        api_screentone_enabled,
+                        api_screentone_spacing,
+                        api_screentone_dot_size,
+                        api_screentone_rotation,
+                        api_screentone_softness,
+                        api_screentone_shape,
                         api_snap_to_pixel,
+                        api_custom_mask_width,
+                        api_custom_mask_height,
+                        api_custom_mask,
                         api_selection,
                     ))?;
                 Ok(output_ok)
@@ -522,11 +552,20 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_stamp_segment_rgba_impl(
             let api_smooth_rotation = <bool>::sse_decode(&mut deserializer);
             let api_rotation_seed = <u32>::sse_decode(&mut deserializer);
             let api_rotation_jitter = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_enabled = <bool>::sse_decode(&mut deserializer);
+            let api_screentone_spacing = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_dot_size = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_rotation = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_softness = <f32>::sse_decode(&mut deserializer);
+            let api_screentone_shape = <u32>::sse_decode(&mut deserializer);
             let api_spacing = <f32>::sse_decode(&mut deserializer);
             let api_scatter = <f32>::sse_decode(&mut deserializer);
             let api_softness = <f32>::sse_decode(&mut deserializer);
             let api_snap_to_pixel = <bool>::sse_decode(&mut deserializer);
             let api_accumulate = <bool>::sse_decode(&mut deserializer);
+            let api_custom_mask_width = <u32>::sse_decode(&mut deserializer);
+            let api_custom_mask_height = <u32>::sse_decode(&mut deserializer);
+            let api_custom_mask = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
             let api_selection = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
@@ -550,11 +589,20 @@ fn wire__crate__api__cpu_brush__cpu_brush_draw_stamp_segment_rgba_impl(
                         api_smooth_rotation,
                         api_rotation_seed,
                         api_rotation_jitter,
+                        api_screentone_enabled,
+                        api_screentone_spacing,
+                        api_screentone_dot_size,
+                        api_screentone_rotation,
+                        api_screentone_softness,
+                        api_screentone_shape,
                         api_spacing,
                         api_scatter,
                         api_softness,
                         api_snap_to_pixel,
                         api_accumulate,
+                        api_custom_mask_width,
+                        api_custom_mask_height,
+                        api_custom_mask,
                         api_selection,
                     ))?;
                 Ok(output_ok)
@@ -1954,6 +2002,12 @@ impl SseDecode for crate::api::cpu_brush::CpuBrushCommand {
         let mut var_rotationJitter = <f32>::sse_decode(deserializer);
         let mut var_spacing = <f32>::sse_decode(deserializer);
         let mut var_scatter = <f32>::sse_decode(deserializer);
+        let mut var_screentoneEnabled = <bool>::sse_decode(deserializer);
+        let mut var_screentoneSpacing = <f32>::sse_decode(deserializer);
+        let mut var_screentoneDotSize = <f32>::sse_decode(deserializer);
+        let mut var_screentoneRotation = <f32>::sse_decode(deserializer);
+        let mut var_screentoneSoftness = <f32>::sse_decode(deserializer);
+        let mut var_screentoneShape = <u32>::sse_decode(deserializer);
         let mut var_snapToPixel = <bool>::sse_decode(deserializer);
         return crate::api::cpu_brush::CpuBrushCommand {
             kind: var_kind,
@@ -1979,6 +2033,12 @@ impl SseDecode for crate::api::cpu_brush::CpuBrushCommand {
             rotation_jitter: var_rotationJitter,
             spacing: var_spacing,
             scatter: var_scatter,
+            screentone_enabled: var_screentoneEnabled,
+            screentone_spacing: var_screentoneSpacing,
+            screentone_dot_size: var_screentoneDotSize,
+            screentone_rotation: var_screentoneRotation,
+            screentone_softness: var_screentoneSoftness,
+            screentone_shape: var_screentoneShape,
             snap_to_pixel: var_snapToPixel,
         };
     }
@@ -2676,6 +2736,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::cpu_brush::CpuBrushCommand {
             self.rotation_jitter.into_into_dart().into_dart(),
             self.spacing.into_into_dart().into_dart(),
             self.scatter.into_into_dart().into_dart(),
+            self.screentone_enabled.into_into_dart().into_dart(),
+            self.screentone_spacing.into_into_dart().into_dart(),
+            self.screentone_dot_size.into_into_dart().into_dart(),
+            self.screentone_rotation.into_into_dart().into_dart(),
+            self.screentone_softness.into_into_dart().into_dart(),
+            self.screentone_shape.into_into_dart().into_dart(),
             self.snap_to_pixel.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -3104,6 +3170,12 @@ impl SseEncode for crate::api::cpu_brush::CpuBrushCommand {
         <f32>::sse_encode(self.rotation_jitter, serializer);
         <f32>::sse_encode(self.spacing, serializer);
         <f32>::sse_encode(self.scatter, serializer);
+        <bool>::sse_encode(self.screentone_enabled, serializer);
+        <f32>::sse_encode(self.screentone_spacing, serializer);
+        <f32>::sse_encode(self.screentone_dot_size, serializer);
+        <f32>::sse_encode(self.screentone_rotation, serializer);
+        <f32>::sse_encode(self.screentone_softness, serializer);
+        <u32>::sse_encode(self.screentone_shape, serializer);
         <bool>::sse_encode(self.snap_to_pixel, serializer);
     }
 }

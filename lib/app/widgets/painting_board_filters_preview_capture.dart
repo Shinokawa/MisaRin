@@ -14,6 +14,19 @@ class _LayerPreviewImages {
   }
 }
 
+const int _kPreviewTiledCompositeMinPixels = 4096 * 4096;
+
+int _resolvePreviewTileSize(int width, int height) {
+  final int maxDim = math.max(width, height);
+  if (maxDim >= 8192) {
+    return 1024;
+  }
+  if (maxDim >= 4096) {
+    return 512;
+  }
+  return 256;
+}
+
 Future<_LayerPreviewImages> _captureLayerPreviewImages({
   required CanvasFacade controller,
   required List<CanvasCompositeLayer> layers,
@@ -25,10 +38,14 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
   final int height = controller.height;
   final CanvasBackend rasterBackend =
       CanvasBackendState.resolveRasterBackend(useBackendCanvas: useBackendCanvas);
+  final bool useTiledComposite =
+      width * height >= _kPreviewTiledCompositeMinPixels;
   final CanvasRasterBackend tempBackend = CanvasRasterBackend(
     width: width,
     height: height,
+    tileSize: _resolvePreviewTileSize(width, height),
     backend: rasterBackend,
+    useTiledComposite: useTiledComposite,
   );
   ui.Image? background;
   ui.Image? active;
@@ -57,8 +74,11 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
       background = await _decodeImage(rgba, width, height);
     }
     tempBackend.resetClipMask();
-    final Uint32List pixels = tempBackend.ensureCompositePixels();
-    pixels.fillRange(0, pixels.length, 0);
+    Uint32List? compositePixels;
+    if (!useTiledComposite) {
+      compositePixels = tempBackend.ensureCompositePixels();
+      compositePixels.fillRange(0, compositePixels.length, 0);
+    }
     await tempBackend.composite(
       layers: <CanvasCompositeLayer>[activeLayer],
       requiresFullSurface: true,
@@ -66,7 +86,9 @@ Future<_LayerPreviewImages> _captureLayerPreviewImages({
     final Uint8List activeRgba = tempBackend.copySurfaceRgba();
     active = await _decodeImage(activeRgba, width, height);
     if (above.isNotEmpty) {
-      pixels.fillRange(0, pixels.length, 0);
+      if (compositePixels != null) {
+        compositePixels.fillRange(0, compositePixels.length, 0);
+      }
       await tempBackend.composite(layers: above, requiresFullSurface: true);
       final Uint8List aboveRgba = tempBackend.copySurfaceRgba();
       foreground = await _decodeImage(aboveRgba, width, height);
@@ -93,6 +115,12 @@ class _CompositeLayerOpacityOverride implements CanvasCompositeLayer {
   String get id => _base.id;
 
   @override
+  int get width => _base.width;
+
+  @override
+  int get height => _base.height;
+
+  @override
   Uint32List get pixels => _base.pixels;
 
   @override
@@ -106,6 +134,9 @@ class _CompositeLayerOpacityOverride implements CanvasCompositeLayer {
 
   @override
   int get revision => _base.revision;
+
+  @override
+  Uint32List readRect(RasterIntRect rect) => _base.readRect(rect);
 }
 
 Future<ui.Image> _decodeImage(Uint8List pixels, int width, int height) {

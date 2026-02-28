@@ -92,15 +92,13 @@ class PaintingBoardState extends _PaintingBoardBase
     _shapeFillEnabled = prefs.shapeToolFillEnabled;
     _layerAdjustCropOutside = prefs.layerAdjustCropOutside;
     _penStrokeSliderRange = prefs.penStrokeSliderRange;
+    _sprayStrokeSliderRange = prefs.sprayStrokeSliderRange;
+    _eraserStrokeSliderRange = prefs.eraserStrokeSliderRange;
     _penStrokeWidth = _penStrokeSliderRange.clamp(prefs.penStrokeWidth);
-    _sprayStrokeWidth = prefs.sprayStrokeWidth.clamp(
-      kSprayStrokeMin,
-      kSprayStrokeMax,
-    );
-    _eraserStrokeWidth = prefs.eraserStrokeWidth.clamp(
-      kEraserStrokeMin,
-      kEraserStrokeMax,
-    );
+    _sprayStrokeWidth =
+        _sprayStrokeSliderRange.clamp(prefs.sprayStrokeWidth);
+    _eraserStrokeWidth =
+        _eraserStrokeSliderRange.clamp(prefs.eraserStrokeWidth);
     _sprayMode = prefs.sprayMode;
     _strokeStabilizerStrength = prefs.strokeStabilizerStrength;
     _streamlineStrength = prefs.streamlineStrength;
@@ -343,6 +341,7 @@ class PaintingBoardState extends _PaintingBoardBase
         timestampMillis: startTimestampMs,
         antialiasLevel: 0,
         brushShape: BrushShape.circle,
+        screentoneShape: _brushScreentoneShape,
         randomRotation: false,
         erase: false,
       );
@@ -849,6 +848,7 @@ class PaintingBoardState extends _PaintingBoardBase
       unawaited(_captureBackendLayerSnapshotIfNeeded());
     } else if (!oldWidget.isActive && widget.isActive) {
       _restoreBackendLayerSnapshotIfNeeded();
+      _requestWorkspaceFocus();
     }
     final bool sizeChanged = widget.settings.size != oldWidget.settings.size;
     final bool backgroundChanged =
@@ -930,6 +930,28 @@ class PaintingBoardState extends _PaintingBoardBase
         'newLayers=${widget.initialLayers?.length ?? 0}',
       );
     }
+  }
+
+  void _requestWorkspaceFocus() {
+    if (!mounted || !widget.isActive || _isTextEditingActive) {
+      return;
+    }
+    if (_focusNode.hasFocus) {
+      return;
+    }
+    final SchedulerPhase phase = SchedulerBinding.instance.schedulerPhase;
+    final bool safeToRequest =
+        phase == SchedulerPhase.idle || phase == SchedulerPhase.postFrameCallbacks;
+    if (safeToRequest) {
+      _focusNode.requestFocus();
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.isActive || _isTextEditingActive) {
+        return;
+      }
+      _focusNode.requestFocus();
+    });
   }
 
   void _handleControllerChanged() {
@@ -1051,6 +1073,8 @@ class PaintingBoardState extends _PaintingBoardBase
       eraserStrokeWidth: _eraserStrokeWidth,
       sprayMode: _sprayMode,
       penStrokeSliderRange: _penStrokeSliderRange,
+      sprayStrokeSliderRange: _sprayStrokeSliderRange,
+      eraserStrokeSliderRange: _eraserStrokeSliderRange,
       brushPresetId:
           _activeBrushPreset?.id ?? _brushLibrary?.selectedId ?? 'pencil',
       strokeStabilizerStrength: _strokeStabilizerStrength,
@@ -1103,9 +1127,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _updateSprayStrokeWidth(snapshot.sprayStrokeWidth);
     _updateEraserStrokeWidth(snapshot.eraserStrokeWidth);
     _updateSprayMode(snapshot.sprayMode);
-    if (_penStrokeSliderRange != snapshot.penStrokeSliderRange) {
-      setState(() => _penStrokeSliderRange = snapshot.penStrokeSliderRange);
-    }
+    _updatePenStrokeSliderRange(snapshot.penStrokeSliderRange);
+    _updateSprayStrokeSliderRange(snapshot.sprayStrokeSliderRange);
+    _updateEraserStrokeSliderRange(snapshot.eraserStrokeSliderRange);
     _selectBrushPreset(snapshot.brushPresetId);
     _updateStrokeStabilizerStrength(snapshot.strokeStabilizerStrength);
     _updateStreamlineStrength(snapshot.streamlineStrength);
@@ -1194,6 +1218,12 @@ class PaintingBoardState extends _PaintingBoardBase
       _brushScatter = sanitized.scatter;
       _brushRotationJitter = sanitized.rotationJitter;
       _brushSnapToPixel = sanitized.snapToPixel;
+      _brushScreentoneEnabled = sanitized.screentoneEnabled;
+      _brushScreentoneSpacing = sanitized.screentoneSpacing;
+      _brushScreentoneDotSize = sanitized.screentoneDotSize;
+      _brushScreentoneRotation = sanitized.screentoneRotation;
+      _brushScreentoneSoftness = sanitized.screentoneSoftness;
+      _brushScreentoneShape = sanitized.screentoneShape;
       _penAntialiasLevel = sanitized.antialiasLevel;
       _hollowStrokeEnabled = sanitized.hollowEnabled;
       _hollowStrokeRatio = sanitized.hollowRatio;
@@ -1219,6 +1249,7 @@ class PaintingBoardState extends _PaintingBoardBase
     final bool builtIn = shapes.isBuiltInId(shapeId);
     if (builtIn) {
       _brushShapeRaster = null;
+      _syncBackendBrushMask(force: true);
       if (_controller is BitmapCanvasController) {
         (_controller as BitmapCanvasController).setCustomBrushShape(
           shapeId: shapeId,
@@ -1237,6 +1268,7 @@ class PaintingBoardState extends _PaintingBoardBase
       setState(() {
         _brushShapeRaster = raster;
       });
+      _syncBackendBrushMask(force: true);
       if (_controller is BitmapCanvasController) {
         (_controller as BitmapCanvasController).setCustomBrushShape(
           shapeId: shapeId,

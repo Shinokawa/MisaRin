@@ -376,6 +376,9 @@ PenStrokeSliderRange _decodePenStrokeSliderRange(int value) {
     case 1:
       return PenStrokeSliderRange.medium;
     case 2:
+      return PenStrokeSliderRange.full;
+    case 3:
+      return PenStrokeSliderRange.huge;
     default:
       return PenStrokeSliderRange.full;
   }
@@ -388,9 +391,32 @@ int _encodePenStrokeSliderRange(PenStrokeSliderRange range) {
     case PenStrokeSliderRange.medium:
       return 1;
     case PenStrokeSliderRange.full:
+      return 2;
+    case PenStrokeSliderRange.huge:
+      return 3;
     default:
       return 2;
   }
+}
+
+PenStrokeSliderRange _decodeOptionalStrokeSliderRange(
+  int value,
+  PenStrokeSliderRange fallback,
+) {
+  if (value <= 0) {
+    return fallback;
+  }
+  return _decodePenStrokeSliderRange(value - 1);
+}
+
+int _encodeOptionalStrokeSliderRange(
+  PenStrokeSliderRange value,
+  PenStrokeSliderRange fallback,
+) {
+  if (value == fallback) {
+    return 0;
+  }
+  return _encodePenStrokeSliderRange(value) + 1;
 }
 
 double _decodeStrokeStabilizerStrength(int value) {
