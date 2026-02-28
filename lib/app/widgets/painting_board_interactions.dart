@@ -7,11 +7,20 @@ const int _kBackendPointFlagMove = 2;
 const int _kBackendPointFlagUp = 4;
 const double _kBackendPressureMinFactor = 0.09;
 const double _kBackendPressureMaxFactor = 1.0;
-final bool _kDebugBackendCanvasInput =
+final bool _kDebugBackendCanvasInput = bool.fromEnvironment(
+  'MISA_RIN_DEBUG_RUST_CANVAS_INPUT',
+  defaultValue: false,
+);
+final bool _kDebugPencilPredictionOverlay =
+    kDebugMode ||
     bool.fromEnvironment(
-      'MISA_RIN_DEBUG_RUST_CANVAS_INPUT',
+      'MISA_RIN_DEBUG_PENCIL_PREDICTION',
       defaultValue: false,
     );
+const bool _kEnableBridgeCoalescedForStroke = bool.fromEnvironment(
+  'MISA_RIN_ENABLE_BRIDGE_COALESCED_FOR_STROKE',
+  defaultValue: false,
+);
 
 final class _BackendPointBuffer {
   _BackendPointBuffer({int initialCapacityPoints = 256})
@@ -49,12 +58,7 @@ final class _BackendPointBuffer {
     _len++;
   }
 
-  void updateAt(
-    int index, {
-    double? x,
-    double? y,
-    double? pressure,
-  }) {
+  void updateAt(int index, {double? x, double? y, double? pressure}) {
     if (index < 0 || index >= _len) {
       return;
     }
@@ -177,8 +181,10 @@ final class _BackendPressureSimulator {
       return null;
     }
     final StrokeSample sample = _strokeSamples.add(position, timestampMillis);
-    final double normalizedSpeed =
-        _velocitySmoother.addSample(position, timestampMillis);
+    final double normalizedSpeed = _velocitySmoother.addSample(
+      position,
+      timestampMillis,
+    );
 
     if (!_dynamicsEnabled) {
       final double base = _normalizePressure(stylusPressure) ?? 1.0;
@@ -194,20 +200,21 @@ final class _BackendPressureSimulator {
       return pressure.clamp(0.0, 1.0);
     }
 
-    final StrokeSampleMetrics? metrics =
-        _profile == StrokePressureProfile.auto
-            ? StrokeSampleMetrics(
-                sampleIndex: _strokeSamples.length - 1,
-                normalizedSpeed: normalizedSpeed,
-                stationaryDuration: sample.stationaryDuration,
-                totalDistance: _strokeSamples.totalDistance,
-                totalTime: _strokeSamples.totalTime,
-              )
-            : null;
-    final double? intensityOverride =
-        _usesDevicePressure ? _stylusPressureToIntensity(stylusPressure) : null;
-    final double effectiveBlend =
-        intensityOverride != null ? _stylusPressureBlend : 0.0;
+    final StrokeSampleMetrics? metrics = _profile == StrokePressureProfile.auto
+        ? StrokeSampleMetrics(
+            sampleIndex: _strokeSamples.length - 1,
+            normalizedSpeed: normalizedSpeed,
+            stationaryDuration: sample.stationaryDuration,
+            totalDistance: _strokeSamples.totalDistance,
+            totalTime: _strokeSamples.totalTime,
+          )
+        : null;
+    final double? intensityOverride = _usesDevicePressure
+        ? _stylusPressureToIntensity(stylusPressure)
+        : null;
+    final double effectiveBlend = intensityOverride != null
+        ? _stylusPressureBlend
+        : 0.0;
     final double radius = _strokeDynamics.sample(
       distance: sample.distance,
       deltaTimeMillis: sample.deltaTime,
@@ -305,10 +312,73 @@ mixin _PaintingBoardInteractionMixin
   int _backendStrokeStartIndex = 0;
   bool _backendLatencyPending = false;
   bool _backendLatencyFrameScheduled = false;
+  final List<Offset> _backendPredictedPoints = <Offset>[];
+  final List<double> _backendPredictedRadii = <double>[];
+  int _backendPredictedOverlayRevision = 0;
+  bool _backendPredictedOverlayFrameScheduled = false;
+  int _debugPredictedOverlayFrames = 0;
+  int _debugPredictedOverlayPoints = 0;
+  int _debugPredictedOverlayBackendFrames = 0;
+  int _debugPredictedOverlayCpuFrames = 0;
+  DateTime? _debugPredictedOverlayLogAt;
 
   final List<_CpuStrokeEvent> _cpuStrokeQueue = <_CpuStrokeEvent>[];
   bool _cpuStrokeFlushScheduled = false;
   bool _cpuStrokeProcessing = false;
+
+  bool get _showBackendPredictedOverlay =>
+      _backendPredictedPoints.isNotEmpty &&
+      _backendPredictedPoints.length == _backendPredictedRadii.length;
+
+  void _scheduleBackendPredictedOverlayRepaint() {
+    if (_backendPredictedOverlayFrameScheduled) {
+      return;
+    }
+    _backendPredictedOverlayFrameScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _backendPredictedOverlayFrameScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      setState(() {});
+    });
+  }
+
+  void _debugRecordPredictedOverlaySample({
+    required int predictedPoints,
+    required bool backendStrokeActive,
+  }) {
+    if (!_kDebugPencilPredictionOverlay || !kDebugMode) {
+      return;
+    }
+    _debugPredictedOverlayFrames += 1;
+    _debugPredictedOverlayPoints += predictedPoints;
+    if (backendStrokeActive) {
+      _debugPredictedOverlayBackendFrames += 1;
+    } else {
+      _debugPredictedOverlayCpuFrames += 1;
+    }
+    final DateTime now = DateTime.now();
+    final DateTime? lastAt = _debugPredictedOverlayLogAt;
+    if (lastAt != null && now.difference(lastAt).inMilliseconds < 1000) {
+      return;
+    }
+    _debugPredictedOverlayLogAt = now;
+    debugPrint(
+      '[pencil_prediction/overlay] '
+      'frames=$_debugPredictedOverlayFrames '
+      'points=$_debugPredictedOverlayPoints '
+      'backendFrames=$_debugPredictedOverlayBackendFrames '
+      'cpuFrames=$_debugPredictedOverlayCpuFrames '
+      'overlayVisible=$_showBackendPredictedOverlay '
+      'useCpuQueue=$_useCpuStrokeQueue '
+      'backendPointer=$_backendActivePointer',
+    );
+    _debugPredictedOverlayFrames = 0;
+    _debugPredictedOverlayPoints = 0;
+    _debugPredictedOverlayBackendFrames = 0;
+    _debugPredictedOverlayCpuFrames = 0;
+  }
 
   void _suppressRasterOutputForBackendStroke() {
     if (_backendRasterOutputSuppressed) {
@@ -347,7 +417,9 @@ mixin _PaintingBoardInteractionMixin
   void _setActiveTool(CanvasTool tool) {
     final bool shouldCommitText =
         tool != CanvasTool.text && _isTextEditingActive;
-    if (_guardTransformInProgress(message: context.l10n.completeTransformFirst)) {
+    if (_guardTransformInProgress(
+      message: context.l10n.completeTransformFirst,
+    )) {
       return;
     }
     if (shouldCommitText) {
@@ -377,6 +449,8 @@ mixin _PaintingBoardInteractionMixin
     if (tool != CanvasTool.perspectivePen) {
       _clearPerspectivePenPreview();
     }
+    _backendPredictedPoints.clear();
+    _backendPredictedRadii.clear();
     setState(() {
       if (_activeTool == CanvasTool.magicWand) {
         _convertMagicWandPreviewToSelection();
@@ -446,8 +520,7 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _updateSprayStrokeWidth(double value) {
-    final double clamped =
-        _sprayStrokeSliderRange.clamp(value).roundToDouble();
+    final double clamped = _sprayStrokeSliderRange.clamp(value).roundToDouble();
     if ((_sprayStrokeWidth - clamped).abs() < 0.0005) {
       return;
     }
@@ -461,8 +534,9 @@ mixin _PaintingBoardInteractionMixin
   }
 
   void _updateEraserStrokeWidth(double value) {
-    final double clamped =
-        _eraserStrokeSliderRange.clamp(value).roundToDouble();
+    final double clamped = _eraserStrokeSliderRange
+        .clamp(value)
+        .roundToDouble();
     if ((_eraserStrokeWidth - clamped).abs() < 0.0005) {
       return;
     }
@@ -531,7 +605,6 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
-
   @override
   void _updatePenPressureProfile(StrokePressureProfile profile) {
     if (_penPressureProfile == profile) {
@@ -558,7 +631,6 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
-
   @override
   void _updateAutoSharpPeakEnabled(bool value) {
     if (_autoSharpPeakEnabled == value) {
@@ -571,7 +643,6 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
     _applyStylusSettingsToController();
   }
-
 
   void _updateBucketSampleAllLayers(bool value) {
     if (_bucketSampleAllLayers == value) {
@@ -593,8 +664,6 @@ mixin _PaintingBoardInteractionMixin
     unawaited(AppPreferences.save());
   }
 
-
-
   @override
   void _handleWorkspacePointerExit() {
     if (_effectiveActiveTool == CanvasTool.selection) {
@@ -611,8 +680,13 @@ mixin _PaintingBoardInteractionMixin
       _lastWorkspacePointer = null;
       _notifyViewInfoChanged();
     }
+    if (_backendPredictedPoints.isNotEmpty ||
+        _backendPredictedRadii.isNotEmpty) {
+      _backendPredictedPoints.clear();
+      _backendPredictedRadii.clear();
+      _scheduleBackendPredictedOverlayRepaint();
+    }
   }
-
 
   bool _isActiveLayerLocked() => _isActiveLayerLockedImpl();
 

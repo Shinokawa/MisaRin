@@ -32,9 +32,9 @@ void _paintStrokeOverlay({
   final bool useHollow = hollow && hollowRatio > 0.0001;
   final Paint? clearPaint = useHollow
       ? (Paint()
-        ..blendMode = BlendMode.clear
-        ..style = PaintingStyle.fill
-        ..isAntiAlias = clampedAntialias > 0)
+          ..blendMode = BlendMode.clear
+          ..style = PaintingStyle.fill
+          ..isAntiAlias = clampedAntialias > 0)
       : null;
   final int step = _overlayStepForPoints(points.length);
 
@@ -115,15 +115,14 @@ void _paintCircleStrokeOverlay(
   final int stride = math.max(1, step);
   for (int i = 0; i < points.length; i += stride) {
     final Offset p = points[i];
-    final double r =
-        (i < radii.length) ? radii[i] : (radii.isNotEmpty ? radii.last : 1.0);
+    final double r = (i < radii.length)
+        ? radii[i]
+        : (radii.isNotEmpty ? radii.last : 1.0);
     canvas.drawCircle(p, r * radiusScale, paint);
   }
-  if (points.isNotEmpty &&
-      ((points.length - 1) % stride != 0)) {
+  if (points.isNotEmpty && ((points.length - 1) % stride != 0)) {
     final Offset p = points.last;
-    final double r =
-        radii.isNotEmpty ? radii.last : 1.0;
+    final double r = radii.isNotEmpty ? radii.last : 1.0;
     canvas.drawCircle(p, r * radiusScale, paint);
   }
 
@@ -131,8 +130,9 @@ void _paintCircleStrokeOverlay(
     final int j = math.min(i + stride, points.length - 1);
     final Offset p1 = points[i];
     final Offset p2 = points[j];
-    final double rawR1 =
-        (i < radii.length) ? radii[i] : (radii.isNotEmpty ? radii.last : 1.0);
+    final double rawR1 = (i < radii.length)
+        ? radii[i]
+        : (radii.isNotEmpty ? radii.last : 1.0);
     final double rawR2 = (j < radii.length) ? radii[j] : rawR1;
     final double r1 = rawR1 * radiusScale;
     final double r2 = rawR2 * radiusScale;
@@ -151,10 +151,8 @@ void _paintCircleStrokeOverlay(
     final double angle1 = angle + math.pi / 2 + alpha;
     final double angle2 = angle - math.pi / 2 - alpha;
 
-    final Offset startL =
-        p1 + Offset(math.cos(angle1), math.sin(angle1)) * r1;
-    final Offset startR =
-        p1 + Offset(math.cos(angle2), math.sin(angle2)) * r1;
+    final Offset startL = p1 + Offset(math.cos(angle1), math.sin(angle1)) * r1;
+    final Offset startR = p1 + Offset(math.cos(angle2), math.sin(angle2)) * r1;
     final Offset endL = p2 + Offset(math.cos(angle1), math.sin(angle1)) * r2;
     final Offset endR = p2 + Offset(math.cos(angle2), math.sin(angle2)) * r2;
 
@@ -225,8 +223,7 @@ void _paintSquareStrokeOverlay(
     }
 
     final double maxRadius = math.max(r1, r2);
-    final double stepSize =
-        math.max(0.5, maxRadius * 0.25) * stride.toDouble();
+    final double stepSize = math.max(0.5, maxRadius * 0.25) * stride.toDouble();
     final int steps = (dist / stepSize).ceil();
     for (int s = 1; s <= steps; s++) {
       final double t = s / steps;
@@ -537,9 +534,11 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
       final Color baseColor = command.erase
           ? eraserPreviewColor
           : Color(command.color);
-      final int alpha = (baseColor.alpha * opacity).round().clamp(0, 255) as int;
-      final Color commandColor =
-          alpha == baseColor.alpha ? baseColor : baseColor.withAlpha(alpha);
+      final int alpha =
+          (baseColor.alpha * opacity).round().clamp(0, 255) as int;
+      final Color commandColor = alpha == baseColor.alpha
+          ? baseColor
+          : baseColor.withAlpha(alpha);
       final bool commandHollow = (command.hollow ?? false) && !command.erase;
       _paintStrokeOverlay(
         canvas: canvas,
@@ -587,6 +586,49 @@ class _ActiveStrokeOverlayPainter extends CustomPainter {
         oldDelegate.hollowStrokeRatio != hollowStrokeRatio ||
         oldDelegate.activeStrokeIsEraser != activeStrokeIsEraser ||
         oldDelegate.eraserPreviewColor != eraserPreviewColor;
+  }
+}
+
+class _PredictedStrokeOverlayPainter extends CustomPainter {
+  const _PredictedStrokeOverlayPainter({
+    required this.points,
+    required this.radii,
+    required this.revision,
+    required this.color,
+    required this.shape,
+    required this.antialiasLevel,
+  });
+
+  final List<Offset> points;
+  final List<double> radii;
+  final int revision;
+  final Color color;
+  final BrushShape shape;
+  final int antialiasLevel;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2 || points.length != radii.length) {
+      return;
+    }
+    _paintStrokeOverlay(
+      canvas: canvas,
+      points: points,
+      radii: radii,
+      color: color,
+      shape: shape,
+      antialiasLevel: antialiasLevel,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_PredictedStrokeOverlayPainter oldDelegate) {
+    return oldDelegate.revision != revision ||
+        oldDelegate.points != points ||
+        oldDelegate.radii != radii ||
+        oldDelegate.color != color ||
+        oldDelegate.shape != shape ||
+        oldDelegate.antialiasLevel != antialiasLevel;
   }
 }
 
