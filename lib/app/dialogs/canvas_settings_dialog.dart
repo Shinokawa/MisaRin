@@ -322,6 +322,39 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
     );
   }
 
+  Widget _buildBackgroundColorSelector(FluentThemeData theme, bool isMobile) {
+    if (!isMobile) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _backgroundOptions
+            .map((option) => _buildBackgroundOption(theme, option))
+            .toList(),
+      );
+    }
+
+    final selectedOption = _backgroundOptions.firstWhere(
+      (o) => o.color.value == _selectedColor.value,
+      orElse: () => _backgroundOptions.first,
+    );
+
+    return ComboBox<_BackgroundOption>(
+      value: selectedOption,
+      items: _backgroundOptions.map((option) {
+        return ComboBoxItem<_BackgroundOption>(
+          value: option,
+          child: Text(option.label),
+        );
+      }).toList(),
+      onChanged: (option) {
+        if (option != null) {
+          setState(() => _selectedColor = option.color);
+        }
+      },
+      isExpanded: true,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
@@ -409,13 +442,7 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
         if (!isMobile) const SizedBox(height: 12),
         InfoLabel(
           label: l10n.backgroundColor,
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _backgroundOptions
-                .map((option) => _buildBackgroundOption(theme, option))
-                .toList(),
-          ),
+          child: _buildBackgroundColorSelector(theme, isMobile),
         ),
       ],
     );
