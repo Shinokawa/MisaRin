@@ -1209,6 +1209,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                               child: MobileToolButtons(
                                 activeTool: _activeTool,
                                 onToolSelected: _setActiveTool,
+                                rebuildListenable: _mobileUiRebuildListenable,
                                 toolSettingsBuilder: (context) {
                                   return MisarinDialog(
                                     title: Text(context.l10n.menuTool),
@@ -1310,6 +1311,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                               child: MobileRightButtons(
                                 colorIndicator: _buildColorIndicator(theme),
                                 layerPanelBuilder: (context) => _buildLayerPanelContent(theme),
+                                rebuildListenable: _mobileUiRebuildListenable,
                               ),
                             ),
                           ],

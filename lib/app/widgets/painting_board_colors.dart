@@ -25,6 +25,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
   }) async {
     Color previewColor = initialColor;
     _ColorAdjustMode currentMode = _ColorAdjustMode.fluentBox;
+    bool applied = false;
     final Color? result = await showResponsiveDialog<Color>(
       context: context,
       barrierDismissible: true,
@@ -131,14 +132,20 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
               child: Text(context.l10n.cancel),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop(previewColor),
+              onPressed: () {
+                if (isMobileOrPhone(context)) {
+                  onSelected(previewColor);
+                  applied = true;
+                }
+                Navigator.of(context).pop(previewColor);
+              },
               child: Text(context.l10n.confirm),
             ),
           ],
         );
       },
     );
-    if (result != null) {
+    if (result != null && !applied) {
       onSelected(result);
     }
   }

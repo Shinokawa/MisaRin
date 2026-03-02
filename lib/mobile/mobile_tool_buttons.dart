@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart' show Listenable;
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../canvas/canvas_tools.dart';
 import 'mobile_tool_selector_sheet.dart';
@@ -10,11 +11,13 @@ class MobileToolButtons extends StatelessWidget {
     required this.activeTool,
     required this.onToolSelected,
     required this.toolSettingsBuilder,
+    this.rebuildListenable,
   });
 
   final CanvasTool activeTool;
   final ValueChanged<CanvasTool> onToolSelected;
   final WidgetBuilder toolSettingsBuilder;
+  final Listenable? rebuildListenable;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +53,8 @@ class MobileToolButtons extends StatelessWidget {
   void _showToolSelector(BuildContext context) {
     showMobileBottomSheet(
       context: context,
-      child: MobileToolSelectorSheet(
+      rebuildListenable: rebuildListenable,
+      builder: (context) => MobileToolSelectorSheet(
         activeTool: activeTool,
         onToolSelected: onToolSelected,
       ),
@@ -60,7 +64,8 @@ class MobileToolButtons extends StatelessWidget {
   void _showToolSettings(BuildContext context) {
     showMobileBottomSheet(
       context: context,
-      child: toolSettingsBuilder(context),
+      rebuildListenable: rebuildListenable,
+      builder: toolSettingsBuilder,
     );
   }
 

@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart' show Listenable;
 import 'package:flutter/material.dart' show Material;
 
 /// 移动端统一上拉菜单配置常量
@@ -9,13 +10,26 @@ class MobileBottomSheetConstants {
 
 Future<T?> showMobileBottomSheet<T>({
   required BuildContext context,
-  required Widget child,
+  Widget? child,
+  WidgetBuilder? builder,
+  Listenable? rebuildListenable,
   bool barrierDismissible = true,
 }) {
+  assert(
+    (child != null) ^ (builder != null),
+    'Provide either child or builder.',
+  );
   final theme = FluentTheme.of(context);
   final screenHeight = MediaQuery.sizeOf(context).height;
   // 固定高度 = 屏幕高度 - 顶部留白
   final sheetHeight = screenHeight - MobileBottomSheetConstants.topGap;
+  final WidgetBuilder resolvedBuilder = builder ?? (_) => child!;
+  final Widget content = rebuildListenable == null
+      ? Builder(builder: resolvedBuilder)
+      : AnimatedBuilder(
+          animation: rebuildListenable,
+          builder: (context, _) => resolvedBuilder(context),
+        );
 
   return showGeneralDialog<T>(
     context: context,
@@ -63,7 +77,7 @@ Future<T?> showMobileBottomSheet<T>({
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(MobileBottomSheetConstants.borderRadius),
                     ),
-                    child: child,
+                    child: content,
                   ),
                 ),
               ],

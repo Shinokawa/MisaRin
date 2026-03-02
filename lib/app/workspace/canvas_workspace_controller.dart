@@ -144,7 +144,7 @@ class CanvasWorkspaceController extends ChangeNotifier {
       oldIndex: oldIndex,
       newIndex: newIndex,
     );
-    _applyBackendState(state);
+    _applyBackendState(state, immediateNotify: true);
   }
 
   void _restoreFromBackend() {
@@ -160,6 +160,7 @@ class CanvasWorkspaceController extends ChangeNotifier {
   void _applyBackendState(
     workspace_backend.WorkspaceState state, {
     ProjectDocument? documentOverride,
+    bool immediateNotify = false,
   }) {
     final Map<String, CanvasWorkspaceEntry> cache =
         <String, CanvasWorkspaceEntry>{
@@ -214,12 +215,18 @@ class CanvasWorkspaceController extends ChangeNotifier {
       ..clear()
       ..addAll(nextEntries);
     _activeId = state.activeId;
-    _scheduleNotify();
+    _scheduleNotify(immediate: immediateNotify);
   }
 
-  void _scheduleNotify() {
+  void _scheduleNotify({bool immediate = false}) {
     final WidgetsBinding binding = WidgetsBinding.instance;
     if (_notifyScheduled) {
+      return;
+    }
+    if (immediate) {
+      _notifyScheduled = true;
+      notifyListeners();
+      _notifyScheduled = false;
       return;
     }
     _notifyScheduled = true;

@@ -12,7 +12,7 @@ Future<T?> showResponsiveDialog<T>({
     return showMobileBottomSheet<T>(
       context: context,
       barrierDismissible: barrierDismissible,
-      child: builder(context),
+      builder: builder,
     );
   }
 

@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter/foundation.dart' show Listenable;
 import 'mobile_bottom_sheet.dart';
 import '../app/dialogs/misarin_dialog.dart';
 
@@ -7,10 +8,12 @@ class MobileRightButtons extends StatelessWidget {
     super.key,
     required this.colorIndicator,
     required this.layerPanelBuilder,
+    this.rebuildListenable,
   });
 
   final Widget colorIndicator;
   final WidgetBuilder layerPanelBuilder;
+  final Listenable? rebuildListenable;
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +41,8 @@ class MobileRightButtons extends StatelessWidget {
   void _showLayerManager(BuildContext context) {
     showMobileBottomSheet(
       context: context,
-      child: MisarinDialog(
+      rebuildListenable: rebuildListenable,
+      builder: (context) => MisarinDialog(
         title: const Text('Layers'),
         content: layerPanelBuilder(context),
       ),

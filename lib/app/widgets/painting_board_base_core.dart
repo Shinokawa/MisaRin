@@ -6,6 +6,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   late CanvasFacade _controller;
   _CanvasBackendFacade get _backend =>
       (this as _PaintingBoardBase)._backend;
+  final ValueNotifier<int> _mobileUiRevision = ValueNotifier<int>(0);
   final FocusNode _focusNode = FocusNode();
   bool _boardReadyNotified = false;
   int? _backendCanvasEngineHandle;
@@ -20,6 +21,20 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   int _backendLayerSnapshotHeight = 0;
   int? _backendLayerSnapshotHandle;
   int? _backendPixelsSyncedHandle;
+
+  ValueListenable<int> get _mobileUiRebuildListenable => _mobileUiRevision;
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _mobileUiRevision.value++;
+  }
+
+  @override
+  void dispose() {
+    _mobileUiRevision.dispose();
+    super.dispose();
+  }
 
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;

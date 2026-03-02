@@ -5,10 +5,14 @@ class LayerVisibilityButton extends StatelessWidget {
     super.key,
     required this.visible,
     required this.onChanged,
+    this.size = 24,
+    this.iconSize = 14,
   });
 
   final bool visible;
   final ValueChanged<bool>? onChanged;
+  final double size;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
@@ -32,15 +36,16 @@ class LayerVisibilityButton extends StatelessWidget {
                     : const Color(0xFF666666)
             : theme.resources.textFillColorDisabled;
 
+    final double radius = size * 0.25;
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       child: GestureDetector(
         onTap: enabled ? () => onChanged!(!visible) : null,
         child: Container(
-          width: 24,
-          height: 24,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(radius),
             color: background,
             border: Border.all(
               color: enabled
@@ -52,7 +57,7 @@ class LayerVisibilityButton extends StatelessWidget {
           child: Center(
             child: Icon(
               visible ? FluentIcons.red_eye : FluentIcons.hide3,
-              size: 14,
+              size: iconSize,
               color: iconColor,
             ),
           ),
