@@ -154,17 +154,20 @@ class _MobileHomePageState extends State<MobileHomePage> {
     required VoidCallback onPressed,
     bool primary = false,
   }) {
+    final padding = const EdgeInsets.symmetric(vertical: 16, horizontal: 24);
+    final textStyle = const TextStyle(fontSize: 20, fontWeight: FontWeight.w500);
+
     if (primary) {
       return FilledButton(
         onPressed: onPressed,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: padding,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 24),
-              const SizedBox(width: 12),
-              Text(label, style: const TextStyle(fontSize: 18)),
+              Icon(icon, size: 28),
+              const SizedBox(width: 16),
+              Text(label, style: textStyle),
             ],
           ),
         ),
@@ -174,13 +177,13 @@ class _MobileHomePageState extends State<MobileHomePage> {
     return Button(
       onPressed: onPressed,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: padding,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 24),
-            const SizedBox(width: 12),
-            Text(label, style: const TextStyle(fontSize: 18)),
+            Icon(icon, size: 28),
+            const SizedBox(width: 16),
+            Text(label, style: textStyle),
           ],
         ),
       ),
