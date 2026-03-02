@@ -97,7 +97,7 @@ class CanvasTitleBar extends StatelessWidget {
   }
 }
 
-class _WorkspaceTabStrip extends StatelessWidget {
+class _WorkspaceTabStrip extends StatefulWidget {
   const _WorkspaceTabStrip({
     required this.entries,
     required this.activeId,
@@ -115,14 +115,67 @@ class _WorkspaceTabStrip extends StatelessWidget {
   final CanvasTabCallback onRenameTab;
 
   @override
+  State<_WorkspaceTabStrip> createState() => _WorkspaceTabStripState();
+}
+
+class _WorkspaceTabStripState extends State<_WorkspaceTabStrip> {
+  late List<CanvasWorkspaceEntry> _displayEntries;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayEntries = List<CanvasWorkspaceEntry>.from(widget.entries);
+  }
+
+  @override
+  void didUpdateWidget(covariant _WorkspaceTabStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_isSameOrder(_displayEntries, widget.entries)) {
+      _displayEntries = List<CanvasWorkspaceEntry>.from(widget.entries);
+    }
+  }
+
+  bool _isSameOrder(
+    List<CanvasWorkspaceEntry> a,
+    List<CanvasWorkspaceEntry> b,
+  ) {
+    if (a.length != b.length) {
+      return false;
+    }
+    for (int i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void _handleReorder(int oldIndex, int newIndex) {
+    if (oldIndex >= _displayEntries.length) {
+      return;
+    }
+    int boundedNewIndex = newIndex;
+    if (boundedNewIndex > _displayEntries.length) {
+      boundedNewIndex = _displayEntries.length;
+    }
+    int targetIndex = boundedNewIndex;
+    if (targetIndex > oldIndex) {
+      targetIndex -= 1;
+    }
+    setState(() {
+      final CanvasWorkspaceEntry entry = _displayEntries.removeAt(oldIndex);
+      _displayEntries.insert(targetIndex, entry);
+    });
+    CanvasWorkspaceController.instance.reorder(oldIndex, boundedNewIndex);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final FluentThemeData theme = FluentTheme.of(context);
     final Color hoverBackground = theme.resources.subtleFillColorTertiary;
     final Color pressedBackground = theme.resources.subtleFillColorSecondary;
     final Color baseIconColor = theme.resources.textFillColorSecondary;
     final Color hoverIconColor = theme.resources.textFillColorPrimary;
-    final CanvasWorkspaceController controller =
-        CanvasWorkspaceController.instance;
     return SizedBox(
       height: 36,
       child: ReorderableListView.builder(
@@ -132,23 +185,15 @@ class _WorkspaceTabStrip extends StatelessWidget {
         physics: const ClampingScrollPhysics(),
         buildDefaultDragHandles: false,
         proxyDecorator: (child, index, animation) => child,
-        itemCount: entries.length + 1,
-        onReorder: (int oldIndex, int newIndex) {
-          if (oldIndex >= entries.length) {
-            return;
-          }
-          if (newIndex > entries.length) {
-            newIndex = entries.length;
-          }
-          controller.reorder(oldIndex, newIndex);
-        },
+        itemCount: _displayEntries.length + 1,
+        onReorder: _handleReorder,
         itemBuilder: (context, index) {
-          if (index >= entries.length) {
+          if (index >= _displayEntries.length) {
             return Padding(
               key: const ValueKey('__workspace_add_button__'),
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Button(
-                onPressed: onCreateTab,
+                onPressed: widget.onCreateTab,
                 style: ButtonStyle(
                   padding: WidgetStateProperty.all<EdgeInsets>(
                     const EdgeInsets.all(6),
@@ -177,19 +222,20 @@ class _WorkspaceTabStrip extends StatelessWidget {
               ),
             );
           }
-          final CanvasWorkspaceEntry entry = entries[index];
+          final CanvasWorkspaceEntry entry = _displayEntries[index];
+          final Widget tab = _WorkspaceTab(
+            entry: entry,
+            isActive: entry.id == widget.activeId,
+            onSelect: widget.onSelectTab,
+            onClose: widget.onCloseTab,
+            onRename: widget.onRenameTab,
+          );
           return Padding(
             key: ValueKey<String>(entry.id),
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: ReorderableDragStartListener(
               index: index,
-              child: _WorkspaceTab(
-                entry: entry,
-                isActive: entry.id == activeId,
-                onSelect: onSelectTab,
-                onClose: onCloseTab,
-                onRename: onRenameTab,
-              ),
+              child: tab,
             ),
           );
         },

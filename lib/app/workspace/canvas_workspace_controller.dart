@@ -140,9 +140,25 @@ class CanvasWorkspaceController extends ChangeNotifier {
     if (oldIndex < 0 || oldIndex >= _entries.length) {
       return;
     }
+    int boundedNewIndex = newIndex;
+    if (boundedNewIndex < 0) {
+      boundedNewIndex = 0;
+    }
+    if (boundedNewIndex > _entries.length) {
+      boundedNewIndex = _entries.length;
+    }
+    int targetIndex = boundedNewIndex;
+    if (targetIndex > oldIndex) {
+      targetIndex -= 1;
+    }
+    if (targetIndex != oldIndex) {
+      final CanvasWorkspaceEntry entry = _entries.removeAt(oldIndex);
+      _entries.insert(targetIndex, entry);
+      _scheduleNotify(immediate: true);
+    }
     final workspace_backend.WorkspaceState state = workspace_backend.reorderWorkspace(
       oldIndex: oldIndex,
-      newIndex: newIndex,
+      newIndex: boundedNewIndex,
     );
     _applyBackendState(state, immediateNotify: true);
   }
