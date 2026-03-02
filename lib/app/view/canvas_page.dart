@@ -49,6 +49,10 @@ import '../workspace/workspace_shared_state.dart';
 import '../utils/platform_target.dart';
 import '../utils/web_file_dialog.dart';
 import '../utils/web_file_saver.dart';
+import '../../mobile/mobile_utils.dart';
+import '../../mobile/mobile_menu_button.dart';
+import '../../mobile/mobile_right_buttons.dart';
+import '../../mobile/mobile_tool_buttons.dart';
 
 class CanvasPage extends StatefulWidget {
   const CanvasPage({
@@ -1847,6 +1851,7 @@ class CanvasPageState extends State<CanvasPage> {
       onResizeCanvas: _handleResizeCanvas,
       onReadyChanged: (ready) => _handleBoardReadyChanged(id, ready),
       toolbarLayoutStyle: _toolbarLayoutStyle,
+      showToolbars: !isMobileOrPhone(context),
     );
   }
 
@@ -2234,17 +2239,39 @@ class CanvasPageState extends State<CanvasPage> {
         child: workspace,
       );
     }
+    final bool isMobile = isMobileOrPhone(context);
+
+    final Widget body = isMobile
+        ? SafeArea(
+            bottom: false,
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    titleBar,
+                    Expanded(child: workspace),
+                  ],
+                ),
+                const Align(
+                  alignment: Alignment.topRight,
+                  child: MobileMenuButton(),
+                ),
+              ],
+            ),
+          )
+        : Column(
+            children: [
+              titleBar,
+              Expanded(child: ClipRect(child: workspace)),
+            ],
+          );
+
     return MenuActionBinding(
       handler: handler,
       child: NavigationView(
         content: ScaffoldPage(
           padding: EdgeInsets.zero,
-          content: Column(
-            children: [
-              titleBar,
-              Expanded(child: ClipRect(child: workspace)),
-            ],
-          ),
+          content: body,
         ),
       ),
     );

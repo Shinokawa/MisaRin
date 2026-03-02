@@ -100,6 +100,7 @@ class PaintingBoard extends StatefulWidget {
     this.onResizeCanvas,
     this.onReadyChanged,
     this.toolbarLayoutStyle = PaintingToolbarLayoutStyle.floating,
+    this.showToolbars = true,
   });
 
   final String surfaceKey;
@@ -117,6 +118,7 @@ class PaintingBoard extends StatefulWidget {
   final Future<void> Function()? onResizeCanvas;
   final ValueChanged<bool>? onReadyChanged;
   final PaintingToolbarLayoutStyle toolbarLayoutStyle;
+  final bool showToolbars;
 
   @override
   State<PaintingBoard> createState() => PaintingBoardState();

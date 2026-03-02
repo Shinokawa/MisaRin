@@ -416,7 +416,7 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
               child: Builder(
                 builder: (context) {
                   Widget content = child ?? const SizedBox.shrink();
-                  if (widget.showCustomMenu && child != null) {
+                  if (widget.showCustomMenu && child != null && !isMobileOrPhone(context)) {
                     content = CustomMenuShell(
                       navigatorKey: _navigatorKey,
                       showMenus: widget.showCustomMenuItems,

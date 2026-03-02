@@ -1,0 +1,135 @@
+import 'package:fluent_ui/fluent_ui.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import '../../canvas/canvas_tools.dart';
+import 'mobile_tool_selector_sheet.dart';
+import 'mobile_bottom_sheet.dart';
+
+class MobileToolButtons extends StatelessWidget {
+  const MobileToolButtons({
+    super.key,
+    required this.activeTool,
+    required this.onToolSelected,
+    required this.toolSettingsBuilder,
+  });
+
+  final CanvasTool activeTool;
+  final ValueChanged<CanvasTool> onToolSelected;
+  final WidgetBuilder toolSettingsBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            // Tool Selector Button
+            _MobileCircleButton(
+              onPressed: () => _showToolSelector(context),
+              child: _getToolIconWidget(activeTool, theme.accentColor),
+            ),
+            const SizedBox(width: 16),
+            // Tool Settings Button
+            _MobileCircleButton(
+              onPressed: () => _showToolSettings(context),
+              child: const Icon(
+                FluentIcons.settings,
+                size: 24,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showToolSelector(BuildContext context) {
+    showMobileBottomSheet(
+      context: context,
+      child: MobileToolSelectorSheet(
+        activeTool: activeTool,
+        onToolSelected: onToolSelected,
+      ),
+    );
+  }
+
+  void _showToolSettings(BuildContext context) {
+    showMobileBottomSheet(
+      context: context,
+      child: toolSettingsBuilder(context),
+    );
+  }
+
+  Widget _getToolIconWidget(CanvasTool tool, Color color) {
+    final dynamic icon = _getToolIconData(tool);
+    if (icon is IconData) {
+      return Icon(icon, size: 28, color: color);
+    } else {
+      return SvgPicture.asset(
+        icon as String,
+        width: 28,
+        height: 28,
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      );
+    }
+  }
+
+  dynamic _getToolIconData(CanvasTool tool) {
+    switch (tool) {
+      case CanvasTool.layerAdjust: return FluentIcons.move;
+      case CanvasTool.pen: return FluentIcons.edit;
+      case CanvasTool.perspectivePen: return FluentIcons.pencil_reply;
+      case CanvasTool.spray: return 'icons/spray.svg';
+      case CanvasTool.curvePen: return 'icons/line.svg';
+      case CanvasTool.shape: return FluentIcons.shapes;
+      case CanvasTool.eraser: return FluentIcons.erase_tool;
+      case CanvasTool.bucket: return FluentIcons.bucket_color;
+      case CanvasTool.magicWand: return FluentIcons.auto_enhance_on;
+      case CanvasTool.eyedropper: return FluentIcons.eyedropper;
+      case CanvasTool.selection: return 'icons/warp1.svg';
+      case CanvasTool.selectionPen: return FluentIcons.inking_tool;
+      case CanvasTool.text: return FluentIcons.text_field;
+      case CanvasTool.hand: return FluentIcons.hands_free;
+      case CanvasTool.rotate: return FluentIcons.rotate;
+    }
+  }
+}
+
+class _MobileCircleButton extends StatelessWidget {
+  const _MobileCircleButton({required this.onPressed, required this.child});
+
+  final VoidCallback onPressed;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FluentTheme.of(context);
+    return IconButton(
+      onPressed: onPressed,
+      icon: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          color: theme.micaBackgroundColor.withOpacity(0.9),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: theme.resources.controlStrokeColorDefault,
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Center(child: child),
+      ),
+    );
+  }
+}
