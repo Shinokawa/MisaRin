@@ -59,6 +59,17 @@ class _BackgroundOption {
   final String label;
 
   bool get isTransparent => color.alpha == 0;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _BackgroundOption &&
+        other.color.value == color.value &&
+        other.label == label;
+  }
+
+  @override
+  int get hashCode => Object.hash(color.value, label);
 }
 
 class _WorkspacePresetOption {
