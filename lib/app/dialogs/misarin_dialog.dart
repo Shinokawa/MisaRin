@@ -45,10 +45,8 @@ class MisarinDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     if (isMobileOrPhone(context)) {
       return Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 24.0),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (title != null) ...[
               DefaultTextStyle(
@@ -57,9 +55,16 @@ class MisarinDialog extends StatelessWidget {
               ),
               const SizedBox(height: 16),
             ],
-            Flexible(child: SingleChildScrollView(child: content)),
+            // 内容区域占据绝大部分空间并可滚动
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                child: content,
+              ),
+            ),
+            // 底部按钮区域固定在底部
             if (actions.isNotEmpty) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -83,4 +88,3 @@ class MisarinDialog extends StatelessWidget {
     );
   }
 }
-
