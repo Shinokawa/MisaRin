@@ -16,6 +16,7 @@ import '../utils/tablet_input_bridge.dart';
 import '../../performance/stroke_latency_monitor.dart';
 import 'misarin_dialog.dart';
 import '../../brushes/brush_library.dart';
+import '../../mobile/mobile_utils.dart';
 import '../utils/file_manager.dart';
 
 const int _autoSaveCleanupStepMb = 50;
@@ -124,12 +125,36 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final isMobile = isMobileOrPhone(context);
     final List<_SettingsSection> sections = [
       _SettingsSection.general,
       _SettingsSection.input,
       _SettingsSection.storage,
       _SettingsSection.about,
     ];
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final section in sections) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 24, bottom: 12),
+              child: Text(
+                _sectionLabel(context, section),
+                style: theme.typography.subtitle?.copyWith(
+                  color: theme.accentColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            _buildSectionContent(context, section),
+            const SizedBox(height: 8),
+            const Divider(),
+          ],
+        ],
+      );
+    }
 
     final Widget body = Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
