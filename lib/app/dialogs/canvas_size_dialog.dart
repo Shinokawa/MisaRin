@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:misa_rin/mobile/responsive_dialog.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/l10n.dart';
@@ -22,7 +23,7 @@ Future<CanvasSizeConfig?> showCanvasSizeDialog(
   required int initialHeight,
   CanvasResizeAnchor initialAnchor = CanvasResizeAnchor.center,
 }) {
-  return showDialog<CanvasSizeConfig>(
+  return showResponsiveDialog<CanvasSizeConfig>(
     context: context,
     builder: (context) => _CanvasSizeDialog(
       initialWidth: initialWidth,

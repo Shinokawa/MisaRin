@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' show FramePhase, FrameTiming;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:misa_rin/mobile/responsive_dialog.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' as material;
 import 'package:flutter/scheduler.dart';
@@ -23,6 +24,8 @@ import 'workspace/canvas_workspace_controller.dart';
 import 'view/canvas_perf_stress_page.dart';
 import 'project/project_repository.dart';
 import 'utils/file_manager.dart';
+import '../mobile/mobile_home_page.dart';
+import '../mobile/mobile_utils.dart';
 
 const bool _kCanvasPerfStressMode = bool.fromEnvironment(
   'MISA_RIN_CANVAS_PERF_STRESS',
@@ -133,7 +136,7 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
     }
     final String sizeText = _formatBytes(totalBytes);
     final String limitText = _formatBytes(thresholdBytes);
-    await showDialog<void>(
+    await showResponsiveDialog<void>(
       context: context,
       builder: (dialogContext) {
         final l10n = dialogContext.l10n;
@@ -475,7 +478,11 @@ class _MisarinAppState extends State<MisarinApp> with WindowListener {
             );
           },
           home: (!_kCanvasPerfStressMode || kIsWeb)
-              ? const MisarinHomePage()
+              ? Builder(
+                  builder: (context) => isMobileOrPhone(context)
+                      ? const MobileHomePage()
+                      : const MisarinHomePage(),
+                )
               : const CanvasPerfStressPage(),
         ),
       ),

@@ -1,5 +1,8 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../mobile/responsive_dialog.dart';
+import '../../mobile/mobile_utils.dart';
+
 Future<T?> showMisarinDialog<T>({
   required BuildContext context,
   Widget? title,
@@ -9,7 +12,7 @@ Future<T?> showMisarinDialog<T>({
   double maxWidth = 560,
   bool barrierDismissible = true,
 }) {
-  return showDialog<T>(
+  return showResponsiveDialog<T>(
     context: context,
     barrierDismissible: barrierDismissible,
     builder: (dialogContext) => MisarinDialog(
@@ -40,6 +43,35 @@ class MisarinDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isMobileOrPhone(context)) {
+      return Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (title != null) ...[
+              DefaultTextStyle(
+                style: FluentTheme.of(context).typography.title ?? const TextStyle(),
+                child: title!,
+              ),
+              const SizedBox(height: 16),
+            ],
+            Flexible(child: SingleChildScrollView(child: content)),
+            if (actions.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.end,
+                children: actions,
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
     final Widget body = contentWidth == null
         ? content
         : SizedBox(width: contentWidth, child: content);
@@ -51,3 +83,4 @@ class MisarinDialog extends StatelessWidget {
     );
   }
 }
+

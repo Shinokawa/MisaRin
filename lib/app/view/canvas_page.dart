@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:misa_rin/mobile/responsive_dialog.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/widgets.dart'
     show
@@ -809,7 +810,7 @@ class CanvasPageState extends State<CanvasPage> {
 
   Future<_ExportChoice?> _showExportFormatDialog() async {
     final l10n = context.l10n;
-    return showDialog<_ExportChoice?>(
+    return showResponsiveDialog<_ExportChoice?>(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {
@@ -1142,7 +1143,7 @@ class CanvasPageState extends State<CanvasPage> {
 
   Future<_ExitAction?> _showExitDialog({String? title, String? content}) {
     final l10n = context.l10n;
-    return showDialog<_ExitAction>(
+    return showResponsiveDialog<_ExitAction>(
       context: context,
       barrierDismissible: true,
       builder: (context) => MisarinDialog(

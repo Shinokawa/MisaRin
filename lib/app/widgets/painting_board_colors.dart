@@ -25,7 +25,7 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
   }) async {
     Color previewColor = initialColor;
     _ColorAdjustMode currentMode = _ColorAdjustMode.fluentBox;
-    final Color? result = await showDialog<Color>(
+    final Color? result = await showResponsiveDialog<Color>(
       context: context,
       barrierDismissible: true,
       builder: (context) {

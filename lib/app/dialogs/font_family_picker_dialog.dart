@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:misa_rin/mobile/responsive_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/l10n.dart';
@@ -14,7 +15,7 @@ Future<String?> showFontFamilyPickerDialog(
   bool isLoading = false,
   double? initialPreviewSize,
 }) {
-  return showDialog<String>(
+  return showResponsiveDialog<String>(
     context: context,
     builder: (context) => FontFamilyPickerDialog(
       fontFamilies: fontFamilies,

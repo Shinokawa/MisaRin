@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:misa_rin/mobile/responsive_dialog.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/l10n.dart';
@@ -23,7 +24,7 @@ Future<ImageResizeConfig?> showImageSizeDialog(
   required int initialWidth,
   required int initialHeight,
 }) {
-  return showDialog<ImageResizeConfig>(
+  return showResponsiveDialog<ImageResizeConfig>(
     context: context,
     builder: (context) => _ImageSizeDialog(
       initialWidth: initialWidth,

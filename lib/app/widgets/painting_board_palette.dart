@@ -117,7 +117,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
 
     int? result;
     try {
-      result = await showDialog<int>(
+      result = await showResponsiveDialog<int>(
         context: context,
         builder: (context) {
           final theme = FluentTheme.of(context);
@@ -413,7 +413,7 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       return null;
     }
     _PaletteExportFormatOption selected = options.first;
-    return showDialog<_PaletteExportFormatOption>(
+    return showResponsiveDialog<_PaletteExportFormatOption>(
       context: context,
       barrierDismissible: true,
       builder: (context) {

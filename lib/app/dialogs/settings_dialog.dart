@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:misa_rin/mobile/responsive_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
@@ -25,7 +26,7 @@ Future<void> showSettingsDialog(
 }) {
   final GlobalKey<_SettingsDialogContentState> contentKey =
       GlobalKey<_SettingsDialogContentState>();
-  return showDialog<void>(
+  return showResponsiveDialog<void>(
     context: context,
     builder: (dialogContext) {
       final l10n = dialogContext.l10n;
@@ -623,7 +624,7 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
 }
 
 Future<void> _showTabletInspectDialog(BuildContext context) async {
-  return showDialog<void>(
+  return showResponsiveDialog<void>(
     context: context,
     builder: (dialogContext) {
       final l10n = dialogContext.l10n;

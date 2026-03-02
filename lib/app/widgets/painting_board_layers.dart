@@ -105,7 +105,7 @@ mixin _PaintingBoardLayerMixin
     );
     String? errorText;
 
-    final String? result = await showDialog<String>(
+    final String? result = await showResponsiveDialog<String>(
       context: context,
       builder: (dialogContext) {
         final l10n = dialogContext.l10n;

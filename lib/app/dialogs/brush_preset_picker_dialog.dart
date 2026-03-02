@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:misa_rin/mobile/responsive_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show Localizations;
 
@@ -24,7 +25,7 @@ Future<String?> showBrushPresetPickerDialog(
   required BrushLibrary library,
   required String selectedId,
 }) {
-  return showDialog<String>(
+  return showResponsiveDialog<String>(
     context: context,
     builder: (_) => _BrushPresetPickerDialog(
       library: library,
