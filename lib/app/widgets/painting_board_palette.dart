@@ -413,7 +413,91 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       return null;
     }
     _PaletteExportFormatOption selected = options.first;
-    return showResponsiveDialog<_PaletteExportFormatOption>(
+    if (isMobileOrPhone(context)) {
+      return showMobileBottomSheet<_PaletteExportFormatOption>(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) {
+          final FluentThemeData theme = FluentTheme.of(context);
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.selectExportFormat,
+                      style: theme.typography.subtitle
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      l10n.selectPaletteFormatDesc,
+                      style: theme.typography.body,
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: options.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 6),
+                        itemBuilder: (context, index) {
+                          final option = options[index];
+                          final bool isActive = option == selected;
+                          return RadioButton(
+                            checked: isActive,
+                            onChanged: (checked) {
+                              if (checked != true) {
+                                return;
+                              }
+                              setState(() => selected = option);
+                            },
+                            content: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${option.name} (.${option.extension.toUpperCase()})',
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  option.description,
+                                  style: theme.typography.caption,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Button(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text(l10n.cancel),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () =>
+                                Navigator.of(context).pop(selected),
+                            child: Text(l10n.next),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    }
+    return showDialog<_PaletteExportFormatOption>(
       context: context,
       barrierDismissible: true,
       builder: (context) {
