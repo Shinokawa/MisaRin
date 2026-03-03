@@ -1,11 +1,28 @@
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:flutter/foundation.dart' show Listenable;
+import 'package:flutter/foundation.dart' show Listenable, ValueNotifier;
 import 'package:flutter/material.dart' show Material;
 
 /// 移动端统一上拉菜单配置常量
 class MobileBottomSheetConstants {
   static const double topGap = 75.0;
   static const double borderRadius = 24.0;
+}
+
+class MobileBottomSheetController {
+  static final ValueNotifier<int> activeCount = ValueNotifier<int>(0);
+
+  static bool get isActive => activeCount.value > 0;
+
+  static void _push() {
+    activeCount.value += 1;
+  }
+
+  static void _pop() {
+    if (activeCount.value <= 0) {
+      return;
+    }
+    activeCount.value -= 1;
+  }
 }
 
 Future<T?> showMobileBottomSheet<T>({
@@ -31,12 +48,14 @@ Future<T?> showMobileBottomSheet<T>({
           builder: (context, _) => resolvedBuilder(context),
         );
 
-  return showGeneralDialog<T>(
+  MobileBottomSheetController._push();
+  final Future<T?> future = showGeneralDialog<T>(
     context: context,
     barrierDismissible: barrierDismissible,
     barrierLabel: 'Dismiss',
     barrierColor: Colors.black.withOpacity(0.4),
     transitionDuration: const Duration(milliseconds: 350),
+    useRootNavigator: true,
     pageBuilder: (context, animation, secondaryAnimation) {
       return Align(
         alignment: Alignment.bottomCenter,
@@ -100,4 +119,6 @@ Future<T?> showMobileBottomSheet<T>({
       );
     },
   );
+  future.whenComplete(MobileBottomSheetController._pop);
+  return future;
 }

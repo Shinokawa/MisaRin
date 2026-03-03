@@ -23,6 +23,9 @@ mixin _PaintingBoardBuildMixin
     if (!widget.isActive) {
       return false;
     }
+    if (MobileBottomSheetController.isActive) {
+      return false;
+    }
     return _referenceCards.isNotEmpty ||
         _referenceModelCards.isNotEmpty ||
         _paletteCards.isNotEmpty;
