@@ -256,6 +256,15 @@ class MenuDefinitionBuilder {
         ),
     ]);
 
+    _addSection(entries, <MenuEntry>[
+      if (handler.layerFreeTransform != null)
+        MenuActionEntry(
+          label: l10n.freeTransformTitle,
+          action: handler.layerFreeTransform,
+          shortcut: const SingleActivator(LogicalKeyboardKey.keyT, meta: true),
+        ),
+    ]);
+
     if (entries.isEmpty) {
       return null;
     }

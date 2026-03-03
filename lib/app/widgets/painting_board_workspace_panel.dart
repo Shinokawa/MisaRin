@@ -132,6 +132,7 @@ Offset _workspacePanelSpawnOffset(
   required double panelHeight,
   double additionalDx = 0,
   double additionalDy = 0,
+  double? topOverride,
   double margin = 16,
   double verticalGap = 12,
 }) {
@@ -172,6 +173,10 @@ Offset _workspacePanelSpawnOffset(
     final double baseTop = math.max(margin, settingsBottom + verticalGap);
     targetLeft = baseLeft;
     targetTop = baseTop;
+  }
+
+  if (topOverride != null) {
+    targetTop = topOverride;
   }
 
   targetLeft += additionalDx;

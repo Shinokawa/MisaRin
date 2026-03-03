@@ -66,6 +66,18 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
     return _penAntialiasLevel > 0;
   }
 
+  Offset _initialLayerTransformPanelOffset() {
+    const double panelMargin = 16;
+    const double panelTopOffset = panelMargin + 40;
+    return _workspacePanelSpawnOffset(
+      this,
+      panelWidth: _kLayerTransformPanelWidth,
+      panelHeight: _kLayerTransformPanelMinHeight,
+      topOverride: panelTopOffset,
+      margin: panelMargin,
+    );
+  }
+
   void toggleLayerFreeTransform() {
     if (_layerTransformModeActive) {
       _cancelLayerFreeTransform();
@@ -138,12 +150,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       _layerTransformRevision = 0;
       _layerTransformCursorWorkspacePosition = null;
       _layerTransformCursorHandle = null;
-      _layerTransformPanelOffset = _workspacePanelSpawnOffset(
-        this,
-        panelWidth: _kLayerTransformPanelWidth,
-        panelHeight: _kLayerTransformPanelMinHeight,
-        additionalDy: 12,
-      );
+      _layerTransformPanelOffset = _initialLayerTransformPanelOffset();
       _layerTransformUsingBackendPreview = true;
       _layerTransformBackendLayerId = activeLayer.id;
     });
@@ -245,12 +252,7 @@ mixin _PaintingBoardLayerTransformMixin on _PaintingBoardBase {
       _layerTransformRevision = 0;
       _layerTransformCursorWorkspacePosition = null;
       _layerTransformCursorHandle = null;
-      _layerTransformPanelOffset = _workspacePanelSpawnOffset(
-        this,
-        panelWidth: _kLayerTransformPanelWidth,
-        panelHeight: _kLayerTransformPanelMinHeight,
-        additionalDy: 12,
-      );
+      _layerTransformPanelOffset = _initialLayerTransformPanelOffset();
       _layerTransformUsingBackendPreview = false;
       _layerTransformBackendLayerId = null;
     });

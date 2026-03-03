@@ -53,6 +53,7 @@ import '../../mobile/mobile_utils.dart';
 import '../../mobile/mobile_menu_button.dart';
 import '../../mobile/mobile_right_buttons.dart';
 import '../../mobile/mobile_tool_buttons.dart';
+import '../../mobile/mobile_undo_redo_buttons.dart';
 
 class CanvasPage extends StatefulWidget {
   const CanvasPage({
@@ -2255,6 +2256,13 @@ class CanvasPageState extends State<CanvasPage> {
                 const Align(
                   alignment: Alignment.topRight,
                   child: MobileMenuButton(),
+                ),
+                Align(
+                  alignment: Alignment.topLeft,
+                  child: MobileUndoRedoButtons(
+                    onUndo: _handleUndo,
+                    onRedo: _handleRedo,
+                  ),
                 ),
               ],
             ),

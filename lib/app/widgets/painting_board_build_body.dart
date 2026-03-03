@@ -1324,6 +1324,9 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                 rebuildListenable: _mobileUiRebuildListenable,
                               ),
                             ),
+                            if (transformPanel != null) transformPanel,
+                            if (transformCursorOverlay != null)
+                              transformCursorOverlay,
                           ],
                           if (!suppressToolCursorOverlays &&
                               _toolCursorPosition != null &&
