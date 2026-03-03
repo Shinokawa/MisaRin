@@ -7,7 +7,7 @@ Future<_MobileImageExportDestination?> _showMobileImageExportDestinationDialog(
 ) {
   final l10n = context.l10n;
   if (isMobileOrPhone(context)) {
-    return showMobileBottomSheet<_MobileImageExportDestination?>(
+    return showMobileBottomSheetOnRootOverlay<_MobileImageExportDestination?>(
       context: context,
       heightFactor: 0.45,
       builder: (BuildContext context) {
@@ -97,6 +97,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
     }
 
     final BuildContext dialogContext = widget.dialogContext;
+    final bool useMobileSheet = isMobileOrPhone(dialogContext);
     final OverlayState? overlay = Overlay.maybeOf(dialogContext, rootOverlay: true);
     if (overlay == null) {
       return;
@@ -235,63 +236,137 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
       );
 
       try {
-        final ({int width, int height})? result =
-            await showMisarinDialog<({int width, int height})>(
-          context: context,
-          title: const Text('自定义分辨率'),
-          contentWidth: 360,
-          maxWidth: 420,
-          barrierDismissible: true,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              InfoLabel(
-                label: '宽度 (px)',
-                child: TextFormBox(
-                  controller: customWidthController,
-                  inputFormatters: <TextInputFormatter>[
-                    FilteringTextInputFormatter.digitsOnly,
+        final ({int width, int height})? result = isMobileOrPhone(context)
+            ? await showMobileBottomSheetOnRootOverlay<({int width, int height})?>(
+                context: widget.dialogContext,
+                heightFactor: 0.55,
+                builder: (BuildContext context) {
+                  final FluentThemeData theme = FluentTheme.of(context);
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '自定义分辨率',
+                          style: theme.typography.subtitle?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        InfoLabel(
+                          label: '宽度 (px)',
+                          child: TextFormBox(
+                            controller: customWidthController,
+                            inputFormatters: <TextInputFormatter>[
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        InfoLabel(
+                          label: '高度 (px)',
+                          child: TextFormBox(
+                            controller: customHeightController,
+                            inputFormatters: <TextInputFormatter>[
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          '提示：单边最大 8192px，总像素建议不超过 1600 万。',
+                        ),
+                        const Spacer(),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Button(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: Text(context.l10n.cancel),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: () {
+                                  final ({int width, int height})?
+                                      resolution = parseAndValidateResolution(
+                                    context,
+                                    widthText: customWidthController.text,
+                                    heightText: customHeightController.text,
+                                  );
+                                  if (resolution == null) {
+                                    return;
+                                  }
+                                  Navigator.of(context).pop(resolution);
+                                },
+                                child: const Text('确定'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              )
+            : await showMisarinDialog<({int width, int height})>(
+                context: context,
+                title: const Text('自定义分辨率'),
+                contentWidth: 360,
+                maxWidth: 420,
+                barrierDismissible: true,
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    InfoLabel(
+                      label: '宽度 (px)',
+                      child: TextFormBox(
+                        controller: customWidthController,
+                        inputFormatters: <TextInputFormatter>[
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    InfoLabel(
+                      label: '高度 (px)',
+                      child: TextFormBox(
+                        controller: customHeightController,
+                        inputFormatters: <TextInputFormatter>[
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      '提示：单边最大 8192px，总像素建议不超过 1600 万。',
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 12),
-              InfoLabel(
-                label: '高度 (px)',
-                child: TextFormBox(
-                  controller: customHeightController,
-                  inputFormatters: <TextInputFormatter>[
-                    FilteringTextInputFormatter.digitsOnly,
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                '提示：单边最大 8192px，总像素建议不超过 1600 万。',
-              ),
-            ],
-          ),
-          actions: [
-            Button(
-              child: Text(context.l10n.cancel),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            Button(
-              child: const Text('确定'),
-              onPressed: () {
-                final ({int width, int height})? resolution =
-                    parseAndValidateResolution(
-                  context,
-                  widthText: customWidthController.text,
-                  heightText: customHeightController.text,
-                );
-                if (resolution == null) {
-                  return;
-                }
-                Navigator.of(context).pop(resolution);
-              },
-            ),
-          ],
-        );
+                actions: [
+                  Button(
+                    child: Text(context.l10n.cancel),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  Button(
+                    child: const Text('确定'),
+                    onPressed: () {
+                      final ({int width, int height})? resolution =
+                          parseAndValidateResolution(
+                        context,
+                        widthText: customWidthController.text,
+                        heightText: customHeightController.text,
+                      );
+                      if (resolution == null) {
+                        return;
+                      }
+                      Navigator.of(context).pop(resolution);
+                    },
+                  ),
+                ],
+              );
 
         if (result == null) {
           return false;
@@ -507,9 +582,13 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
               },
               child: ColoredBox(color: barrierColor),
             ),
-            Center(
-              child: StatefulBuilder(
-                builder: (BuildContext context, StateSetter setDialogState) {
+            Builder(
+              builder: (BuildContext context) {
+                final FluentThemeData sheetTheme = FluentTheme.of(context);
+                final double sheetHeight =
+                    MediaQuery.sizeOf(context).height * 0.85;
+                final Widget dialogBody = StatefulBuilder(
+                  builder: (BuildContext context, StateSetter setDialogState) {
                   dialogSetState = setDialogState;
                   final FluentThemeData theme = FluentTheme.of(context);
                   final Color border =
@@ -784,17 +863,15 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                     );
                   }
 
-                  return MisarinDialog(
-                    title: Row(children: [const Text('烘焙')]),
-                    contentWidth: null,
-                    maxWidth: 920,
-                    content: SingleChildScrollView(
+                  final Widget dialogContent = SingleChildScrollView(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           buildPreviewArea(),
                           const SizedBox(height: 12),
-                                                    Row(
+                          Builder(
+                            builder: (context) {
+                              final Widget settingsRow = Row(
                                                       crossAxisAlignment: CrossAxisAlignment.start,
                                                       children: [
                                                         InfoLabel(
@@ -1167,7 +1244,16 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                                                               ),
                                                             ),
                                                           ],
-                                                        ),                          const SizedBox(height: 12),
+                                                        );
+                              return useMobileSheet
+                                  ? SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: settingsRow,
+                                    )
+                                  : settingsRow;
+                            },
+                          ),
+                          const SizedBox(height: 12),
                           Row(
                             children: [
                               Text(context.l10n.brightness),
@@ -1301,22 +1387,131 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                           ),
                         ],
                       ),
+                    );
+
+                    if (useMobileSheet) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                            child: Text(
+                              '烘焙',
+                              style: theme.typography.subtitle?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Expanded(child: dialogContent),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Button(
+                                    onPressed: isBaking ? null : closeDialog,
+                                    child: Text(dialogContext.l10n.cancel),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed: isBaking
+                                        ? null
+                                        : () => exportBakeResult(
+                                              context,
+                                              setDialogState,
+                                            ),
+                                    child: const Text('导出'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    return MisarinDialog(
+                      title: Row(children: [const Text('烘焙')]),
+                      contentWidth: null,
+                      maxWidth: 920,
+                      content: dialogContent,
+                      actions: [
+                        Button(
+                          onPressed: isBaking ? null : closeDialog,
+                          child: Text(dialogContext.l10n.cancel),
+                        ),
+                        Button(
+                          onPressed: isBaking
+                              ? null
+                              : () => exportBakeResult(
+                                    context,
+                                    setDialogState,
+                                  ),
+                          child: const Text('导出'),
+                        ),
+                      ],
+                    );
+                  },
+                );
+                if (useMobileSheet) {
+                  return Align(
+                    alignment: Alignment.bottomCenter,
+                    child: material.Material(
+                      color: Colors.transparent,
+                      child: Container(
+                        width: double.infinity,
+                        height: sheetHeight,
+                        decoration: BoxDecoration(
+                          color: sheetTheme.micaBackgroundColor,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(
+                              MobileBottomSheetConstants.borderRadius,
+                            ),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 20,
+                              offset: const Offset(0, -2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 12),
+                            Container(
+                              width: 36,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: sheetTheme
+                                    .resources
+                                    .controlStrokeColorDefault
+                                    .withOpacity(0.6),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(
+                                    MobileBottomSheetConstants.borderRadius,
+                                  ),
+                                ),
+                                child: dialogBody,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    actions: [
-                      Button(
-                        onPressed: isBaking ? null : closeDialog,
-                        child: Text(dialogContext.l10n.cancel),
-                      ),
-                      Button(
-                        onPressed: isBaking
-                            ? null
-                            : () => exportBakeResult(context, setDialogState),
-                        child: const Text('导出'),
-                      ),
-                    ],
                   );
-                },
-              ),
+                }
+                return Center(child: dialogBody);
+              },
             ),
           ],
         );

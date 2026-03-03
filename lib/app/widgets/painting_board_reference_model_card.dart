@@ -333,7 +333,7 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
       onChanged: widget.onSizeChanged,
       child: WorkspaceFloatingPanel(
         title: widget.title,
-        width: _referenceModelCardWidth,
+        width: _referenceModelCardWidthForContext(context),
         headerActions: [
           if (widget.supportsActions)
             HoverDetailTooltip(

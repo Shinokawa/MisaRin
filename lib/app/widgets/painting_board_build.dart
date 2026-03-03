@@ -23,9 +23,6 @@ mixin _PaintingBoardBuildMixin
     if (!widget.isActive) {
       return false;
     }
-    if (MobileBottomSheetController.isActive) {
-      return false;
-    }
     return _referenceCards.isNotEmpty ||
         _referenceModelCards.isNotEmpty ||
         _paletteCards.isNotEmpty;
@@ -91,7 +88,7 @@ mixin _PaintingBoardBuildMixin
     if (renderObject is! RenderBox) {
       return const SizedBox.shrink();
     }
-    return Stack(
+    final Widget stack = Stack(
       fit: StackFit.expand,
       clipBehavior: Clip.none,
       children: [
@@ -99,6 +96,15 @@ mixin _PaintingBoardBuildMixin
         ..._buildReferenceModelCards(),
         ..._buildPaletteCards(),
       ],
+    );
+    return ValueListenableBuilder<int>(
+      valueListenable: MobileBottomSheetController.activeCount,
+      builder: (context, activeCount, _) {
+        if (activeCount <= 0) {
+          return stack;
+        }
+        return Offstage(offstage: true, child: stack);
+      },
     );
   }
 

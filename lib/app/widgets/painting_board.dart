@@ -23,7 +23,7 @@ import 'package:misa_rin/utils/io_shim.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material
-    show ReorderableDragStartListener, ReorderableListView;
+    show Material, ReorderableDragStartListener, ReorderableListView;
 import 'package:flutter/painting.dart' show MatrixUtils;
 import 'package:flutter/services.dart'
     show
