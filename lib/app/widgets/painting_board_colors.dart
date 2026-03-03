@@ -373,8 +373,10 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     await showMobileBottomSheet<void>(
       context: context,
       rebuildListenable: _mobileUiRebuildListenable,
+      heightFactor: 0.7,
       builder: (context) {
         final theme = FluentTheme.of(context);
+        final l10n = context.l10n;
         final List<Color> recentColors = _resolveMobileRecentColors();
         return StatefulBuilder(
           builder: (context, setState) {
@@ -480,10 +482,21 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
                   );
 
             return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Text(
+                    l10n.colorPickerTitle,
+                    style: theme.typography.subtitle?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
                     child: content,
                   ),
                 ),

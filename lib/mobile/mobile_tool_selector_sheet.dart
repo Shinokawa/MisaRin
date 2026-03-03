@@ -1,5 +1,6 @@
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../app/l10n/l10n.dart';
 import '../../canvas/canvas_tools.dart';
 
 class MobileToolSelectorSheet extends StatelessWidget {
@@ -15,6 +16,7 @@ class MobileToolSelectorSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
+    final l10n = context.l10n;
 
     final List<_ToolItem> tools = [
       _ToolItem(CanvasTool.pen, FluentIcons.edit, '画笔'),
@@ -35,31 +37,44 @@ class MobileToolSelectorSheet extends StatelessWidget {
     ];
 
     return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 1.0,
-        ),
-        itemCount: tools.length,
-        itemBuilder: (context, index) {
-          final tool = tools[index];
-          final isSelected = tool.tool == activeTool;
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.menuTool,
+            style: theme.typography.subtitle?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: GridView.builder(
+              physics: const BouncingScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 0.82,
+              ),
+              itemCount: tools.length,
+              itemBuilder: (context, index) {
+                final tool = tools[index];
+                final isSelected = tool.tool == activeTool;
 
-          return _ToolGridItem(
-            icon: tool.icon,
-            label: tool.label,
-            isSelected: isSelected,
-            onPressed: () {
-              onToolSelected(tool.tool);
-              Navigator.of(context).pop();
-            },
-          );
-        },
+                return _ToolGridItem(
+                  icon: tool.icon,
+                  label: tool.label,
+                  isSelected: isSelected,
+                  onPressed: () {
+                    onToolSelected(tool.tool);
+                    Navigator.of(context).pop();
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -90,6 +105,8 @@ class _ToolGridItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final Color color = isSelected ? Colors.white : theme.resources.textFillColorPrimary;
+    const double labelSpacing = 4;
+    const double labelHeight = 16;
 
     Widget iconWidget;
     if (icon is IconData) {
@@ -103,38 +120,55 @@ class _ToolGridItem extends StatelessWidget {
       );
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Expanded(
-          child: Button(
-            onPressed: onPressed,
-            style: ButtonStyle(
-              backgroundColor: WidgetStateProperty.resolveWith((states) {
-                if (isSelected) return theme.accentColor;
-                if (states.isHovered) return theme.resources.subtleFillColorTertiary;
-                return theme.resources.subtleFillColorSecondary;
-              }),
-              shape: WidgetStateProperty.all(RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              )),
-              padding: WidgetStateProperty.all(EdgeInsets.zero),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        double buttonSize = constraints.maxWidth;
+        final double maxButton = constraints.maxHeight - labelHeight - labelSpacing;
+        if (maxButton > 0 && maxButton < buttonSize) {
+          buttonSize = maxButton;
+        }
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox.square(
+              dimension: buttonSize,
+              child: Button(
+                onPressed: onPressed,
+                style: ButtonStyle(
+                  backgroundColor: WidgetStateProperty.resolveWith((states) {
+                    if (isSelected) return theme.accentColor;
+                    if (states.isHovered) {
+                      return theme.resources.subtleFillColorTertiary;
+                    }
+                    return theme.resources.subtleFillColorSecondary;
+                  }),
+                  shape: WidgetStateProperty.all(RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  )),
+                  padding: WidgetStateProperty.all(EdgeInsets.zero),
+                ),
+                child: iconWidget,
+              ),
             ),
-            child: iconWidget,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: theme.typography.caption?.copyWith(
-            fontSize: 12,
-            color: isSelected ? theme.accentColor : null,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-        ),
-      ],
+            const SizedBox(height: labelSpacing),
+            SizedBox(
+              height: labelHeight,
+              child: Center(
+                child: Text(
+                  label,
+                  style: theme.typography.caption?.copyWith(
+                    fontSize: 12,
+                    color: isSelected ? theme.accentColor : null,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -348,6 +348,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuWindow => 'Window';
 
   @override
+  String get menuRoot => 'Menu';
+
+  @override
   String get menuAbout => 'About Misa Rin';
 
   @override

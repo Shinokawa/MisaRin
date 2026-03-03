@@ -14,6 +14,7 @@ Future<void> showProjectManagerDialog(BuildContext context) {
   final l10n = context.l10n;
   return showResponsiveDialog<void>(
     context: context,
+    mobileHeightFactor: 0.9,
     builder: (dialogContext) => MisarinDialog(
       title: Text(l10n.projectManagerTitle),
       content: const _ProjectManagerContent(),

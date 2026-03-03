@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show Listenable;
 import 'mobile_bottom_sheet.dart';
 import 'mobile_rounded_button.dart';
 import '../app/dialogs/misarin_dialog.dart';
+import '../app/l10n/l10n.dart';
 
 class MobileRightButtons extends StatelessWidget {
   const MobileRightButtons({
@@ -44,7 +45,7 @@ class MobileRightButtons extends StatelessWidget {
       context: context,
       rebuildListenable: rebuildListenable,
       builder: (context) => MisarinDialog(
-        title: const Text('Layers'),
+        title: Text(context.l10n.layerManagerTitle),
         content: layerPanelBuilder(context),
       ),
     );

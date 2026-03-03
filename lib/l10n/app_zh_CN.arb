@@ -165,6 +165,7 @@
   "menuView": "视图",
   "menuWorkspace": "工作区",
   "menuWindow": "窗口",
+  "menuRoot": "菜单",
   "menuAbout": "关于 Misa Rin",
   "menuPreferences": "偏好设置…",
   "menuNewEllipsis": "新建…",

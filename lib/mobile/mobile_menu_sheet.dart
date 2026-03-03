@@ -55,7 +55,7 @@ class _MobileMenuSheetState extends State<MobileMenuSheet> {
       );
     }
     _stack.add(_MenuLevel(
-      title: 'Menu',
+      title: l10n.menuRoot,
       entries: rootEntries,
     ));
     _initialized = true;
@@ -101,14 +101,14 @@ class _MobileMenuSheetState extends State<MobileMenuSheet> {
                     )
                   else
                     const SizedBox(width: 40),
+                  const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       current.title,
                       style: theme.typography.subtitle?.copyWith(fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
+                      textAlign: TextAlign.left,
                     ),
                   ),
-                  const SizedBox(width: 40), // Balance
                 ],
               ),
             ),

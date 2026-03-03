@@ -339,6 +339,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get menuWindow => '창';
 
   @override
+  String get menuRoot => '메뉴';
+
+  @override
   String get menuAbout => 'Misa Rin 정보';
 
   @override

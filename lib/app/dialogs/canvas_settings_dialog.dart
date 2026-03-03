@@ -91,6 +91,7 @@ Future<NewProjectConfig?> showCanvasSettingsDialog(
   return showResponsiveDialog<NewProjectConfig>(
     context: context,
     barrierDismissible: true,
+    mobileHeightFactor: 0.9,
     builder: (_) => _CanvasSettingsDialog(
       initialSettings: initialSettings ?? CanvasSettings.defaults,
     ),

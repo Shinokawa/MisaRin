@@ -5,6 +5,7 @@ import 'package:flutter/material.dart' show Material;
 /// 移动端统一上拉菜单配置常量
 class MobileBottomSheetConstants {
   static const double topGap = 75.0;
+  static const double maxHeightFactor = 0.7;
   static const double borderRadius = 24.0;
 }
 
@@ -31,6 +32,7 @@ Future<T?> showMobileBottomSheet<T>({
   WidgetBuilder? builder,
   Listenable? rebuildListenable,
   bool barrierDismissible = true,
+  double? heightFactor,
 }) {
   assert(
     (child != null) ^ (builder != null),
@@ -38,8 +40,12 @@ Future<T?> showMobileBottomSheet<T>({
   );
   final theme = FluentTheme.of(context);
   final screenHeight = MediaQuery.sizeOf(context).height;
-  // 固定高度 = 屏幕高度 - 顶部留白
-  final sheetHeight = screenHeight - MobileBottomSheetConstants.topGap;
+  final double resolvedHeightFactor =
+      (heightFactor ?? MobileBottomSheetConstants.maxHeightFactor)
+          .clamp(0.2, 1.0)
+          .toDouble();
+  // 固定高度 = 屏幕高度 * 比例（默认 50%）
+  final sheetHeight = screenHeight * resolvedHeightFactor;
   final WidgetBuilder resolvedBuilder = builder ?? (_) => child!;
   final Widget content = rebuildListenable == null
       ? Builder(builder: resolvedBuilder)

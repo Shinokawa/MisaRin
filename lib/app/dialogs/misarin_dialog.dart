@@ -55,11 +55,15 @@ class MisarinDialog extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 24.0),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (title != null) ...[
-                DefaultTextStyle(
-                  style: mobileTheme.typography.title ?? const TextStyle(),
-                  child: title!,
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: DefaultTextStyle(
+                    style: mobileTheme.typography.title ?? const TextStyle(),
+                    child: title!,
+                  ),
                 ),
                 const SizedBox(height: 16),
               ],

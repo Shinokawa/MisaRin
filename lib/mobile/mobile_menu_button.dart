@@ -26,6 +26,7 @@ class MobileMenuButton extends StatelessWidget {
   void _showMenu(BuildContext context) {
     showMobileBottomSheet(
       context: context,
+      heightFactor: 0.7,
       child: const MobileMenuSheet(),
     );
   }

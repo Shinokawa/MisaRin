@@ -692,6 +692,12 @@ abstract class AppLocalizations {
   /// **'Window'**
   String get menuWindow;
 
+  /// No description provided for @menuRoot.
+  ///
+  /// In en, this message translates to:
+  /// **'Menu'**
+  String get menuRoot;
+
   /// No description provided for @menuAbout.
   ///
   /// In en, this message translates to:

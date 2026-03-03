@@ -165,6 +165,7 @@
   "menuView": "View",
   "menuWorkspace": "Workspace",
   "menuWindow": "Window",
+  "menuRoot": "Menu",
   "menuAbout": "About Misa Rin",
   "menuPreferences": "Preferences…",
   "menuNewEllipsis": "New…",

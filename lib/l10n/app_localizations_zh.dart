@@ -337,6 +337,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuWindow => '窗口';
 
   @override
+  String get menuRoot => '菜单';
+
+  @override
   String get menuAbout => '关于 Misa Rin';
 
   @override
@@ -2540,6 +2543,9 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
   String get menuWindow => '窗口';
 
   @override
+  String get menuRoot => '菜单';
+
+  @override
   String get menuAbout => '关于 Misa Rin';
 
   @override
@@ -3585,6 +3591,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuWindow => '視窗';
+
+  @override
+  String get menuRoot => '選單';
 
   @override
   String get menuAbout => '關於 Misa Rin';

@@ -14,6 +14,7 @@ Future<ProjectSummary?> showRecentProjectsDialog(BuildContext context) {
   return showResponsiveDialog<ProjectSummary>(
     context: context,
     barrierDismissible: true,
+    mobileHeightFactor: 0.9,
     builder: (_) => const _RecentProjectsDialog(),
   );
 }

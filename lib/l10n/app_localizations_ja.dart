@@ -338,6 +338,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuWindow => 'ウィンドウ';
 
   @override
+  String get menuRoot => 'メニュー';
+
+  @override
   String get menuAbout => 'Misa Rin について';
 
   @override
