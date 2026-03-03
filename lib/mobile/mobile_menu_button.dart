@@ -11,7 +11,7 @@ class MobileMenuButton extends StatelessWidget {
     final theme = FluentTheme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 42, 12, 12),
+      padding: const EdgeInsets.fromLTRB(12, 62, 12, 12),
       child: MobileRoundedButton(
         onPressed: () => _showMenu(context),
         child: Icon(

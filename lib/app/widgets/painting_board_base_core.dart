@@ -2243,6 +2243,12 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required int fillGap,
     required int antialiasLevel,
   }) async {
+    if (kDebugMode) {
+      debugPrint(
+        '[bucket] backend entry supported=$_backendSupported ready=$_backendReady '
+        'pos=$position',
+      );
+    }
     if (!_backendSupported) {
       await _owner._pushUndoSnapshot();
       _owner._controller.floodFill(
@@ -2259,10 +2265,16 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
         _owner.setState(() {});
       }
       _owner._markDirty();
+      if (kDebugMode) {
+        debugPrint('[bucket] backend skipped: not supported');
+      }
       return true;
     }
 
     if (!_backendReady) {
+      if (kDebugMode) {
+        debugPrint('[bucket] backend unavailable: not ready');
+      }
       _owner._showBackendCanvasMessage('画布后端尚未准备好。');
       return false;
     }
@@ -2273,12 +2285,24 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
         ? _owner._backendCanvasLayerIndexForId(activeLayerId)
         : null;
     if (layerIndex == null) {
+      if (kDebugMode) {
+        debugPrint(
+          '[bucket] backend abort: layerIndex null '
+          'activeLayerId=$activeLayerId',
+        );
+      }
       return false;
     }
     final Size engineSize = _owner._backendCanvasEngineSize ?? _owner._canvasSize;
     final int engineWidth = engineSize.width.round();
     final int engineHeight = engineSize.height.round();
     if (engineWidth <= 0 || engineHeight <= 0) {
+      if (kDebugMode) {
+        debugPrint(
+          '[bucket] backend abort: invalid engineSize '
+          '${engineSize.width}x${engineSize.height}',
+        );
+      }
       return false;
     }
     final Offset enginePos = _owner._backendToEngineSpace(position);
@@ -2288,6 +2312,12 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
         startY < 0 ||
         startX >= engineWidth ||
         startY >= engineHeight) {
+      if (kDebugMode) {
+        debugPrint(
+          '[bucket] backend abort: out of bounds '
+          'start=($startX,$startY) engine=${engineWidth}x$engineHeight',
+        );
+      }
       return false;
     }
     final Uint8List? selectionMaskForBackend =
@@ -2317,6 +2347,14 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
       swallowColors: swallowColorsArgb,
       selectionMask: selectionMaskForBackend,
     );
+    if (kDebugMode) {
+      debugPrint(
+        '[bucket] backend result=$applied '
+        'layerIndex=$layerIndex start=($startX,$startY) '
+        'engine=${engineWidth}x$engineHeight '
+        'selectionMask=${selectionMaskForBackend?.length ?? 0}',
+      );
+    }
     if (applied) {
       _owner._recordBackendHistoryAction(layerId: activeLayerId);
       if (_owner.mounted) {

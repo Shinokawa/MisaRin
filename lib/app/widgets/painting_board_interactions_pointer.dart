@@ -225,7 +225,17 @@ extension _PaintingBoardInteractionPointerImpl
         break;
       case CanvasTool.bucket:
         _focusNode.requestFocus();
-        if (!isPointInsideSelection(boardLocal)) {
+        final bool selectionOk = isPointInsideSelection(boardLocal);
+        if (kDebugMode) {
+          debugPrint(
+            '[bucket] down kind=${event.kind} down=${event.down} '
+            'buttons=${event.buttons} local=${event.localPosition} '
+            'boardLocal=$boardLocal insideBoard=$pointerInsideBoard '
+            'selectionOk=$selectionOk locked=${_isActiveLayerLocked()} '
+            'backendReady=${_backend.isReady} backendSupported=${_backend.isSupported}',
+          );
+        }
+        if (!selectionOk) {
           return;
         }
         unawaited(_applyPaintBucket(boardLocal));

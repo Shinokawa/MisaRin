@@ -151,13 +151,48 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
   }
 
   Future<void> _applyPaintBucket(Offset position) async {
+    if (kDebugMode) {
+      debugPrint('[bucket] apply position=$position');
+      final String? activeLayerId = _controller.activeLayerId;
+      if (activeLayerId != null && _backend.isReady) {
+        final _LayerPixels? layer = _backend.readLayerPixelsFromBackend(
+          activeLayerId,
+        );
+        if (layer != null) {
+          final Offset enginePos = _backendToEngineSpace(position);
+          final int x = enginePos.dx.floor();
+          final int y = enginePos.dy.floor();
+          if (x >= 0 && y >= 0 && x < layer.width && y < layer.height) {
+            final int pixel = layer.pixels[y * layer.width + x];
+            debugPrint(
+              '[bucket] debug base=0x${pixel.toRadixString(16).padLeft(8, '0')} '
+              'fill=0x${_primaryColor.value.toRadixString(16).padLeft(8, '0')} '
+              'engine=${layer.width}x${layer.height} start=($x,$y)',
+            );
+          } else {
+            debugPrint(
+              '[bucket] debug start out of bounds engine=${layer.width}x${layer.height} '
+              'start=($x,$y)',
+            );
+          }
+        } else {
+          debugPrint('[bucket] debug readLayerPixelsFromBackend failed');
+        }
+      }
+    }
     if (!isPointInsideSelection(position)) {
+      if (kDebugMode) {
+        debugPrint('[bucket] blocked: outside selection');
+      }
       return;
     }
     if (_isActiveLayerLocked()) {
+      if (kDebugMode) {
+        debugPrint('[bucket] blocked: active layer locked');
+      }
       return;
     }
-    await _backend.bucketFill(
+    final bool applied = await _backend.bucketFill(
       position: position,
       color: _primaryColor,
       contiguous: _bucketContiguous,
@@ -167,6 +202,9 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       fillGap: _bucketFillGap,
       antialiasLevel: _bucketAntialiasLevel,
     );
+    if (kDebugMode) {
+      debugPrint('[bucket] backend applied=$applied');
+    }
   }
 
   void _updatePrimaryFromSquare(Offset position, double width, double height) {
