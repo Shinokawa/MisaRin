@@ -30,9 +30,33 @@ class _MobileMenuSheetState extends State<MobileMenuSheet> {
       dispatcher.current,
       context.l10n,
     );
+    final l10n = context.l10n;
+    final List<MenuEntry> rootEntries = [];
+    for (final menu in menus) {
+      if (menu.label == l10n.menuWorkspace || menu.label == l10n.menuWindow) {
+        continue;
+      }
+      if (menu.label == 'Misa Rin') {
+        MenuActionEntry? preferencesEntry;
+        for (final entry in menu.entries) {
+          if (entry is MenuActionEntry &&
+              entry.label == l10n.menuPreferences) {
+            preferencesEntry = entry;
+            break;
+          }
+        }
+        if (preferencesEntry != null) {
+          rootEntries.add(preferencesEntry);
+        }
+        continue;
+      }
+      rootEntries.add(
+        MenuSubmenuEntry(label: menu.label, entries: menu.entries),
+      );
+    }
     _stack.add(_MenuLevel(
       title: 'Menu',
-      entries: menus.map((m) => MenuSubmenuEntry(label: m.label, entries: m.entries)).toList(),
+      entries: rootEntries,
     ));
     _initialized = true;
   }
