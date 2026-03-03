@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 
 import '../l10n/l10n.dart';
 import '../models/image_resize_sampling.dart';
+import 'misarin_dialog.dart';
+import '../../mobile/mobile_utils.dart';
 
 class ImageResizeConfig {
   const ImageResizeConfig({
@@ -175,84 +177,97 @@ class _ImageSizeDialogState extends State<_ImageSizeDialog> {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final l10n = context.l10n;
+    final Widget content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InfoLabel(
+          label: l10n.widthPx,
+          child: TextBox(
+            controller: _widthController,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            keyboardType: TextInputType.number,
+            onSubmitted: _handleWidthSubmitted,
+          ),
+        ),
+        const SizedBox(height: 12),
+        InfoLabel(
+          label: l10n.heightPx,
+          child: TextBox(
+            controller: _heightController,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            keyboardType: TextInputType.number,
+            onSubmitted: _handleHeightSubmitted,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ToggleSwitch(
+          checked: _lockAspectRatio,
+          content: Text(l10n.lockAspectRatio),
+          onChanged: _toggleAspectLock,
+        ),
+        const SizedBox(height: 12),
+        InfoLabel(
+          label: l10n.samplingMethod,
+          child: ComboBox<ImageResizeSampling>(
+            value: _sampling,
+            items: [
+              for (final ImageResizeSampling option in ImageResizeSampling.values)
+                ComboBoxItem<ImageResizeSampling>(
+                  value: option,
+                  child: Text(option.label(l10n)),
+                ),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _sampling = value);
+              }
+            },
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _sampling.description(l10n),
+          style: theme.typography.caption,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          l10n.currentSize(_widthController.text, _heightController.text),
+          style: theme.typography.caption,
+        ),
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _errorMessage!,
+            style: theme.typography.caption?.copyWith(color: Colors.red),
+          ),
+        ],
+      ],
+    );
+
+    final List<Widget> actions = [
+      Button(
+        onPressed: () => Navigator.of(context).pop(),
+        child: Text(l10n.cancel),
+      ),
+      FilledButton(onPressed: _submit, child: Text(l10n.confirm)),
+    ];
+
+    if (isMobileOrPhone(context)) {
+      return MisarinDialog(
+        title: Text(l10n.imageSizeTitle),
+        content: content,
+        actions: actions,
+        contentWidth: null,
+        maxWidth: 420,
+      );
+    }
+
     return ContentDialog(
       constraints: const BoxConstraints(maxWidth: 380),
       title: Text(l10n.imageSizeTitle),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InfoLabel(
-            label: l10n.widthPx,
-            child: TextBox(
-              controller: _widthController,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              keyboardType: TextInputType.number,
-              onSubmitted: _handleWidthSubmitted,
-            ),
-          ),
-          const SizedBox(height: 12),
-          InfoLabel(
-            label: l10n.heightPx,
-            child: TextBox(
-              controller: _heightController,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              keyboardType: TextInputType.number,
-              onSubmitted: _handleHeightSubmitted,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ToggleSwitch(
-            checked: _lockAspectRatio,
-            content: Text(l10n.lockAspectRatio),
-            onChanged: _toggleAspectLock,
-          ),
-          const SizedBox(height: 12),
-          InfoLabel(
-            label: l10n.samplingMethod,
-            child: ComboBox<ImageResizeSampling>(
-              value: _sampling,
-              items: [
-                for (final ImageResizeSampling option
-                    in ImageResizeSampling.values)
-                  ComboBoxItem<ImageResizeSampling>(
-                    value: option,
-                    child: Text(option.label(l10n)),
-                  ),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _sampling = value);
-                }
-              },
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _sampling.description(l10n),
-            style: theme.typography.caption,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            l10n.currentSize(_widthController.text, _heightController.text),
-            style: theme.typography.caption,
-          ),
-          if (_errorMessage != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage!,
-              style: theme.typography.caption?.copyWith(color: Colors.red),
-            ),
-          ],
-        ],
-      ),
-      actions: [
-        Button(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.cancel),
-        ),
-        FilledButton(onPressed: _submit, child: Text(l10n.confirm)),
-      ],
+      content: content,
+      actions: actions,
     );
   }
 }

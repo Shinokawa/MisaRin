@@ -27,6 +27,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
     return LayoutBuilder(
       builder: (context, constraints) {
         final Size candidate = constraints.biggest;
+        final bool isLandscapeLayout = candidate.width > candidate.height;
         if (candidate.width.isFinite && candidate.height.isFinite) {
           _workspaceSize = candidate;
         }
@@ -1307,12 +1308,22 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                               ),
                             ),
                             Align(
-                              alignment: Alignment.centerRight,
+                              alignment: isLandscapeLayout
+                                  ? Alignment.bottomCenter
+                                  : Alignment.centerRight,
                               child: SafeArea(
-                                left: false,
+                                top: !isLandscapeLayout,
+                                left: isLandscapeLayout,
                                 child: Padding(
-                                  padding: const EdgeInsets.only(right: 16),
-                                  child: _buildMobileRecentColors(theme),
+                                  padding: isLandscapeLayout
+                                      ? const EdgeInsets.only(bottom: 16)
+                                      : const EdgeInsets.only(right: 16),
+                                  child: _buildMobileRecentColors(
+                                    theme,
+                                    axis: isLandscapeLayout
+                                        ? Axis.horizontal
+                                        : Axis.vertical,
+                                  ),
                                 ),
                               ),
                             ),

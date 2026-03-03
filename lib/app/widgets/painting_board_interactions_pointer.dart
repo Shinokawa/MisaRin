@@ -2,9 +2,109 @@ part of 'painting_board.dart';
 
 extension _PaintingBoardInteractionPointerImpl
     on _PaintingBoardInteractionMixin {
+  void _clearPendingTouchStroke() {
+    _pendingTouchStrokePointer = null;
+    _pendingTouchStrokeStart = null;
+    _pendingTouchStrokeTimestamp = null;
+    _pendingTouchStrokeEvent = null;
+  }
+
+  bool _isTouchBrushTool(CanvasTool tool) {
+    return tool == CanvasTool.pen || tool == CanvasTool.eraser;
+  }
+
+  bool _shouldDeferTouchBrushStroke(CanvasTool tool) {
+    if (!_isTouchBrushTool(tool)) {
+      return false;
+    }
+    if (_touchIgnoreUntilAllUp) {
+      return false;
+    }
+    if (_activeTouchPointers.length != 1) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _maybeStartPendingTouchStroke(PointerMoveEvent event) {
+    if (_pendingTouchStrokePointer == null ||
+        _pendingTouchStrokePointer != event.pointer) {
+      return false;
+    }
+    if (_touchIgnoreUntilAllUp || _activeTouchPointers.length != 1) {
+      _clearPendingTouchStroke();
+      return true;
+    }
+    final CanvasTool tool = _effectiveActiveTool;
+    if (!_isTouchBrushTool(tool)) {
+      _clearPendingTouchStroke();
+      return true;
+    }
+    final PointerDownEvent? downEvent = _pendingTouchStrokeEvent;
+    final Offset? start = _pendingTouchStrokeStart;
+    final Duration? startTimestamp = _pendingTouchStrokeTimestamp;
+    _clearPendingTouchStroke();
+    if (downEvent == null || start == null || startTimestamp == null) {
+      return true;
+    }
+    if (!isPointInsideSelection(start)) {
+      return true;
+    }
+    final bool useBackendCanvas =
+        _backend.isSupported && _brushShapeSupportsBackend;
+    if (useBackendCanvas) {
+      if (!_canStartBackendStroke()) {
+        _showBackendCanvasMessage('画布后端尚未准备好。');
+        return true;
+      }
+      _focusNode.requestFocus();
+      _beginBackendStroke(downEvent);
+      return false;
+    }
+    if (!_canStartBitmapStroke()) {
+      return true;
+    }
+    _focusNode.requestFocus();
+    _enqueueCpuStrokeEvent(
+      type: _CpuStrokeEventType.down,
+      boardLocal: start,
+      timestamp: startTimestamp,
+      event: downEvent,
+    );
+    _enqueueCpuStrokeEvent(
+      type: _CpuStrokeEventType.move,
+      boardLocal: _toBoardLocal(event.localPosition),
+      timestamp: event.timeStamp,
+      event: event,
+    );
+    return true;
+  }
+
   Future<void> _handlePointerDownImpl(PointerDownEvent event) async {
     _trackStylusContact(event);
+    if (event.kind == PointerDeviceKind.touch) {
+      _activeTouchPointers.add(event.pointer);
+      _primaryTouchPointer ??= event.pointer;
+      if (_activeTouchPointers.length > 1) {
+        _touchIgnoreUntilAllUp = true;
+        _primaryTouchPointer = null;
+        _clearPendingTouchStroke();
+        final RenderBox? box = context.findRenderObject() as RenderBox?;
+        if (box != null) {
+          _cancelActiveGestureDrawing(box, event.position);
+        }
+        return;
+      }
+      if (_touchIgnoreUntilAllUp) {
+        return;
+      }
+    }
     if (!_isPrimaryPointer(event)) {
+      return;
+    }
+    if (event.kind == PointerDeviceKind.touch &&
+        _primaryTouchPointer != null &&
+        event.pointer != _primaryTouchPointer) {
       return;
     }
     if (_isScalingGesture) {
@@ -79,6 +179,14 @@ extension _PaintingBoardInteractionPointerImpl
       if (pointerInsideBoard) {
         _handleLayerTransformPointerDown(boardLocal);
       }
+      return;
+    }
+    if (event.kind == PointerDeviceKind.touch &&
+        _shouldDeferTouchBrushStroke(tool)) {
+      _pendingTouchStrokePointer = event.pointer;
+      _pendingTouchStrokeStart = boardLocal;
+      _pendingTouchStrokeTimestamp = event.timeStamp;
+      _pendingTouchStrokeEvent = event;
       return;
     }
     switch (tool) {
@@ -279,6 +387,18 @@ extension _PaintingBoardInteractionPointerImpl
 
   void _handlePointerMoveImpl(PointerMoveEvent event) {
     _trackStylusContact(event);
+    if (event.kind == PointerDeviceKind.touch) {
+      if (_touchIgnoreUntilAllUp) {
+        return;
+      }
+      if (_primaryTouchPointer != null &&
+          event.pointer != _primaryTouchPointer) {
+        return;
+      }
+      if (_maybeStartPendingTouchStroke(event)) {
+        return;
+      }
+    }
     final bool backendStrokeActive = _backendActivePointer == event.pointer;
     if (!_isPrimaryPointer(event) && !backendStrokeActive) {
       return;
@@ -498,6 +618,21 @@ extension _PaintingBoardInteractionPointerImpl
 
   Future<void> _handlePointerUpImpl(PointerUpEvent event) async {
     _trackStylusContact(event);
+    final bool wasIgnoring = _touchIgnoreUntilAllUp;
+    if (event.kind == PointerDeviceKind.touch) {
+      _activeTouchPointers.remove(event.pointer);
+      if (_activeTouchPointers.isEmpty) {
+        _touchIgnoreUntilAllUp = false;
+        _primaryTouchPointer = null;
+      }
+      if (wasIgnoring) {
+        return;
+      }
+      if (_pendingTouchStrokePointer == event.pointer) {
+        _clearPendingTouchStroke();
+        return;
+      }
+    }
     if (_layerTransformModeActive) {
       _handleLayerTransformPointerUp();
       return;
@@ -590,6 +725,21 @@ extension _PaintingBoardInteractionPointerImpl
 
   void _handlePointerCancelImpl(PointerCancelEvent event) {
     _trackStylusContact(event);
+    final bool wasIgnoring = _touchIgnoreUntilAllUp;
+    if (event.kind == PointerDeviceKind.touch) {
+      _activeTouchPointers.remove(event.pointer);
+      if (_activeTouchPointers.isEmpty) {
+        _touchIgnoreUntilAllUp = false;
+        _primaryTouchPointer = null;
+      }
+      if (wasIgnoring) {
+        return;
+      }
+      if (_pendingTouchStrokePointer == event.pointer) {
+        _clearPendingTouchStroke();
+        return;
+      }
+    }
     if (_layerTransformModeActive) {
       _handleLayerTransformPointerCancel();
       return;
@@ -848,6 +998,12 @@ extension _PaintingBoardInteractionPointerImpl
     if (!shouldScale) {
       return;
     }
+    if (details.pointerCount > 1) {
+      _touchIgnoreUntilAllUp = true;
+      _primaryTouchPointer = null;
+      _clearPendingTouchStroke();
+    }
+    _cancelActiveGestureDrawing(box, details.focalPoint);
     _scaleGestureStartEpochMs = DateTime.now().millisecondsSinceEpoch;
     _scaleGestureMaxPointerCount = details.pointerCount;
     _scaleGestureAccumulatedFocalDistance = 0.0;
@@ -857,6 +1013,65 @@ extension _PaintingBoardInteractionPointerImpl
     _scaleGestureInitialRotation = _viewport.rotation;
     final Offset focalPoint = box.globalToLocal(details.focalPoint);
     _scaleGestureAnchorBoardLocal = _toBoardLocal(focalPoint);
+  }
+
+  void _cancelActiveGestureDrawing(RenderBox box, Offset globalFocalPoint) {
+    if (_backendActivePointer != null) {
+      Offset local = box.globalToLocal(globalFocalPoint);
+      final Offset? lastBoard = _lastStrokeBoardPosition;
+      if (lastBoard != null) {
+        final Rect boardRect = _boardRect;
+        Offset relative = lastBoard * _viewport.scale;
+        final double rotation = _viewport.rotation;
+        if (rotation != 0) {
+          final Offset center = boardRect.size.center(Offset.zero);
+          final double dx = relative.dx - center.dx;
+          final double dy = relative.dy - center.dy;
+          final double cosA = math.cos(rotation);
+          final double sinA = math.sin(rotation);
+          relative = Offset(
+            dx * cosA - dy * sinA + center.dx,
+            dx * sinA + dy * cosA + center.dy,
+          );
+        }
+        local = boardRect.topLeft + relative;
+      }
+      _endBackendStroke(
+        PointerCancelEvent(
+          pointer: _backendActivePointer!,
+          position: local,
+          kind: PointerDeviceKind.touch,
+          timeStamp: Duration(
+            milliseconds: DateTime.now().millisecondsSinceEpoch,
+          ),
+        ),
+      );
+    }
+    if (_isDrawing) {
+      _controller.cancelStroke();
+      setState(() {
+        _isDrawing = false;
+        if (_brushRandomRotationEnabled) {
+          _brushRandomRotationPreviewSeed = _brushRotationRandom.nextInt(1 << 31);
+        }
+      });
+      _resetPerspectiveLock();
+      _lastPenSampleTimestamp = null;
+      _activeStrokeUsesStylus = false;
+      _activeStylusPressureMin = null;
+      _activeStylusPressureMax = null;
+      _lastStylusPressureValue = null;
+      _lastStrokeBoardPosition = null;
+      _lastStylusDirection = null;
+      _strokeStabilizer.reset();
+    }
+    if (_cpuStrokeQueue.isNotEmpty) {
+      _cpuStrokeQueue.clear();
+    }
+    if (_isSpraying) {
+      _finishSprayStroke();
+    }
+    _clearBackendPredictedOverlay();
   }
 
   void _handleScaleUpdateImpl(ScaleUpdateDetails details) {
@@ -965,6 +1180,10 @@ extension _PaintingBoardInteractionPointerImpl
     _scaleGestureAccumulatedFocalDistance = 0.0;
     _scaleGestureMaxScaleDelta = 0.0;
     _scaleGestureMaxRotationDelta = 0.0;
+    if (_activeTouchPointers.isEmpty) {
+      _touchIgnoreUntilAllUp = false;
+      _primaryTouchPointer = null;
+    }
   }
 
   void _handleUndoImpl() {

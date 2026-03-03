@@ -94,14 +94,13 @@ class _MobileMenuSheetState extends State<MobileMenuSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  if (!isRoot)
+                  if (!isRoot) ...[
                     IconButton(
                       icon: const Icon(FluentIcons.back, size: 20),
                       onPressed: _pop,
-                    )
-                  else
-                    const SizedBox(width: 40),
-                  const SizedBox(width: 4),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
                   Expanded(
                     child: Text(
                       current.title,

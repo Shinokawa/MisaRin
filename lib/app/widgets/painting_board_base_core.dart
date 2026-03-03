@@ -42,6 +42,13 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   bool _isRotatingBoard = false;
   bool _isDirty = false;
   bool _isScalingGesture = false;
+  final Set<int> _activeTouchPointers = <int>{};
+  int? _primaryTouchPointer;
+  bool _touchIgnoreUntilAllUp = false;
+  int? _pendingTouchStrokePointer;
+  Offset? _pendingTouchStrokeStart;
+  Duration? _pendingTouchStrokeTimestamp;
+  PointerDownEvent? _pendingTouchStrokeEvent;
   bool _pixelGridVisible = false;
   bool _viewBlackWhiteOverlay = false;
   bool _viewMirrorOverlay = false;

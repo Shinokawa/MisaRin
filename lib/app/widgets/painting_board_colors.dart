@@ -544,7 +544,10 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     _rememberCurrentPrimary();
   }
 
-  Widget _buildMobileRecentColors(FluentThemeData theme) {
+  Widget _buildMobileRecentColors(
+    FluentThemeData theme, {
+    Axis axis = Axis.vertical,
+  }) {
     final List<Color> colors = _resolveMobileRecentColors();
     if (colors.isEmpty) {
       return const SizedBox.shrink();
@@ -555,12 +558,20 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
       Colors.transparent,
       0.35,
     )!;
-    return Column(
+    final bool horizontal = axis == Axis.horizontal;
+    return Flex(
+      direction: axis,
       mainAxisSize: MainAxisSize.min,
       children: List<Widget>.generate(colors.length, (int index) {
         final Color color = colors[index];
         return Padding(
-          padding: EdgeInsets.only(bottom: index == colors.length - 1 ? 0 : 10),
+          padding: horizontal
+              ? EdgeInsets.only(
+                  right: index == colors.length - 1 ? 0 : 10,
+                )
+              : EdgeInsets.only(
+                  bottom: index == colors.length - 1 ? 0 : 10,
+                ),
           child: _RecentColorSwatch(
             color: color,
             selected: color.value == _primaryColor.value,

@@ -122,105 +122,119 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
         builder: (context) {
           final theme = FluentTheme.of(context);
           final l10n = context.l10n;
-          return ContentDialog(
-            title: Text(l10n.generatePaletteTitle),
-            content: StatefulBuilder(
-              builder: (context, setState) {
-                void handlePresetTap(int value) {
-                  setState(() {
-                    selectedCount = value;
-                    controller.value = TextEditingValue(
-                      text: value.toString(),
-                      selection: TextSelection.collapsed(
-                        offset: value.toString().length,
-                      ),
-                    );
-                  });
-                }
-
-                void handleTextChanged(String text) {
-                  final int? parsed = int.tryParse(text);
-                  setState(() {
-                    selectedCount = parsed ?? 0;
-                  });
-                }
-
-                final bool isValid =
-                    selectedCount >= _minPaletteColorCount &&
-                    selectedCount <= _maxPaletteColorCount;
-
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.generatePaletteDesc),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _defaultPaletteChoices
-                          .map((int choice) {
-                            final bool isActive = selectedCount == choice;
-                            final Widget button = isActive
-                                ? FilledButton(
-                                    onPressed: () => handlePresetTap(choice),
-                                    child: Text('$choice'),
-                                  )
-                                : Button(
-                                    onPressed: () => handlePresetTap(choice),
-                                    child: Text('$choice'),
-                                  );
-                            return SizedBox(width: 56, child: button);
-                          })
-                          .toList(growable: false),
+          final bool isMobile = isMobileOrPhone(context);
+          final Widget content = StatefulBuilder(
+            builder: (context, setState) {
+              void handlePresetTap(int value) {
+                setState(() {
+                  selectedCount = value;
+                  controller.value = TextEditingValue(
+                    text: value.toString(),
+                    selection: TextSelection.collapsed(
+                      offset: value.toString().length,
                     ),
-                    const SizedBox(height: 20),
-                    Text(l10n.customCount, style: theme.typography.caption),
-                    const SizedBox(height: 6),
-                    TextBox(
-                      controller: controller,
-                      focusNode: focusNode,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      keyboardType: TextInputType.number,
-                      onChanged: handleTextChanged,
-                      placeholder:
-                          l10n.paletteCountRange(_minPaletteColorCount, _maxPaletteColorCount),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.allowedRange(_minPaletteColorCount, _maxPaletteColorCount),
-                      style: theme.typography.caption,
-                    ),
-                    if (!isValid)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          l10n.enterValidColorCount,
-                          style: theme.typography.caption?.copyWith(
-                            color: Colors.red,
-                          ),
+                  );
+                });
+              }
+
+              void handleTextChanged(String text) {
+                final int? parsed = int.tryParse(text);
+                setState(() {
+                  selectedCount = parsed ?? 0;
+                });
+              }
+
+              final bool isValid =
+                  selectedCount >= _minPaletteColorCount &&
+                  selectedCount <= _maxPaletteColorCount;
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.generatePaletteDesc),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _defaultPaletteChoices
+                        .map((int choice) {
+                          final bool isActive = selectedCount == choice;
+                          final Widget button = isActive
+                              ? FilledButton(
+                                  onPressed: () => handlePresetTap(choice),
+                                  child: Text('$choice'),
+                                )
+                              : Button(
+                                  onPressed: () => handlePresetTap(choice),
+                                  child: Text('$choice'),
+                                );
+                          return SizedBox(width: 56, child: button);
+                        })
+                        .toList(growable: false),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(l10n.customCount, style: theme.typography.caption),
+                  const SizedBox(height: 6),
+                  TextBox(
+                    controller: controller,
+                    focusNode: focusNode,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    keyboardType: TextInputType.number,
+                    onChanged: handleTextChanged,
+                    placeholder:
+                        l10n.paletteCountRange(_minPaletteColorCount, _maxPaletteColorCount),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.allowedRange(_minPaletteColorCount, _maxPaletteColorCount),
+                    style: theme.typography.caption,
+                  ),
+                  if (!isValid)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        l10n.enterValidColorCount,
+                        style: theme.typography.caption?.copyWith(
+                          color: Colors.red,
                         ),
                       ),
-                  ],
-                );
-              },
+                    ),
+                ],
+              );
+            },
+          );
+          final List<Widget> actions = [
+            Button(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.cancel),
             ),
-            actions: [
-              Button(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(l10n.cancel),
-              ),
-              FilledButton(
-                onPressed: () {
-                  if (selectedCount < _minPaletteColorCount ||
-                      selectedCount > _maxPaletteColorCount) {
-                    return;
-                  }
-                  Navigator.of(context).pop(selectedCount);
-                },
-                child: Text(l10n.create),
-              ),
-            ],
+            FilledButton(
+              onPressed: () {
+                if (selectedCount < _minPaletteColorCount ||
+                    selectedCount > _maxPaletteColorCount) {
+                  return;
+                }
+                Navigator.of(context).pop(selectedCount);
+              },
+              child: Text(l10n.create),
+            ),
+          ];
+
+          if (isMobile) {
+            return MisarinDialog(
+              title: Text(l10n.generatePaletteTitle),
+              content: content,
+              actions: actions,
+              contentWidth: null,
+              maxWidth: 420,
+            );
+          }
+
+          return ContentDialog(
+            title: Text(l10n.generatePaletteTitle),
+            content: content,
+            actions: actions,
           );
         },
       );
