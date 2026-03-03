@@ -4189,6 +4189,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Clean Up'**
   String get autoSaveCleanupDialogClean;
+
+  /// No description provided for @exportDestinationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export destination'**
+  String get exportDestinationTitle;
+
+  /// No description provided for @exportDestinationDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose where to export the image.'**
+  String get exportDestinationDesc;
+
+  /// No description provided for @exportDestinationPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos'**
+  String get exportDestinationPhotos;
+
+  /// No description provided for @exportDestinationFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get exportDestinationFiles;
+
+  /// No description provided for @imageSavedToPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Image saved to Photos.'**
+  String get imageSavedToPhotos;
+
+  /// No description provided for @exportDirectoryLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Export directory'**
+  String get exportDirectoryLabel;
+
+  /// No description provided for @exportDirectoryDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Set the default export location on Android.'**
+  String get exportDirectoryDesc;
+
+  /// No description provided for @selectExportDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose folder'**
+  String get selectExportDirectory;
+
+  /// No description provided for @resetExportDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Use default'**
+  String get resetExportDirectory;
+
+  /// No description provided for @exportDirectoryCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current: {path}'**
+  String exportDirectoryCurrent(Object path);
+
+  /// No description provided for @exportDirectoryDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default: {path}'**
+  String exportDirectoryDefault(Object path);
+
+  /// No description provided for @exportDirectoryUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Export directory updated: {path}'**
+  String exportDirectoryUpdated(Object path);
+
+  /// No description provided for @exportDirectoryCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Export directory reset to default.'**
+  String get exportDirectoryCleared;
+
+  /// No description provided for @exportDirectoryUpdateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to update export directory: {error}'**
+  String exportDirectoryUpdateFailed(Object error);
 }
 
 class _AppLocalizationsDelegate

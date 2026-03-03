@@ -523,5 +523,39 @@
       "limit": {}
     }
   },
-  "autoSaveCleanupDialogClean": "清理"
+  "autoSaveCleanupDialogClean": "清理",
+  "exportDestinationTitle": "导出位置",
+  "exportDestinationDesc": "请选择导出到相册或文件管理。",
+  "exportDestinationPhotos": "相册",
+  "exportDestinationFiles": "文件管理",
+  "imageSavedToPhotos": "已保存到相册。",
+  "exportDirectoryLabel": "导出保存目录",
+  "exportDirectoryDesc": "在安卓上设置导出文件的默认保存位置。",
+  "selectExportDirectory": "选择导出目录",
+  "resetExportDirectory": "恢复默认",
+  "exportDirectoryCurrent": "当前：{path}",
+  "@exportDirectoryCurrent": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportDirectoryDefault": "默认：{path}",
+  "@exportDirectoryDefault": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportDirectoryUpdated": "导出目录已更新：{path}",
+  "@exportDirectoryUpdated": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportDirectoryCleared": "已恢复默认导出目录",
+  "exportDirectoryUpdateFailed": "设置导出目录失败：{error}",
+  "@exportDirectoryUpdateFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  }
 }

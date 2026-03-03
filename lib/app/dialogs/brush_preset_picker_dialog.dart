@@ -13,9 +13,13 @@ import '../../brushes/brush_library.dart';
 import '../../brushes/brush_preset.dart';
 import '../debug/brush_preset_timeline.dart';
 import '../l10n/l10n.dart';
+import '../utils/file_name_dialog.dart';
+import '../utils/mobile_export_paths.dart';
+import '../widgets/app_notification.dart';
 import '../widgets/brush_preset_stroke_preview.dart';
 import 'misarin_dialog.dart';
 import 'brush_preset_editor_dialog.dart';
+import 'package:misa_rin/utils/io_shim.dart';
 
 const bool _kBrushPresetEditLog = bool.fromEnvironment(
   'MISA_RIN_BRUSH_PREVIEW_LOG',
@@ -394,20 +398,79 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
     if (preset == null) {
       return;
     }
+    final l10n = context.l10n;
     final String displayName = _displayNameFor(preset);
     final String fileBase = displayName.trim().isEmpty
         ? preset.id
         : displayName.trim();
-    final String? outputPath = await FilePicker.platform.saveFile(
-      dialogTitle: context.l10n.exportBrushTitle,
-      fileName: '$fileBase.${BrushLibrary.brushFileExtension}',
-      type: FileType.custom,
-      allowedExtensions: [BrushLibrary.brushFileExtension],
-    );
-    if (outputPath == null) {
-      return;
+    String sanitizeFileName(String value) {
+      final String sanitized =
+          value.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+      return sanitized.isEmpty ? preset.id : sanitized;
     }
-    await widget.library.exportBrush(preset.id, outputPath);
+
+    String ensureExtension(String value) {
+      final String lower = value.toLowerCase();
+      final String suffix = '.${BrushLibrary.brushFileExtension}';
+      return lower.endsWith(suffix) ? value : '$value$suffix';
+    }
+
+    String? outputPath;
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      final String? fileName = await showFileNameDialog(
+        context: context,
+        title: l10n.exportBrushTitle,
+        suggestedFileName: '$fileBase.${BrushLibrary.brushFileExtension}',
+        confirmLabel: l10n.export,
+      );
+      if (fileName == null) {
+        return;
+      }
+      final String normalizedName =
+          ensureExtension(sanitizeFileName(fileName));
+      outputPath = await MobileExportPaths.resolveExportPath(normalizedName);
+    } else {
+      final String? selectedPath = await FilePicker.platform.saveFile(
+        dialogTitle: l10n.exportBrushTitle,
+        fileName: '$fileBase.${BrushLibrary.brushFileExtension}',
+        type: FileType.custom,
+        allowedExtensions: [BrushLibrary.brushFileExtension],
+      );
+      if (selectedPath == null) {
+        return;
+      }
+      outputPath = ensureExtension(selectedPath);
+    }
+
+    try {
+      final bool success =
+          await widget.library.exportBrush(preset.id, outputPath!);
+      if (!mounted) {
+        return;
+      }
+      if (success) {
+        AppNotifications.show(
+          context,
+          message: l10n.fileExported(outputPath!),
+          severity: InfoBarSeverity.success,
+        );
+      } else {
+        AppNotifications.show(
+          context,
+          message: l10n.exportFailed(l10n.exportBrushTitle),
+          severity: InfoBarSeverity.error,
+        );
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      AppNotifications.show(
+        context,
+        message: l10n.exportFailed(error),
+        severity: InfoBarSeverity.error,
+      );
+    }
   }
 
   static const double _listItemExtent = 56;

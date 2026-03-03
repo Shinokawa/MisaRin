@@ -367,6 +367,26 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
         _sanitizePaletteFileNameInput(fileName),
         option.extension,
       );
+    } else if (Platform.isAndroid || Platform.isIOS) {
+      final String? fileName = await showFileNameDialog(
+        context: context,
+        title: l10n.exportPaletteTitle,
+        suggestedFileName: _suggestPaletteFileName(
+          entry.title,
+          option.extension,
+        ),
+        confirmLabel: l10n.export,
+      );
+      if (fileName == null) {
+        return;
+      }
+      final String normalizedName = _normalizePaletteExportPath(
+        _sanitizePaletteFileNameInput(fileName),
+        option.extension,
+      );
+      normalizedPath = await MobileExportPaths.resolveExportPath(
+        normalizedName,
+      );
     } else {
       final String? outputPath = await FilePicker.platform.saveFile(
         dialogTitle: l10n.exportPaletteTitle,

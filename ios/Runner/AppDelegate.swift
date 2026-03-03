@@ -217,6 +217,7 @@ private final class PencilMotionObserver {
         self?.tabletChannel?.invokeMethod("pencilMotion", arguments: payload)
       }
     }
+
   }
 
   override func application(

@@ -2208,6 +2208,56 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get autoSaveCleanupDialogClean => '清理';
+
+  @override
+  String get exportDestinationTitle => '导出位置';
+
+  @override
+  String get exportDestinationDesc => '请选择导出到相册或文件管理。';
+
+  @override
+  String get exportDestinationPhotos => '相册';
+
+  @override
+  String get exportDestinationFiles => '文件管理';
+
+  @override
+  String get imageSavedToPhotos => '已保存到相册。';
+
+  @override
+  String get exportDirectoryLabel => '导出保存目录';
+
+  @override
+  String get exportDirectoryDesc => '在安卓上设置导出文件的默认保存位置。';
+
+  @override
+  String get selectExportDirectory => '选择导出目录';
+
+  @override
+  String get resetExportDirectory => '恢复默认';
+
+  @override
+  String exportDirectoryCurrent(Object path) {
+    return '当前：$path';
+  }
+
+  @override
+  String exportDirectoryDefault(Object path) {
+    return '默认：$path';
+  }
+
+  @override
+  String exportDirectoryUpdated(Object path) {
+    return '导出目录已更新：$path';
+  }
+
+  @override
+  String get exportDirectoryCleared => '已恢复默认导出目录';
+
+  @override
+  String exportDirectoryUpdateFailed(Object error) {
+    return '设置导出目录失败：$error';
+  }
 }
 
 /// The translations for Chinese, as used in China (`zh_CN`).
@@ -3258,6 +3308,56 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get autoSaveCleanupDialogClean => '清理';
+
+  @override
+  String get exportDestinationTitle => '导出位置';
+
+  @override
+  String get exportDestinationDesc => '请选择导出到相册或文件管理。';
+
+  @override
+  String get exportDestinationPhotos => '相册';
+
+  @override
+  String get exportDestinationFiles => '文件管理';
+
+  @override
+  String get imageSavedToPhotos => '已保存到相册。';
+
+  @override
+  String get exportDirectoryLabel => '导出保存目录';
+
+  @override
+  String get exportDirectoryDesc => '在安卓上设置导出文件的默认保存位置。';
+
+  @override
+  String get selectExportDirectory => '选择导出目录';
+
+  @override
+  String get resetExportDirectory => '恢复默认';
+
+  @override
+  String exportDirectoryCurrent(Object path) {
+    return '当前：$path';
+  }
+
+  @override
+  String exportDirectoryDefault(Object path) {
+    return '默认：$path';
+  }
+
+  @override
+  String exportDirectoryUpdated(Object path) {
+    return '导出目录已更新：$path';
+  }
+
+  @override
+  String get exportDirectoryCleared => '已恢复默认导出目录';
+
+  @override
+  String exportDirectoryUpdateFailed(Object error) {
+    return '设置导出目录失败：$error';
+  }
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -4327,4 +4427,54 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get autoSaveCleanupDialogClean => '清理';
+
+  @override
+  String get exportDestinationTitle => '匯出位置';
+
+  @override
+  String get exportDestinationDesc => '請選擇匯出到相簿或檔案管理。';
+
+  @override
+  String get exportDestinationPhotos => '相簿';
+
+  @override
+  String get exportDestinationFiles => '檔案管理';
+
+  @override
+  String get imageSavedToPhotos => '已儲存到相簿。';
+
+  @override
+  String get exportDirectoryLabel => '匯出儲存目錄';
+
+  @override
+  String get exportDirectoryDesc => '在 Android 上設定匯出檔案的預設儲存位置。';
+
+  @override
+  String get selectExportDirectory => '選擇匯出目錄';
+
+  @override
+  String get resetExportDirectory => '恢復預設';
+
+  @override
+  String exportDirectoryCurrent(Object path) {
+    return '目前：$path';
+  }
+
+  @override
+  String exportDirectoryDefault(Object path) {
+    return '預設：$path';
+  }
+
+  @override
+  String exportDirectoryUpdated(Object path) {
+    return '匯出目錄已更新：$path';
+  }
+
+  @override
+  String get exportDirectoryCleared => '已恢復預設匯出目錄';
+
+  @override
+  String exportDirectoryUpdateFailed(Object error) {
+    return '設定匯出目錄失敗：$error';
+  }
 }

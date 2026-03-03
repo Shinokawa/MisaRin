@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:misa_rin/mobile/responsive_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:misa_rin/utils/io_shim.dart';
 
 import '../l10n/locale_controller.dart';
 import '../l10n/l10n.dart';
@@ -18,6 +20,8 @@ import 'misarin_dialog.dart';
 import '../../brushes/brush_library.dart';
 import '../../mobile/mobile_utils.dart';
 import '../utils/file_manager.dart';
+import '../utils/mobile_export_paths.dart';
+import '../widgets/app_notification.dart';
 
 const int _autoSaveCleanupStepMb = 50;
 
@@ -100,6 +104,8 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   late _SettingsSection _selectedSection;
   PackageInfo? _packageInfo;
   String? _brushShapeFolderPath;
+  String? _androidExportDirectory;
+  String? _androidDefaultExportDirectory;
 
   @override
   void initState() {
@@ -114,6 +120,10 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
     _selectedSection = widget.initialSection;
     unawaited(_loadPackageInfo());
     unawaited(_loadBrushShapeFolderPath());
+    if (!kIsWeb && Platform.isAndroid) {
+      unawaited(_loadAndroidExportDirectory());
+      unawaited(_loadAndroidDefaultExportDirectory());
+    }
   }
 
   Future<void> _loadBrushShapeFolderPath() async {
@@ -123,6 +133,25 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
       return;
     }
     setState(() => _brushShapeFolderPath = path);
+  }
+
+  Future<void> _loadAndroidExportDirectory() async {
+    final String? path =
+        await MobileExportPaths.readAndroidExportDirectory();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _androidExportDirectory = path);
+  }
+
+  Future<void> _loadAndroidDefaultExportDirectory() async {
+    final String path = await MobileExportPaths.resolveExportDirectory(
+      useAndroidPreference: false,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() => _androidDefaultExportDirectory = path);
   }
 
   @override
@@ -424,6 +453,8 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
             AppPreferences.maxAutoSaveCleanupThresholdMb;
         final int autoSaveDivisions =
             ((maxAutoSave - minAutoSave) / _autoSaveCleanupStepMb).round();
+        final bool showAndroidExport =
+            !kIsWeb && Platform.isAndroid;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -504,6 +535,100 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
                 ],
               ),
             ),
+            if (showAndroidExport) ...[
+              const SizedBox(height: 16),
+              InfoLabel(
+                label: l10n.exportDirectoryLabel,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.exportDirectoryDesc,
+                      style: theme.typography.caption,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        Button(
+                          onPressed: () async {
+                            final String? path =
+                                await FilePicker.platform.getDirectoryPath();
+                            if (path == null) {
+                              return;
+                            }
+                            try {
+                              await MobileExportPaths
+                                  .writeAndroidExportDirectory(path);
+                              if (!mounted) {
+                                return;
+                              }
+                              setState(() => _androidExportDirectory = path);
+                              AppNotifications.show(
+                                context,
+                                message: l10n.exportDirectoryUpdated(path),
+                                severity: InfoBarSeverity.success,
+                              );
+                            } catch (error) {
+                              if (!mounted) {
+                                return;
+                              }
+                              AppNotifications.show(
+                                context,
+                                message: l10n.exportDirectoryUpdateFailed(error),
+                                severity: InfoBarSeverity.error,
+                              );
+                            }
+                          },
+                          child: Text(l10n.selectExportDirectory),
+                        ),
+                        Button(
+                          onPressed: _androidExportDirectory == null
+                              ? null
+                              : () async {
+                                  try {
+                                    await MobileExportPaths
+                                        .writeAndroidExportDirectory(null);
+                                    if (!mounted) {
+                                      return;
+                                    }
+                                    setState(() => _androidExportDirectory = null);
+                                    AppNotifications.show(
+                                      context,
+                                      message: l10n.exportDirectoryCleared,
+                                      severity: InfoBarSeverity.success,
+                                    );
+                                  } catch (error) {
+                                    if (!mounted) {
+                                      return;
+                                    }
+                                    AppNotifications.show(
+                                      context,
+                                      message: l10n.exportDirectoryUpdateFailed(error),
+                                      severity: InfoBarSeverity.error,
+                                    );
+                                  }
+                                },
+                          child: Text(l10n.resetExportDirectory),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _androidExportDirectory != null
+                          ? l10n.exportDirectoryCurrent(
+                              _androidExportDirectory!,
+                            )
+                          : l10n.exportDirectoryDefault(
+                              _androidDefaultExportDirectory ?? '—',
+                            ),
+                      style: theme.typography.caption,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         );
       case _SettingsSection.about:

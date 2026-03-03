@@ -1,5 +1,95 @@
 part of 'painting_board.dart';
 
+enum _MobileImageExportDestination { photos, files }
+
+Future<_MobileImageExportDestination?> _showMobileImageExportDestinationDialog(
+  BuildContext context,
+) {
+  final l10n = context.l10n;
+  if (isMobileOrPhone(context)) {
+    return showMobileBottomSheet<_MobileImageExportDestination?>(
+      context: context,
+      heightFactor: 0.45,
+      builder: (BuildContext context) {
+        final theme = FluentTheme.of(context);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.exportDestinationTitle,
+                    style: theme.typography.subtitle?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.exportDestinationDesc,
+                    style: theme.typography.caption,
+                  ),
+                ],
+              ),
+            ),
+            const Divider(),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                children: [
+                  ListTile(
+                    title: Text(l10n.exportDestinationPhotos),
+                    onPressed: () => Navigator.of(context)
+                        .pop(_MobileImageExportDestination.photos),
+                  ),
+                  ListTile(
+                    title: Text(l10n.exportDestinationFiles),
+                    onPressed: () => Navigator.of(context)
+                        .pop(_MobileImageExportDestination.files),
+                  ),
+                  const Divider(),
+                  ListTile(
+                    title: Text(l10n.cancel),
+                    onPressed: () => Navigator.of(context).pop(null),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  return showDialog<_MobileImageExportDestination?>(
+    context: context,
+    barrierDismissible: true,
+    builder: (BuildContext context) {
+      return ContentDialog(
+        title: Text(l10n.exportDestinationTitle),
+        content: Text(l10n.exportDestinationDesc),
+        actions: [
+          Button(
+            onPressed: () => Navigator.of(context).pop(null),
+            child: Text(l10n.cancel),
+          ),
+          Button(
+            onPressed: () =>
+                Navigator.of(context).pop(_MobileImageExportDestination.files),
+            child: Text(l10n.exportDestinationFiles),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(context).pop(_MobileImageExportDestination.photos),
+            child: Text(l10n.exportDestinationPhotos),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
   Future<void> _showBakeDialogImpl() async {
     if (!mounted) {
@@ -235,6 +325,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
 
       String? normalizedPath;
       String? downloadName;
+      String? mobileFileName;
+      _MobileImageExportDestination? mobileDestination;
 
       if (kIsWeb) {
         final String? fileName = await showWebFileNameDialog(
@@ -248,6 +340,34 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
           return;
         }
         downloadName = _ensurePngExtension(_sanitizeFileName(fileName));
+      } else if (Platform.isAndroid || Platform.isIOS) {
+        if (Platform.isIOS) {
+          mobileDestination =
+              await _showMobileImageExportDestinationDialog(context);
+          if (mobileDestination == null) {
+            return;
+          }
+        } else {
+          mobileDestination = _MobileImageExportDestination.files;
+        }
+
+        if (mobileDestination == _MobileImageExportDestination.files) {
+          final String? fileName = await showFileNameDialog(
+            context: context,
+            title: '导出烘焙结果',
+            suggestedFileName: suggestedName,
+            confirmLabel: context.l10n.export,
+          );
+          if (fileName == null) {
+            return;
+          }
+          mobileFileName = _ensurePngExtension(_sanitizeFileName(fileName));
+          normalizedPath = await MobileExportPaths.resolveExportPath(
+            mobileFileName,
+          );
+        } else {
+          mobileFileName = suggestedName;
+        }
       } else {
         final String? outputPath = await FilePicker.platform.saveFile(
           dialogTitle: '导出烘焙结果',
@@ -320,6 +440,12 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
             bytes: bytes,
             mimeType: 'image/png',
           );
+        } else if (Platform.isIOS &&
+            mobileDestination == _MobileImageExportDestination.photos) {
+          await IosPhotoSaver.saveImageToPhotos(
+            bytes,
+            fileName: mobileFileName,
+          );
         } else {
           final File file = File(normalizedPath!);
           await file.writeAsBytes(bytes, flush: true);
@@ -330,7 +456,13 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
         }
         AppNotifications.show(
           context,
-          message: kIsWeb ? '已下载：$downloadName' : '已导出：$normalizedPath',
+          message: kIsWeb
+              ? '已下载：$downloadName'
+              : (Platform.isIOS &&
+                      mobileDestination ==
+                          _MobileImageExportDestination.photos)
+                  ? context.l10n.imageSavedToPhotos
+                  : '已导出：$normalizedPath',
           severity: InfoBarSeverity.success,
         );
       } catch (error) {

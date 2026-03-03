@@ -529,5 +529,39 @@
       "limit": {}
     }
   },
-  "autoSaveCleanupDialogClean": "清理"
+  "autoSaveCleanupDialogClean": "清理",
+  "exportDestinationTitle": "匯出位置",
+  "exportDestinationDesc": "請選擇匯出到相簿或檔案管理。",
+  "exportDestinationPhotos": "相簿",
+  "exportDestinationFiles": "檔案管理",
+  "imageSavedToPhotos": "已儲存到相簿。",
+  "exportDirectoryLabel": "匯出儲存目錄",
+  "exportDirectoryDesc": "在 Android 上設定匯出檔案的預設儲存位置。",
+  "selectExportDirectory": "選擇匯出目錄",
+  "resetExportDirectory": "恢復預設",
+  "exportDirectoryCurrent": "目前：{path}",
+  "@exportDirectoryCurrent": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportDirectoryDefault": "預設：{path}",
+  "@exportDirectoryDefault": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportDirectoryUpdated": "匯出目錄已更新：{path}",
+  "@exportDirectoryUpdated": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportDirectoryCleared": "已恢復預設匯出目錄",
+  "exportDirectoryUpdateFailed": "設定匯出目錄失敗：{error}",
+  "@exportDirectoryUpdateFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  }
 }
