@@ -862,17 +862,32 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
               final Widget placeholderButton = wrapIconButton(
                 tooltip: l10n.more,
                 detail: null,
-                child: IconButton(
-                  icon: Icon(
-                    FluentIcons.more,
-                    size: actionIconSize,
-                  ),
-                  style: ButtonStyle(
-                    padding: WidgetStateProperty.all<EdgeInsets>(
-                      actionButtonPadding,
-                    ),
-                  ),
-                  onPressed: null,
+                child: Builder(
+                  builder: (context) {
+                    return IconButton(
+                      icon: Icon(
+                        FluentIcons.more,
+                        size: actionIconSize,
+                      ),
+                      style: ButtonStyle(
+                        padding: WidgetStateProperty.all<EdgeInsets>(
+                          actionButtonPadding,
+                        ),
+                      ),
+                      onPressed: backendLayerSupported
+                          ? () {
+                              final RenderBox? box =
+                                  context.findRenderObject() as RenderBox?;
+                              final Offset position = box == null
+                                  ? Offset.zero
+                                  : box.localToGlobal(
+                                      box.size.center(Offset.zero),
+                                    );
+                              _showLayerContextMenu(layer, position);
+                            }
+                          : null,
+                    );
+                  },
                 ),
               );
 
