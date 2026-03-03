@@ -629,7 +629,49 @@ extension _PaintingBoardInteractionPointerImpl
         return;
       }
       if (_pendingTouchStrokePointer == event.pointer) {
+        final PointerDownEvent? downEvent = _pendingTouchStrokeEvent;
+        final Offset? start = _pendingTouchStrokeStart;
+        final Duration? startTimestamp = _pendingTouchStrokeTimestamp;
         _clearPendingTouchStroke();
+        if (downEvent == null || start == null || startTimestamp == null) {
+          return;
+        }
+        final CanvasTool tool = _effectiveActiveTool;
+        if (!_isTouchBrushTool(tool)) {
+          return;
+        }
+        if (!isPointInsideSelection(start)) {
+          return;
+        }
+        final bool useBackendCanvas =
+            _backend.isSupported && _brushShapeSupportsBackend;
+        _focusNode.requestFocus();
+        if (useBackendCanvas) {
+          if (!_canStartBackendStroke()) {
+            _showBackendCanvasMessage('画布后端尚未准备好。');
+            return;
+          }
+          _beginBackendStroke(downEvent);
+          _endBackendStroke(event);
+          return;
+        }
+        if (_useCpuStrokeQueue) {
+          _enqueueCpuStrokeEvent(
+            type: _CpuStrokeEventType.down,
+            boardLocal: start,
+            timestamp: startTimestamp,
+            event: downEvent,
+          );
+          _enqueueCpuStrokeEvent(
+            type: _CpuStrokeEventType.up,
+            boardLocal: start,
+            timestamp: event.timeStamp,
+            event: event,
+          );
+          return;
+        }
+        await _startStroke(start, startTimestamp, downEvent);
+        _finishStroke(event.timeStamp);
         return;
       }
     }
