@@ -1307,6 +1307,16 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                               ),
                             ),
                             Align(
+                              alignment: Alignment.centerRight,
+                              child: SafeArea(
+                                left: false,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 16),
+                                  child: _buildMobileRecentColors(theme),
+                                ),
+                              ),
+                            ),
+                            Align(
                               alignment: Alignment.bottomRight,
                               child: MobileRightButtons(
                                 colorIndicator: _buildColorIndicator(theme),

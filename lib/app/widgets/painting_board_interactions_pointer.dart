@@ -39,7 +39,7 @@ extension _PaintingBoardInteractionPointerImpl
     )) {
       return;
     }
-    final bool pointerInsideBoard = boardRect.contains(pointer);
+    final bool pointerInsideBoard = _isWithinCanvasBounds(boardLocal);
     if (_kDebugBackendCanvasInput &&
         (tool == CanvasTool.pen || tool == CanvasTool.eraser)) {
       debugPrint(

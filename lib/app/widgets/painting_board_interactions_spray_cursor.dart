@@ -95,6 +95,9 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       }
       return false;
     }
+    if (!widget.showToolbars) {
+      return _isInsideMobileToolArea(workspacePosition);
+    }
     final Rect toolbarRect = Rect.fromLTWH(
       _toolButtonPadding,
       _toolButtonPadding,
@@ -133,6 +136,47 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
         toolSettingsRect.contains(workspacePosition) ||
         rightSidebarRect.contains(workspacePosition) ||
         colorIndicatorRect.contains(workspacePosition);
+  }
+
+  bool _isInsideMobileToolArea(Offset workspacePosition) {
+    if (_workspaceSize.isEmpty) {
+      return false;
+    }
+    final EdgeInsets safe = MediaQuery.of(context).padding;
+    const double padding = _toolButtonPadding;
+    const double mobileButtonSize = 56.0;
+    const double mobileGap = 16.0;
+    final double colorIndicatorSize = CanvasToolbar.buttonSize;
+
+    final double leftWidth =
+        padding * 2 + mobileButtonSize * 2 + mobileGap;
+    final double leftHeight = padding * 2 + mobileButtonSize;
+    final double leftTop =
+        _workspaceSize.height - safe.bottom - leftHeight;
+    final Rect leftRect = Rect.fromLTWH(
+      safe.left,
+      leftTop,
+      leftWidth,
+      leftHeight,
+    );
+
+    final double rightWidth =
+        padding * 2 + math.max(mobileButtonSize, colorIndicatorSize);
+    final double rightHeight =
+        padding * 2 + colorIndicatorSize + mobileGap + mobileButtonSize;
+    final double rightLeft =
+        _workspaceSize.width - safe.right - rightWidth;
+    final double rightTop =
+        _workspaceSize.height - safe.bottom - rightHeight;
+    final Rect rightRect = Rect.fromLTWH(
+      rightLeft,
+      rightTop,
+      rightWidth,
+      rightHeight,
+    );
+
+    return leftRect.contains(workspacePosition) ||
+        rightRect.contains(workspacePosition);
   }
 
   bool _isWithinCanvas(Offset boardLocal) {

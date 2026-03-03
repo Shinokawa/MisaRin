@@ -263,6 +263,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   @protected
   void _notifyBoardReadyIfNeeded();
   final List<Color> _recentColors = <Color>[];
+  final List<Color> _mobileRecentFallbackColors = <Color>[];
   Color _colorLineColor = AppPreferences.defaultColorLineColor;
   final List<_CanvasHistoryEntry> _undoStack = <_CanvasHistoryEntry>[];
   final List<_CanvasHistoryEntry> _redoStack = <_CanvasHistoryEntry>[];

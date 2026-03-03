@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:misa_rin/mobile/responsive_dialog.dart';
+import 'package:misa_rin/mobile/mobile_bottom_sheet.dart';
+import 'package:misa_rin/mobile/mobile_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show Localizations;
 
@@ -410,6 +412,174 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
 
   static const double _listItemExtent = 56;
 
+  Future<void> _showMobilePresetEditorSheet() async {
+    final BrushPreset? initialSelected = _selectedPreset;
+    if (initialSelected == null) {
+      return;
+    }
+    BrushPreset? localDraft =
+        (_draftPreset != null && _draftPreset?.id == initialSelected.id)
+            ? _draftPreset
+            : initialSelected.sanitized();
+
+    await showMobileBottomSheet<void>(
+      context: context,
+      builder: (context) {
+        final FluentThemeData theme = FluentTheme.of(context);
+        final AppLocalizations l10n = context.l10n;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final BrushPreset? selected = _selectedPreset ?? initialSelected;
+            final BrushPreset? previewPreset =
+                (localDraft != null && localDraft?.id == selected?.id)
+                    ? localDraft
+                    : selected;
+            final bool isBuiltInPreset =
+                selected != null && widget.library.isBuiltInPreset(selected.id);
+            final bool canDelete =
+                selected != null && !isBuiltInPreset && _presets.length > 1;
+
+            Widget buildPreviewArea() {
+              return Container(
+                decoration: BoxDecoration(
+                  color: theme.resources.controlFillColorSecondary,
+                  border: Border.all(color: theme.resources.controlStrokeColorDefault),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                padding: const EdgeInsets.all(12),
+                child: previewPreset == null
+                    ? Center(child: Text('--', style: theme.typography.caption))
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          BrushPresetStrokePreview(
+                            preset: previewPreset,
+                            height: 120,
+                            color: theme.resources.textFillColorPrimary,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            l10n.brushPresetDesc,
+                            style: theme.typography.caption,
+                          ),
+                        ],
+                      ),
+              );
+            }
+
+            Widget buildActionsWrap() {
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Button(
+                    onPressed: selected == null
+                        ? null
+                        : () async {
+                            await _resetSelectedToDefault();
+                            setState(() => localDraft = _draftPreset);
+                          },
+                    child: Text(l10n.reset),
+                  ),
+                  if (!isBuiltInPreset)
+                    Button(
+                      onPressed: canDelete
+                          ? () async {
+                              await _deleteSelected();
+                              setState(() => localDraft = _draftPreset);
+                            }
+                          : null,
+                      child: Text(l10n.delete),
+                    ),
+                  Button(
+                    onPressed: selected == null
+                        ? null
+                        : () async {
+                            await _duplicateSelected();
+                            setState(() => localDraft = _draftPreset);
+                          },
+                    child: Text(l10n.duplicate),
+                  ),
+                  Button(
+                    onPressed: _importBrush,
+                    child: Text(l10n.importBrush),
+                  ),
+                  Button(
+                    onPressed: selected == null
+                        ? null
+                        : () async {
+                            await _exportBrush();
+                          },
+                    child: Text(l10n.exportBrush),
+                  ),
+                  FilledButton(
+                    onPressed: selected == null
+                        ? null
+                        : () {
+                            _saveDraft();
+                            setState(() => localDraft = _draftPreset);
+                          },
+                    child: Text(l10n.save),
+                  ),
+                ],
+              );
+            }
+
+            final Widget editorContent = selected == null
+                ? Text('--', style: theme.typography.caption)
+                : BrushPresetEditorForm(
+                    key: ValueKey<String?>('${selected?.id}-${_editorResetToken}'),
+                    preset: previewPreset ?? selected,
+                    scrollable: false,
+                    onChanged: (preset) {
+                      setState(() => localDraft = preset.sanitized());
+                      _handleDraftChanged(preset);
+                    },
+                  );
+
+            final Widget editorBody = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.editBrushPreset, style: theme.typography.caption),
+                const SizedBox(height: 4),
+                Text(l10n.editBrushPresetDesc, style: theme.typography.caption),
+                const SizedBox(height: 8),
+                editorContent,
+              ],
+            );
+
+            return Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          selected == null ? '--' : _displayNameFor(selected),
+                          style: theme.typography.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 12),
+                        buildActionsWrap(),
+                        const SizedBox(height: 12),
+                        buildPreviewArea(),
+                        const SizedBox(height: 12),
+                        editorBody,
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final Stopwatch? buildTimer = BrushPresetTimeline.enabled
@@ -430,6 +600,7 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
         theme.accentColor.defaultBrushFor(theme.brightness);
     final Color selectedForeground =
         theme.resources.textOnAccentFillColorPrimary;
+    final bool isMobile = isMobileOrPhone(context);
 
     final Widget presetList = Container(
       decoration: BoxDecoration(
@@ -599,7 +770,7 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
       ),
     );
 
-    final Widget content = SizedBox(
+    final Widget desktopContent = SizedBox(
       width: 820,
       height: 560,
       child: Row(
@@ -644,10 +815,34 @@ class _BrushPresetPickerDialogState extends State<_BrushPresetPickerDialog> {
       ),
     );
 
+    final Widget mobileContent = SizedBox(
+      width: double.infinity,
+      height: 520,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              l10n.brushPreset,
+              style: theme.typography.caption,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(child: presetList),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: selected == null ? null : _showMobilePresetEditorSheet,
+            child: Text(l10n.editBrushPreset),
+          ),
+        ],
+      ),
+    );
+
     final Widget dialog = ContentDialog(
       title: Text(l10n.brushPreset),
       constraints: const BoxConstraints(maxWidth: 860),
-      content: content,
+      content: isMobile ? mobileContent : desktopContent,
       actions: [
         Button(
           onPressed: () async {

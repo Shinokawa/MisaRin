@@ -319,8 +319,10 @@ mixin _PaintingBoardTextMixin on _PaintingBoardBase {
       required Offset origin,
       required String text,
     }) {
-      final double maxWidth = (_canvasSize.width - origin.dx)
-          .clamp(32.0, _canvasSize.width);
+      final double canvasWidth = _canvasSize.width;
+      final double minWidth = math.min(32.0, canvasWidth);
+      final double availableWidth = canvasWidth - origin.dx;
+      final double maxWidth = availableWidth.clamp(minWidth, canvasWidth);
       return CanvasTextData(
         text: text,
         origin: origin,

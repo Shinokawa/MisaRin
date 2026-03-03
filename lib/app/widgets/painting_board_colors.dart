@@ -241,6 +241,51 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     }
   }
 
+  void _ensureMobileRecentFallbackColors(int count) {
+    if (_mobileRecentFallbackColors.length >= count) {
+      return;
+    }
+    final Set<int> usedValues = <int>{
+      ..._recentColors.map((color) => color.value),
+      ..._mobileRecentFallbackColors.map((color) => color.value),
+    };
+    while (_mobileRecentFallbackColors.length < count) {
+      final Color candidate = Color.fromARGB(
+        255,
+        _brushRotationRandom.nextInt(256),
+        _brushRotationRandom.nextInt(256),
+        _brushRotationRandom.nextInt(256),
+      );
+      if (usedValues.add(candidate.value)) {
+        _mobileRecentFallbackColors.add(candidate);
+      }
+    }
+  }
+
+  List<Color> _resolveMobileRecentColors({int count = _recentColorCapacity}) {
+    final List<Color> resolved = _recentColors.take(count).toList();
+    if (resolved.length >= count) {
+      return resolved;
+    }
+    _ensureMobileRecentFallbackColors(count);
+    for (final Color fallback in _mobileRecentFallbackColors) {
+      if (resolved.length >= count) {
+        break;
+      }
+      if (!resolved.any((color) => color.value == fallback.value)) {
+        resolved.add(fallback);
+      }
+    }
+    while (resolved.length < count) {
+      _ensureMobileRecentFallbackColors(_mobileRecentFallbackColors.length + 1);
+      final Color fallback = _mobileRecentFallbackColors.last;
+      if (!resolved.any((color) => color.value == fallback.value)) {
+        resolved.add(fallback);
+      }
+    }
+    return resolved;
+  }
+
   void _selectRecentColor(Color color) {
     _setPrimaryColor(color);
   }
@@ -250,6 +295,10 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
   }
 
   Future<void> _handleEditPrimaryColor() async {
+    if (isMobileOrPhone(context)) {
+      await _showMobileColorPanel();
+      return;
+    }
     await _pickColor(
       title: context.l10n.adjustCurrentColor,
       initialColor: _primaryColor,
@@ -277,6 +326,199 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     if (syncPrimary) {
       _setPrimaryColor(color);
     }
+  }
+
+  Future<void> _showMobileColorPanel() async {
+    bool proMode = false;
+    Color previewColor = _primaryColor;
+    _ColorAdjustMode currentMode = _ColorAdjustMode.fluentBox;
+    await showMobileBottomSheet<void>(
+      context: context,
+      rebuildListenable: _mobileUiRebuildListenable,
+      builder: (context) {
+        final theme = FluentTheme.of(context);
+        final List<Color> recentColors = _resolveMobileRecentColors();
+        return StatefulBuilder(
+          builder: (context, setState) {
+            Widget buildModeChooser(_ColorAdjustMode mode) {
+              final bool selected = currentMode == mode;
+              return ToggleButton(
+                checked: selected,
+                onChanged: (value) {
+                  if (!value) {
+                    return;
+                  }
+                  setState(() => currentMode = mode);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  child: Text(mode.label(context.l10n)),
+                ),
+              );
+            }
+
+            Widget buildPickerBody() {
+              switch (currentMode) {
+                case _ColorAdjustMode.fluentBox:
+                  return _FluentColorPickerHost(
+                    key: const ValueKey('fluentBox'),
+                    color: previewColor,
+                    spectrumShape: ColorSpectrumShape.box,
+                    onChanged: (color) {
+                      setState(() => previewColor = color);
+                      _setPrimaryColor(color, remember: false);
+                    },
+                  );
+                case _ColorAdjustMode.fluentRing:
+                  return _FluentColorPickerHost(
+                    key: const ValueKey('fluentRing'),
+                    color: previewColor,
+                    spectrumShape: ColorSpectrumShape.ring,
+                    onChanged: (color) {
+                      setState(() => previewColor = color);
+                      _setPrimaryColor(color, remember: false);
+                    },
+                  );
+                case _ColorAdjustMode.numericSliders:
+                  return _ColorSliderEditor(
+                    key: const ValueKey('numericSliders'),
+                    color: previewColor,
+                    onChanged: (color) {
+                      setState(() => previewColor = color);
+                      _setPrimaryColor(color, remember: false);
+                    },
+                  );
+                case _ColorAdjustMode.boardPanel:
+                  return _BoardPanelColorPicker(
+                    key: const ValueKey('boardPanel'),
+                    color: previewColor,
+                    onChanged: (color) {
+                      setState(() => previewColor = color);
+                      _setPrimaryColor(color, remember: false);
+                    },
+                  );
+              }
+            }
+
+            Widget buildModeButton({
+              required String label,
+              required bool selected,
+              required VoidCallback onPressed,
+            }) {
+              return Expanded(
+                child: selected
+                    ? FilledButton(onPressed: onPressed, child: Text(label))
+                    : Button(onPressed: onPressed, child: Text(label)),
+              );
+            }
+
+            final Widget content = proMode
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _ColorAdjustMode.values
+                            .map(buildModeChooser)
+                            .toList(growable: false),
+                      ),
+                      const SizedBox(height: 12),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        transitionBuilder: (child, animation) =>
+                            FadeTransition(opacity: animation, child: child),
+                        child: buildPickerBody(),
+                      ),
+                    ],
+                  )
+                : _buildColorPanelContent(
+                    theme,
+                    recentColorsOverride: recentColors,
+                  );
+
+            return Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: content,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Row(
+                    children: [
+                      buildModeButton(
+                        label: '普通模式',
+                        selected: !proMode,
+                        onPressed: () {
+                          if (!proMode) {
+                            return;
+                          }
+                          setState(() => proMode = false);
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      buildModeButton(
+                        label: '专业模式',
+                        selected: proMode,
+                        onPressed: () {
+                          if (proMode) {
+                            return;
+                          }
+                          setState(() {
+                            proMode = true;
+                            previewColor = _primaryColor;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (!mounted) {
+      return;
+    }
+    _rememberCurrentPrimary();
+  }
+
+  Widget _buildMobileRecentColors(FluentThemeData theme) {
+    final List<Color> colors = _resolveMobileRecentColors();
+    if (colors.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final Color borderColor = theme.resources.controlStrokeColorDefault;
+    final Color previewBorder = Color.lerp(
+      borderColor,
+      Colors.transparent,
+      0.35,
+    )!;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: List<Widget>.generate(colors.length, (int index) {
+        final Color color = colors[index];
+        return Padding(
+          padding: EdgeInsets.only(bottom: index == colors.length - 1 ? 0 : 10),
+          child: _RecentColorSwatch(
+            color: color,
+            selected: color.value == _primaryColor.value,
+            borderColor: previewBorder,
+            onTap: () => _selectRecentColor(color),
+          ),
+        );
+      }),
+    );
   }
 
   Widget? _buildColorPanelTrailing(FluentThemeData theme) {
@@ -339,16 +581,18 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
     );
   }
 
-  Widget _buildColorPanelContent(FluentThemeData theme) {
+  Widget _buildColorPanelContent(
+    FluentThemeData theme, {
+    List<Color>? recentColorsOverride,
+  }) {
     final Color borderColor = theme.resources.controlStrokeColorDefault;
     final Color previewBorder = Color.lerp(
       borderColor,
       Colors.transparent,
       0.35,
     )!;
-    final List<Color> overflowRecent = _recentColors.length > 5
-        ? _recentColors.sublist(5)
-        : <Color>[];
+    final List<Color> recentColors = recentColorsOverride ??
+        (_recentColors.length > 5 ? _recentColors.sublist(5) : <Color>[]);
     return LayoutBuilder(
       builder: (context, constraints) {
         double sliderWidth = 24;
@@ -472,11 +716,11 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
           );
         }
 
-        Widget buildRecentColors() {
+        Widget buildRecentColors(List<Color> colors) {
           return Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: overflowRecent
+            children: colors
                 .map<Widget>(
                   (color) => _RecentColorSwatch(
                     color: color,
@@ -538,9 +782,9 @@ mixin _PaintingBoardColorMixin on _PaintingBoardBase {
           children: [
             _buildColorLineSelector(theme),
             const SizedBox(height: 12),
-            if (overflowRecent.isNotEmpty) ...[
+            if (recentColors.isNotEmpty) ...[
               const SizedBox(height: 12),
-              buildRecentColors(),
+              buildRecentColors(recentColors),
             ],
             const SizedBox(height: 16),
             buildInteractiveArea(expanded: enforceHeight),

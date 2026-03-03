@@ -84,6 +84,7 @@ import 'package:file_picker/file_picker.dart';
 
 import '../dialogs/misarin_dialog.dart';
 import '../../mobile/responsive_dialog.dart';
+import '../../mobile/mobile_bottom_sheet.dart';
 import '../dialogs/brush_preset_picker_dialog.dart';
 import '../l10n/l10n.dart';
 import 'package:misa_rin/canvas/canvas_facade.dart';

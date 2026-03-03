@@ -816,6 +816,9 @@ class _TabletInspectPaneState extends State<_TabletInspectPane> {
         event.kind == PointerDeviceKind.unknown) {
       return true;
     }
+    if (event.kind == PointerDeviceKind.touch) {
+      return true;
+    }
     if (event.kind == PointerDeviceKind.mouse) {
       if (event is PointerDownEvent || event is PointerUpEvent) {
         return true;

@@ -2,6 +2,7 @@ import 'package:fluent_ui/fluent_ui.dart';
 import 'package:flutter/foundation.dart' show Listenable;
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../canvas/canvas_tools.dart';
+import 'mobile_rounded_button.dart';
 import 'mobile_tool_selector_sheet.dart';
 import 'mobile_bottom_sheet.dart';
 
@@ -26,23 +27,23 @@ class MobileToolButtons extends StatelessWidget {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Row(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Tool Selector Button
-            _MobileCircleButton(
-              onPressed: () => _showToolSelector(context),
-              child: _getToolIconWidget(activeTool, theme.accentColor),
-            ),
-            const SizedBox(width: 16),
             // Tool Settings Button
-            _MobileCircleButton(
+            MobileRoundedButton(
               onPressed: () => _showToolSettings(context),
               child: const Icon(
                 FluentIcons.settings,
                 size: 24,
               ),
+            ),
+            const SizedBox(height: 16),
+            // Tool Selector Button
+            MobileRoundedButton(
+              onPressed: () => _showToolSelector(context),
+              child: _getToolIconWidget(activeTool, theme.accentColor),
             ),
           ],
         ),
@@ -101,40 +102,5 @@ class MobileToolButtons extends StatelessWidget {
       case CanvasTool.hand: return FluentIcons.hands_free;
       case CanvasTool.rotate: return FluentIcons.rotate;
     }
-  }
-}
-
-class _MobileCircleButton extends StatelessWidget {
-  const _MobileCircleButton({required this.onPressed, required this.child});
-
-  final VoidCallback onPressed;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = FluentTheme.of(context);
-    return IconButton(
-      onPressed: onPressed,
-      icon: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          color: theme.micaBackgroundColor.withOpacity(0.9),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: theme.resources.controlStrokeColorDefault,
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Center(child: child),
-      ),
-    );
   }
 }
