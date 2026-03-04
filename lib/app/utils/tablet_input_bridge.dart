@@ -54,6 +54,8 @@ class TabletInputBridge {
   DateTime? _debugLastMotionLogAt;
 
   bool get _supportMacOS => !kIsWeb && Platform.isMacOS;
+  bool get _supportWindows => !kIsWeb && Platform.isWindows;
+  bool get _supportDesktopTabletChannel => _supportMacOS || _supportWindows;
   bool get _supportApplePencilTapChannel =>
       !kIsWeb && (Platform.isMacOS || Platform.isIOS);
   bool get _supportApplePencilMotionChannel => !kIsWeb && Platform.isIOS;
@@ -65,7 +67,9 @@ class TabletInputBridge {
       return;
     }
     _initialized = true;
-    if (!_supportApplePencilTapChannel && !_supportApplePencilMotionChannel) {
+    if (!_supportDesktopTabletChannel &&
+        !_supportApplePencilTapChannel &&
+        !_supportApplePencilMotionChannel) {
       return;
     }
     _channel.setMethodCallHandler(_handleMethodCall);
@@ -407,7 +411,7 @@ class TabletInputBridge {
         event.kind == PointerDeviceKind.invertedStylus) {
       return true;
     }
-    if (!_supportMacOS) {
+    if (!_supportDesktopTabletChannel) {
       return false;
     }
     final _TabletSample? sample = _sampleForPointer(event);
@@ -429,7 +433,7 @@ class TabletInputBridge {
       }
       return null;
     }
-    if (!_supportMacOS) {
+    if (!_supportDesktopTabletChannel) {
       return null;
     }
     final _TabletSample? sample = _sampleForPointer(event);

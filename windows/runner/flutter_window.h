@@ -3,6 +3,9 @@
 
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
+#include <flutter/encodable_value.h>
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
 
 #include <memory>
 
@@ -23,11 +26,22 @@ class FlutterWindow : public Win32Window {
                          LPARAM const lparam) noexcept override;
 
  private:
+  void SetupTabletChannel();
+  void HandlePointerMessage(UINT message, WPARAM wparam, LPARAM lparam);
+  static LRESULT CALLBACK FlutterViewSubclassProc(HWND window,
+                                                  UINT message,
+                                                  WPARAM wparam,
+                                                  LPARAM lparam);
+
   // The project to run.
   flutter::DartProject project_;
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      tablet_channel_;
+  HWND flutter_view_hwnd_ = nullptr;
+  WNDPROC flutter_view_proc_ = nullptr;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_
