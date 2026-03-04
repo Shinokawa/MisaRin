@@ -577,17 +577,11 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
             onGenerateInitialRoutes: (navigator, initialRoute) =>
                 <Route<void>>[
               PageRouteBuilder<void>(
-                settings: const RouteSettings(
-                  name: '__bake_dialog_placeholder__',
-                ),
                 transitionDuration: Duration.zero,
                 reverseTransitionDuration: Duration.zero,
                 pageBuilder: (_, __, ___) => const SizedBox.shrink(),
               ),
               PageRouteBuilder<void>(
-                settings: const RouteSettings(
-                  name: '__bake_dialog_content__',
-                ),
                 transitionDuration: Duration.zero,
                 reverseTransitionDuration: Duration.zero,
                 pageBuilder: (context, animation, secondaryAnimation) {

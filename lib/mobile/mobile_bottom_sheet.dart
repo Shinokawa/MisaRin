@@ -254,8 +254,6 @@ class _MobileBottomSheetOverlayHostState<T>
     with TickerProviderStateMixin {
   static const Duration _kTransitionDuration =
       Duration(milliseconds: 320);
-  static const String _kPlaceholderRouteName = '__mobile_sheet_placeholder__';
-  static const String _kContentRouteName = '__mobile_sheet_content__';
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: _kTransitionDuration,
@@ -310,9 +308,8 @@ class _MobileBottomSheetOverlayHostState<T>
             builder: (context, _) => widget.builder(context),
           );
 
-    Route<void> buildRoute(Widget child, {required String name}) {
+    Route<void> buildRoute(Widget child) {
       return PageRouteBuilder<void>(
-        settings: RouteSettings(name: name),
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (_, __, ___) => child,
@@ -399,14 +396,8 @@ class _MobileBottomSheetOverlayHostState<T>
                             },
                             onGenerateInitialRoutes:
                                 (navigator, initialRoute) => <Route<void>>[
-                              buildRoute(
-                                const SizedBox.shrink(),
-                                name: _kPlaceholderRouteName,
-                              ),
-                              buildRoute(
-                                content,
-                                name: _kContentRouteName,
-                              ),
+                              buildRoute(const SizedBox.shrink()),
+                              buildRoute(content),
                             ],
                           ),
                         ),
