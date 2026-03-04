@@ -16,6 +16,19 @@ Future<String?> showFileNameDialog({
   final TextEditingController controller =
       TextEditingController(text: suggestedFileName);
   String? error;
+  bool didClose = false;
+
+  void closeWithResult(BuildContext context, String? value) {
+    if (didClose || !context.mounted) {
+      return;
+    }
+    final ModalRoute<dynamic>? route = ModalRoute.of(context);
+    if (route == null || !route.isCurrent) {
+      return;
+    }
+    didClose = true;
+    Navigator.of(context).pop(value);
+  }
   Future<String?> showDesktopDialog() {
     return showDialog<String>(
       context: context,
@@ -47,7 +60,7 @@ Future<String?> showFileNameDialog({
                     onSubmitted: (_) {
                       final String trimmed = controller.text.trim();
                       if (trimmed.isNotEmpty) {
-                        Navigator.of(context).pop(trimmed);
+                        closeWithResult(context, trimmed);
                       }
                     },
                   ),
@@ -67,7 +80,7 @@ Future<String?> showFileNameDialog({
           ),
           actions: [
             Button(
-              onPressed: () => Navigator.of(context).pop(null),
+              onPressed: () => closeWithResult(context, null),
               child: Text(l10n.cancel),
             ),
             FilledButton(
@@ -76,7 +89,7 @@ Future<String?> showFileNameDialog({
                 if (trimmed.isEmpty) {
                   return;
                 }
-                Navigator.of(context).pop(trimmed);
+                closeWithResult(context, trimmed);
               },
               child: Text(confirmLabel ?? l10n.save),
             ),
@@ -123,7 +136,7 @@ Future<String?> showFileNameDialog({
                     onSubmitted: (_) {
                       final String trimmed = controller.text.trim();
                       if (trimmed.isNotEmpty) {
-                        Navigator.of(context).pop(trimmed);
+                        closeWithResult(context, trimmed);
                       }
                     },
                   ),
@@ -141,7 +154,7 @@ Future<String?> showFileNameDialog({
                     children: [
                       Expanded(
                         child: Button(
-                          onPressed: () => Navigator.of(context).pop(null),
+                          onPressed: () => closeWithResult(context, null),
                           child: Text(l10n.cancel),
                         ),
                       ),
@@ -156,7 +169,7 @@ Future<String?> showFileNameDialog({
                               });
                               return;
                             }
-                            Navigator.of(context).pop(trimmed);
+                            closeWithResult(context, trimmed);
                           },
                           child: Text(confirmLabel ?? l10n.save),
                         ),

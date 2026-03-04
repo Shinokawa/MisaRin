@@ -532,6 +532,8 @@
   "autoSaveCleanupDialogClean": "清理",
   "exportDestinationTitle": "匯出位置",
   "exportDestinationDesc": "請選擇匯出到相簿或檔案管理。",
+  "imageSourceTitle": "選擇圖片來源",
+  "imageSourceDesc": "請選擇從相簿或檔案管理匯入圖片。",
   "exportDestinationPhotos": "相簿",
   "exportDestinationFiles": "檔案管理",
   "imageSavedToPhotos": "已儲存到相簿。",

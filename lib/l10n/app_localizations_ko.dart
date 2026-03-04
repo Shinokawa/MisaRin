@@ -2241,6 +2241,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get exportDestinationDesc => 'Choose where to export the image.';
 
   @override
+  String get imageSourceTitle => '이미지 가져오기 위치 선택';
+
+  @override
+  String get imageSourceDesc => '사진 또는 파일에서 이미지를 가져옵니다.';
+
+  @override
   String get exportDestinationPhotos => 'Photos';
 
   @override

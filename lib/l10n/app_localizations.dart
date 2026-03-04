@@ -4202,6 +4202,18 @@ abstract class AppLocalizations {
   /// **'Choose where to export the image.'**
   String get exportDestinationDesc;
 
+  /// No description provided for @imageSourceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select image source'**
+  String get imageSourceTitle;
+
+  /// No description provided for @imageSourceDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose to import from Photos or Files.'**
+  String get imageSourceDesc;
+
   /// No description provided for @exportDestinationPhotos.
   ///
   /// In en, this message translates to:

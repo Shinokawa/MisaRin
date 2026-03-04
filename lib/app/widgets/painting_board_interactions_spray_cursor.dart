@@ -147,6 +147,36 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     const double mobileButtonSize = 56.0;
     const double mobileGap = 16.0;
     final double colorIndicatorSize = CanvasToolbar.buttonSize;
+    final bool isLandscapeLayout = _workspaceSize.width > _workspaceSize.height;
+    const double recentSwatchSize = 34.0;
+    const double recentSwatchGap = 10.0;
+    final int recentCount = _recentColorCapacity;
+
+    final double recentMainExtent = recentCount > 0
+        ? recentCount * recentSwatchSize +
+            math.max(0, recentCount - 1) * recentSwatchGap
+        : 0;
+    final double recentCrossExtent = recentCount > 0 ? recentSwatchSize : 0;
+    Rect? recentRect;
+    if (recentCount > 0) {
+      if (isLandscapeLayout) {
+        final double width = recentMainExtent;
+        final double height = recentCrossExtent + padding;
+        final double safeWidth = width + safe.left + safe.right;
+        final double safeHeight = height + safe.bottom;
+        final double left = (_workspaceSize.width - safeWidth) / 2.0;
+        final double top = _workspaceSize.height - safeHeight;
+        recentRect = Rect.fromLTWH(left, top, safeWidth, safeHeight);
+      } else {
+        final double width = recentCrossExtent + padding;
+        final double height = recentMainExtent;
+        final double safeWidth = width + safe.right;
+        final double safeHeight = height + safe.top + safe.bottom;
+        final double left = _workspaceSize.width - safeWidth;
+        final double top = (_workspaceSize.height - safeHeight) / 2.0;
+        recentRect = Rect.fromLTWH(left, top, safeWidth, safeHeight);
+      }
+    }
 
     final double leftWidth =
         padding * 2 + mobileButtonSize * 2 + mobileGap;
@@ -176,7 +206,8 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     );
 
     return leftRect.contains(workspacePosition) ||
-        rightRect.contains(workspacePosition);
+        rightRect.contains(workspacePosition) ||
+        (recentRect?.contains(workspacePosition) ?? false);
   }
 
   bool _isWithinCanvas(Offset boardLocal) {

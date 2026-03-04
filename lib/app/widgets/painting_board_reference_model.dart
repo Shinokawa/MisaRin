@@ -10,7 +10,9 @@ const String _kReferenceModelAnimationAsset =
 
 const double _referenceModelCardWidth = 420;
 const double _referenceModelViewportHeight = 320;
-const double _referenceModelCardBaseHeight = _referenceModelViewportHeight + 120;
+const double _referenceModelCardChromeHeight = 120;
+const double _referenceModelCardBaseHeight =
+    _referenceModelViewportHeight + _referenceModelCardChromeHeight;
 const double _referenceModelCardMobileWidthFactor = 0.6;
 
 double _referenceModelCardWidthForContext(BuildContext context) {
@@ -23,8 +25,26 @@ double _referenceModelCardWidthForContext(BuildContext context) {
   return _referenceModelCardWidth;
 }
 
+double _referenceModelViewportHeightForContext(BuildContext context) {
+  if (isMobileOrPhone(context)) {
+    final double width = _referenceModelCardWidthForContext(context);
+    return (width - _referenceModelCardChromeHeight).clamp(0.0, width);
+  }
+  return _referenceModelViewportHeight;
+}
+
+double _referenceModelCardHeightForContext(BuildContext context) {
+  if (isMobileOrPhone(context)) {
+    return _referenceModelCardWidthForContext(context);
+  }
+  return _referenceModelCardBaseHeight;
+}
+
 Size _referenceModelCardDefaultSize(BuildContext context) {
-  return Size(_referenceModelCardWidthForContext(context), _referenceModelCardBaseHeight);
+  return Size(
+    _referenceModelCardWidthForContext(context),
+    _referenceModelCardHeightForContext(context),
+  );
 }
 
 const String _kReferenceModelActionNone = '__none__';

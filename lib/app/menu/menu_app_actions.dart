@@ -295,6 +295,60 @@ class AppMenuActions {
 
   static Future<void> openProjectFromDisk(BuildContext context) async {
     final l10n = context.l10n;
+    _ImageSourceChoice source = _ImageSourceChoice.files;
+    if (_shouldPromptImageSource()) {
+      final _ImageSourceChoice? selected = await _showImageSourceDialog(context);
+      if (selected == null || !context.mounted) {
+        return;
+      }
+      source = selected;
+    }
+
+    if (source == _ImageSourceChoice.photos) {
+      final ({String path, String name})? picked =
+          await _pickImageFromGallery(context);
+      if (picked == null || !context.mounted) {
+        return;
+      }
+      try {
+        final ProjectDocument document =
+            await _runWithWebProgress<ProjectDocument>(
+              context,
+              title: l10n.openingProjectTitle,
+              message: l10n.openingProjectMessage(picked.name),
+              action: () async {
+                final String name = p.basenameWithoutExtension(picked.name);
+                return ProjectRepository.instance.createDocumentFromImage(
+                  picked.path,
+                  name: name,
+                );
+              },
+            );
+        if (!context.mounted) {
+          return;
+        }
+        await _showProject(context, document);
+        if (!context.mounted) {
+          return;
+        }
+        _showInfoBar(
+          context,
+          l10n.openedProjectInfo(document.name),
+          severity: InfoBarSeverity.success,
+        );
+      } catch (error) {
+        if (!context.mounted) {
+          return;
+        }
+        _showInfoBar(
+          context,
+          l10n.openProjectFailed(error),
+          severity: InfoBarSeverity.error,
+        );
+      }
+      return;
+    }
+
     final FilePickerResult? result = await FilePicker.platform.pickFiles(
       dialogTitle: l10n.openProjectDialogTitle,
       type: FileType.custom,
@@ -412,6 +466,49 @@ class AppMenuActions {
 
   static Future<void> importImage(BuildContext context) async {
     final l10n = context.l10n;
+    _ImageSourceChoice source = _ImageSourceChoice.files;
+    if (_shouldPromptImageSource()) {
+      final _ImageSourceChoice? selected = await _showImageSourceDialog(context);
+      if (selected == null || !context.mounted) {
+        return;
+      }
+      source = selected;
+    }
+
+    if (source == _ImageSourceChoice.photos) {
+      final ({String path, String name})? picked =
+          await _pickImageFromGallery(context);
+      if (picked == null || !context.mounted) {
+        return;
+      }
+      try {
+        final ProjectDocument document = await ProjectRepository.instance
+            .createDocumentFromImage(picked.path, name: picked.name);
+        if (!context.mounted) {
+          return;
+        }
+        await _showProject(context, document);
+        if (!context.mounted) {
+          return;
+        }
+        _showInfoBar(
+          context,
+          l10n.importedImageInfo(picked.name),
+          severity: InfoBarSeverity.success,
+        );
+      } catch (error) {
+        if (!context.mounted) {
+          return;
+        }
+        _showInfoBar(
+          context,
+          l10n.importImageFailed(error),
+          severity: InfoBarSeverity.error,
+        );
+      }
+      return;
+    }
+
     final FilePickerResult? result = await FilePicker.platform.pickFiles(
       dialogTitle: l10n.importImageDialogTitle,
       type: FileType.custom,

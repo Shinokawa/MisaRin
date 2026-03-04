@@ -526,6 +526,8 @@
   "autoSaveCleanupDialogClean": "清理",
   "exportDestinationTitle": "导出位置",
   "exportDestinationDesc": "请选择导出到相册或文件管理。",
+  "imageSourceTitle": "选择图片来源",
+  "imageSourceDesc": "请选择从相册或文件管理器导入图片。",
   "exportDestinationPhotos": "相册",
   "exportDestinationFiles": "文件管理",
   "imageSavedToPhotos": "已保存到相册。",

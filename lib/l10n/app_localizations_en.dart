@@ -2310,6 +2310,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportDestinationDesc => 'Choose where to export the image.';
 
   @override
+  String get imageSourceTitle => 'Select image source';
+
+  @override
+  String get imageSourceDesc => 'Choose to import from Photos or Files.';
+
+  @override
   String get exportDestinationPhotos => 'Photos';
 
   @override

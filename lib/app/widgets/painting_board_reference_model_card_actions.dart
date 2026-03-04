@@ -556,6 +556,8 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
         : library.animations[selection];
     bool selectedIsDynamic =
         selectedItem?.isAnimated ?? selectedAnimation?.isDynamic ?? false;
+    bool showSelection = false;
+    String query = '';
 
     double previewYaw = 0;
     double previewPitch = 0;
@@ -590,7 +592,7 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
       }
     }
 
-    Future<void> applySelection(String nextSelection) async {
+    void applySelection(String nextSelection) {
       selection = nextSelection;
       selectedItem = catalog.byId[selection];
       selectedAnimation = selection == _kReferenceModelActionNone
@@ -615,7 +617,7 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
     try {
       await showMobileBottomSheetOnRootOverlay<void>(
         context: widget.dialogContext,
-        heightFactor: 0.75,
+        heightFactor: 0.9,
         builder: (BuildContext context) {
           final FluentThemeData theme = FluentTheme.of(context);
           final Color border = theme.resources.controlStrokeColorDefault;
@@ -625,6 +627,177 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
           return StatefulBuilder(
             builder: (context, setDialogState) {
               sheetSetState = setDialogState;
+              if (showSelection) {
+                final String trimmedQuery = query.trim();
+                final List<_ReferenceModelActionItem> visible = catalog.items
+                    .where((item) {
+                      if (trimmedQuery.isEmpty) {
+                        return true;
+                      }
+                      final String haystack =
+                          '${item.label}\n${item.id}'.toLowerCase();
+                      return haystack.contains(trimmedQuery.toLowerCase());
+                    })
+                    .toList(growable: false);
+
+                final List<_ReferenceModelActionItem> poses =
+                    visible
+                        .where(
+                          (item) =>
+                              item.type == _ReferenceModelActionType.pose,
+                        )
+                        .toList()
+                      ..sort((a, b) => a.order.compareTo(b.order));
+                final List<_ReferenceModelActionItem> animations =
+                    visible
+                        .where(
+                          (item) =>
+                              item.type ==
+                              _ReferenceModelActionType.animation,
+                        )
+                        .toList()
+                      ..sort((a, b) => a.order.compareTo(b.order));
+
+    void handleSelection(String nextSelection) {
+      if (nextSelection == selection) {
+        setDialogState(() => showSelection = false);
+        return;
+      }
+      applySelection(nextSelection);
+      setDialogState(() => showSelection = false);
+    }
+
+                final List<Widget> items = <Widget>[
+                  ListTile(
+                    leading: const Icon(FluentIcons.clear, size: 18),
+                    title: const Text('无'),
+                    trailing: selection == _kReferenceModelActionNone
+                        ? Icon(
+                            FluentIcons.check_mark,
+                            size: 16,
+                            color: theme.accentColor,
+                          )
+                        : null,
+                    onPressed: () => handleSelection(
+                      _kReferenceModelActionNone,
+                    ),
+                  ),
+                  const Divider(),
+                ];
+
+                if (poses.isEmpty && animations.isEmpty) {
+                  items.add(
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        '没有匹配的动作。',
+                        style: theme.typography.caption,
+                      ),
+                    ),
+                  );
+                } else {
+                  void addSection(
+                    String label,
+                    List<_ReferenceModelActionItem> source, {
+                    required IconData icon,
+                  }) {
+                    if (source.isEmpty) {
+                      return;
+                    }
+                    items.add(
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        child: Row(
+                          children: [
+                            Icon(icon, size: 14),
+                            const SizedBox(width: 6),
+                            Text(
+                              label,
+                              style: theme.typography.bodyStrong,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                    for (final item in source) {
+                      items.add(
+                        ListTile(
+                          leading: Icon(
+                            item.type == _ReferenceModelActionType.animation
+                                ? FluentIcons.play
+                                : FluentIcons.contact,
+                            size: 18,
+                          ),
+                          title: Text(item.label),
+                          trailing: selection == item.id
+                              ? Icon(
+                                  FluentIcons.check_mark,
+                                  size: 16,
+                                  color: theme.accentColor,
+                                )
+                              : null,
+                          onPressed: () => handleSelection(item.id),
+                        ),
+                      );
+                    }
+                  }
+
+                  addSection('姿势', poses, icon: FluentIcons.contact);
+                  addSection('动画', animations, icon: FluentIcons.play);
+                }
+
+                items.add(const Divider());
+                items.add(
+                  ListTile(
+                    title: Text(context.l10n.cancel),
+                    onPressed: () => setDialogState(() {
+                      showSelection = false;
+                    }),
+                  ),
+                );
+
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(FluentIcons.back, size: 16),
+                            onPressed: () => setDialogState(() {
+                              showSelection = false;
+                            }),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '切换姿势',
+                            style: theme.typography.subtitle?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextBox(
+                        placeholder: '搜索动作…',
+                        prefix: const Icon(FluentIcons.search, size: 14),
+                        onChanged: (value) =>
+                            setDialogState(() => query = value),
+                      ),
+                      const SizedBox(height: 6),
+                      const Divider(),
+                      Expanded(
+                        child: ListView(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 8),
+                          children: items,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
               final String label = selection == _kReferenceModelActionNone
                   ? '选择动作预览'
                   : _displayNameForActionId(selection);
@@ -750,17 +923,9 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
                       width: double.infinity,
                       child: FilledButton(
                         child: const Text('切换姿势'),
-                        onPressed: () async {
-                          final String? result =
-                              await _showMobileActionSelectionSheet(
-                            catalog: catalog,
-                            selection: selection,
-                          );
-                          if (result == null || result == selection) {
-                            return;
-                          }
-                          await applySelection(result);
-                        },
+                        onPressed: () => setDialogState(() {
+                          showSelection = true;
+                        }),
                       ),
                     ),
                   ],

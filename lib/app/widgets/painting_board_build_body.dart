@@ -1170,6 +1170,12 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               activeHandle:
                                                   _activePerspectiveHandle,
                                               viewportScale: _viewport.scale,
+                                              handleFillRadiusScreen:
+                                                  _perspectiveHandleFillRadiusScreen,
+                                              handleOutlineRadiusScreen:
+                                                  _perspectiveHandleOutlineRadiusScreen,
+                                              handleOutlineWidthScreen:
+                                                  _perspectiveHandleOutlineWidthScreen,
                                             ),
                                           );
                                           if (_viewMirrorOverlay) {

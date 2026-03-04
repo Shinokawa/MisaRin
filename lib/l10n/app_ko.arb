@@ -54,6 +54,8 @@
     }
   },
   "importImageDialogTitle": "이미지 가져오기",
+  "imageSourceTitle": "이미지 가져오기 위치 선택",
+  "imageSourceDesc": "사진 또는 파일에서 이미지를 가져옵니다.",
   "importedImageInfo": "이미지를 가져왔습니다: {name}",
   "@importedImageInfo": {
     "placeholders": {

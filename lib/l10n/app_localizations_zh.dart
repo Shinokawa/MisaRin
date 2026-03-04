@@ -2216,6 +2216,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get exportDestinationDesc => '请选择导出到相册或文件管理。';
 
   @override
+  String get imageSourceTitle => '选择图片来源';
+
+  @override
+  String get imageSourceDesc => '请选择从相册或文件管理器导入图片。';
+
+  @override
   String get exportDestinationPhotos => '相册';
 
   @override
@@ -3314,6 +3320,12 @@ class AppLocalizationsZhCn extends AppLocalizationsZh {
 
   @override
   String get exportDestinationDesc => '请选择导出到相册或文件管理。';
+
+  @override
+  String get imageSourceTitle => '选择图片来源';
+
+  @override
+  String get imageSourceDesc => '请选择从相册或文件管理器导入图片。';
 
   @override
   String get exportDestinationPhotos => '相册';
@@ -4433,6 +4445,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get exportDestinationDesc => '請選擇匯出到相簿或檔案管理。';
+
+  @override
+  String get imageSourceTitle => '選擇圖片來源';
+
+  @override
+  String get imageSourceDesc => '請選擇從相簿或檔案管理匯入圖片。';
 
   @override
   String get exportDestinationPhotos => '相簿';

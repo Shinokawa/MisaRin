@@ -82,7 +82,8 @@ extension _PaintingBoardInteractionPointerImpl
 
   Future<void> _handlePointerDownImpl(PointerDownEvent event) async {
     _trackStylusContact(event);
-    if (event.kind == PointerDeviceKind.touch) {
+    final bool isTouch = event.kind == PointerDeviceKind.touch;
+    if (isTouch) {
       _activeTouchPointers.add(event.pointer);
       _primaryTouchPointer ??= event.pointer;
       if (_activeTouchPointers.length > 1) {
@@ -99,10 +100,8 @@ extension _PaintingBoardInteractionPointerImpl
         return;
       }
     }
-    if (!_isPrimaryPointer(event)) {
-      return;
-    }
-    if (event.kind == PointerDeviceKind.touch &&
+    final bool isPrimary = _isPrimaryPointer(event);
+    if (isTouch &&
         _primaryTouchPointer != null &&
         event.pointer != _primaryTouchPointer) {
       return;
@@ -119,9 +118,26 @@ extension _PaintingBoardInteractionPointerImpl
     if (_isInsideToolArea(pointer) || _isInsideWorkspacePanelArea(pointer)) {
       return;
     }
-    final CanvasTool tool = _effectiveActiveTool;
-    final Rect boardRect = _boardRect;
     final Offset boardLocal = _toBoardLocal(pointer);
+    final double? perspectiveHitRadius =
+        isTouch ? _perspectiveHandleHitRadius() : null;
+    final double? perspectiveScreenRadius =
+        isTouch ? _perspectiveHandleScreenRadius() : null;
+    if (isTouch && !isPrimary) {
+      if (_handlePerspectivePointerDown(
+        boardLocal,
+        hitRadius: perspectiveHitRadius,
+        workspacePosition: pointer,
+        screenRadius: perspectiveScreenRadius,
+      )) {
+        return;
+      }
+      return;
+    }
+    if (!isPrimary) {
+      return;
+    }
+    final CanvasTool tool = _effectiveActiveTool;
     final Set<LogicalKeyboardKey> pressedKeys =
         HardwareKeyboard.instance.logicalKeysPressed;
     final bool shiftPressed =
@@ -136,6 +152,9 @@ extension _PaintingBoardInteractionPointerImpl
     if (_handlePerspectivePointerDown(
       boardLocal,
       allowNearest: preferNearestPerspectiveHandle,
+      hitRadius: perspectiveHitRadius,
+      workspacePosition: isTouch ? pointer : null,
+      screenRadius: perspectiveScreenRadius,
     )) {
       return;
     }
@@ -399,10 +418,6 @@ extension _PaintingBoardInteractionPointerImpl
         return;
       }
     }
-    final bool backendStrokeActive = _backendActivePointer == event.pointer;
-    if (!_isPrimaryPointer(event) && !backendStrokeActive) {
-      return;
-    }
     if (_isScalingGesture) {
       return;
     }
@@ -414,6 +429,10 @@ extension _PaintingBoardInteractionPointerImpl
     if (_isDraggingPerspectiveHandle) {
       final Offset boardLocal = _toBoardLocal(event.localPosition);
       _handlePerspectivePointerMove(boardLocal);
+      return;
+    }
+    final bool backendStrokeActive = _backendActivePointer == event.pointer;
+    if (!_isPrimaryPointer(event) && !backendStrokeActive) {
       return;
     }
     if (_layerTransformModeActive) {
@@ -1030,6 +1049,10 @@ extension _PaintingBoardInteractionPointerImpl
   }
 
   void _handleScaleStartImpl(ScaleStartDetails details) {
+    if (_isDraggingPerspectiveHandle) {
+      _isScalingGesture = false;
+      return;
+    }
     final RenderBox? box = context.findRenderObject() as RenderBox?;
     if (box == null) {
       return;
@@ -1117,6 +1140,9 @@ extension _PaintingBoardInteractionPointerImpl
   }
 
   void _handleScaleUpdateImpl(ScaleUpdateDetails details) {
+    if (_isDraggingPerspectiveHandle) {
+      return;
+    }
     if (!_isScalingGesture) {
       return;
     }
@@ -1175,6 +1201,10 @@ extension _PaintingBoardInteractionPointerImpl
   }
 
   void _handleScaleEndImpl(ScaleEndDetails details) {
+    if (_isDraggingPerspectiveHandle) {
+      _isScalingGesture = false;
+      return;
+    }
     final int now = DateTime.now().millisecondsSinceEpoch;
     final int elapsedMs = _scaleGestureStartEpochMs > 0
         ? (now - _scaleGestureStartEpochMs)

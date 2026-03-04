@@ -100,10 +100,10 @@ mixin _PaintingBoardBuildMixin
     return ValueListenableBuilder<int>(
       valueListenable: MobileBottomSheetController.activeCount,
       builder: (context, activeCount, _) {
-        if (activeCount <= 0) {
-          return stack;
-        }
-        return Offstage(offstage: true, child: stack);
+        return Offstage(
+          offstage: activeCount > 0,
+          child: stack,
+        );
       },
     );
   }

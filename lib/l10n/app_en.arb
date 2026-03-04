@@ -1054,6 +1054,8 @@
   "autoSaveCleanupDialogClean": "Clean Up",
   "exportDestinationTitle": "Export destination",
   "exportDestinationDesc": "Choose where to export the image.",
+  "imageSourceTitle": "Select image source",
+  "imageSourceDesc": "Choose to import from Photos or Files.",
   "exportDestinationPhotos": "Photos",
   "exportDestinationFiles": "Files",
   "imageSavedToPhotos": "Image saved to Photos.",
