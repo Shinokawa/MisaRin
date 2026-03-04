@@ -1,15 +1,46 @@
 part of 'painting_board.dart';
 
-const bool _kDebugPointerInput = bool.fromEnvironment(
-  'MISA_RIN_DEBUG_POINTER_INPUT',
-  defaultValue: false,
-);
+final bool _kDebugPointerInput =
+    kDebugMode ||
+    bool.fromEnvironment(
+      'MISA_RIN_DEBUG_POINTER_INPUT',
+      defaultValue: false,
+    );
+
+int _pointerLogLastEpochMs = 0;
+int _pointerLogLastPointer = -1;
+PointerDeviceKind? _pointerLogLastKind;
 
 void _debugPointerInput(String message) {
   if (!_kDebugPointerInput) {
     return;
   }
-  debugPrint('[pointer] $message');
+  // Use print so logs still appear even when debugPrint is throttled/disabled.
+  print('[pointer] $message');
+}
+
+void _debugPointerEvent(String phase, PointerEvent event) {
+  if (!_kDebugPointerInput) {
+    return;
+  }
+  final int now = DateTime.now().millisecondsSinceEpoch;
+  if (phase == 'move') {
+    final bool shouldLog =
+        (now - _pointerLogLastEpochMs) > 200 ||
+        _pointerLogLastPointer != event.pointer ||
+        _pointerLogLastKind != event.kind;
+    if (!shouldLog) {
+      return;
+    }
+    _pointerLogLastEpochMs = now;
+    _pointerLogLastPointer = event.pointer;
+    _pointerLogLastKind = event.kind;
+  }
+  _debugPointerInput(
+    '$phase id=${event.pointer} kind=${event.kind} '
+    'down=${event.down} buttons=${event.buttons} '
+    'pressure=${event.pressure} pos=${event.localPosition}',
+  );
 }
 
 extension _PaintingBoardInteractionPointerImpl
@@ -93,11 +124,7 @@ extension _PaintingBoardInteractionPointerImpl
   }
 
   Future<void> _handlePointerDownImpl(PointerDownEvent event) async {
-    _debugPointerInput(
-      'down start id=${event.pointer} kind=${event.kind} '
-      'down=${event.down} buttons=${event.buttons} '
-      'pressure=${event.pressure} pos=${event.localPosition}',
-    );
+    _debugPointerEvent('down', event);
     _trackStylusContact(event);
     final bool isTouch = event.kind == PointerDeviceKind.touch;
     if (isTouch) {
@@ -447,6 +474,7 @@ extension _PaintingBoardInteractionPointerImpl
   }
 
   void _handlePointerMoveImpl(PointerMoveEvent event) {
+    _debugPointerEvent('move', event);
     _trackStylusContact(event);
     if (event.kind == PointerDeviceKind.touch) {
       if (_touchIgnoreUntilAllUp) {
@@ -678,6 +706,7 @@ extension _PaintingBoardInteractionPointerImpl
   }
 
   Future<void> _handlePointerUpImpl(PointerUpEvent event) async {
+    _debugPointerEvent('up', event);
     _trackStylusContact(event);
     final bool wasIgnoring = _touchIgnoreUntilAllUp;
     if (event.kind == PointerDeviceKind.touch) {
@@ -827,6 +856,7 @@ extension _PaintingBoardInteractionPointerImpl
   }
 
   void _handlePointerCancelImpl(PointerCancelEvent event) {
+    _debugPointerEvent('cancel', event);
     _trackStylusContact(event);
     final bool wasIgnoring = _touchIgnoreUntilAllUp;
     if (event.kind == PointerDeviceKind.touch) {

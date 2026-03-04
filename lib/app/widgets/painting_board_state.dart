@@ -92,6 +92,12 @@ class PaintingBoardState extends _PaintingBoardBase
     _magicWandTolerance = prefs.magicWandTolerance;
     _brushToolsEraserMode = prefs.brushToolsEraserMode;
     _touchDrawingEnabled = prefs.touchDrawingEnabled;
+    if (_kDebugPointerInput) {
+      print(
+        '[pointer] debug enabled platform=$defaultTargetPlatform '
+        'touchDrawing=$_touchDrawingEnabled',
+      );
+    }
     _shapeFillEnabled = prefs.shapeToolFillEnabled;
     _layerAdjustCropOutside = prefs.layerAdjustCropOutside;
     _penStrokeSliderRange = prefs.penStrokeSliderRange;
