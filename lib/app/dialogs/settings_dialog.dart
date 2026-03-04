@@ -36,7 +36,6 @@ Future<void> showSettingsDialog(
     mobileHeightFactor: 0.9,
     builder: (dialogContext) {
       final l10n = dialogContext.l10n;
-      final bool isMobile = isMobileOrPhone(dialogContext);
       return MisarinDialog(
         title: Text(l10n.settingsTitle),
         content: _SettingsDialogContent(
@@ -47,11 +46,10 @@ Future<void> showSettingsDialog(
         contentWidth: null,
         maxWidth: 920,
         actions: [
-          if (!isMobile)
-            Button(
-              onPressed: () => contentKey.currentState?.openTabletDiagnostic(),
-              child: Text(l10n.tabletTest),
-            ),
+          Button(
+            onPressed: () => contentKey.currentState?.openTabletDiagnostic(),
+            child: Text(l10n.tabletTest),
+          ),
           Button(
             onPressed: () => contentKey.currentState?.resetToDefaults(),
             child: Text(l10n.restoreDefaults),
@@ -277,7 +275,6 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
   Widget _buildSectionContent(BuildContext context, _SettingsSection section) {
     final l10n = context.l10n;
     final theme = FluentTheme.of(context);
-    final bool isMobile = isMobileOrPhone(context);
     switch (section) {
       case _SettingsSection.general:
         final ThemeController controller = ThemeController.of(context);
@@ -378,48 +375,47 @@ class _SettingsDialogContentState extends State<_SettingsDialogContent> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!isMobile)
-              InfoLabel(
-                label: l10n.stylusPressureSettingsLabel,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(l10n.enableStylusPressure),
-                        const SizedBox(width: 12),
-                        ToggleSwitch(
-                          checked: _stylusPressureEnabled,
-                          onChanged: (value) {
-                            setState(() => _stylusPressureEnabled = value);
-                            final AppPreferences prefs = AppPreferences.instance;
-                            prefs.stylusPressureEnabled = value;
-                            unawaited(AppPreferences.save());
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _StylusSliderTile(
-                      label: l10n.responseCurveLabel,
-                      description: l10n.responseCurveDesc,
-                      value: _stylusCurve,
-                      min: AppPreferences.stylusCurveLowerBound,
-                      max: AppPreferences.stylusCurveUpperBound,
-                      enabled: _stylusPressureEnabled,
-                      asMultiplier: false,
-                      onChanged: (value) {
-                        setState(() => _stylusCurve = value);
-                        final AppPreferences prefs = AppPreferences.instance;
-                        prefs.stylusPressureCurve = _stylusCurve;
-                        unawaited(AppPreferences.save());
-                      },
-                    ),
-                  ],
-                ),
+            InfoLabel(
+              label: l10n.stylusPressureSettingsLabel,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(l10n.enableStylusPressure),
+                      const SizedBox(width: 12),
+                      ToggleSwitch(
+                        checked: _stylusPressureEnabled,
+                        onChanged: (value) {
+                          setState(() => _stylusPressureEnabled = value);
+                          final AppPreferences prefs = AppPreferences.instance;
+                          prefs.stylusPressureEnabled = value;
+                          unawaited(AppPreferences.save());
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _StylusSliderTile(
+                    label: l10n.responseCurveLabel,
+                    description: l10n.responseCurveDesc,
+                    value: _stylusCurve,
+                    min: AppPreferences.stylusCurveLowerBound,
+                    max: AppPreferences.stylusCurveUpperBound,
+                    enabled: _stylusPressureEnabled,
+                    asMultiplier: false,
+                    onChanged: (value) {
+                      setState(() => _stylusCurve = value);
+                      final AppPreferences prefs = AppPreferences.instance;
+                      prefs.stylusPressureCurve = _stylusCurve;
+                      unawaited(AppPreferences.save());
+                    },
+                  ),
+                ],
               ),
+            ),
             if (!kIsWeb) ...[
-              if (!isMobile) const SizedBox(height: 16),
+              const SizedBox(height: 16),
               InfoLabel(
                 label: l10n.brushShapeFolderLabel,
                 child: Column(

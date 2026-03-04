@@ -841,7 +841,93 @@ class CanvasPageState extends State<CanvasPage> {
 
   Future<_ExportChoice?> _showExportFormatDialog() async {
     final l10n = context.l10n;
-    return showResponsiveDialog<_ExportChoice?>(
+    if (isMobileOrPhone(context)) {
+      return showMobileBottomSheet<_ExportChoice?>(
+        context: context,
+        heightFactor: 0.5,
+        builder: (BuildContext context) {
+          final theme = FluentTheme.of(context);
+          Widget buildOptionTitle(String title, [String? description]) {
+            final String? trimmed = description?.trim();
+            if (trimmed == null || trimmed.isEmpty) {
+              return Text(title);
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title),
+                const SizedBox(height: 2),
+                Text(trimmed, style: theme.typography.caption),
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.selectExportFormat,
+                      style: theme.typography.subtitle?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.selectSaveFormat,
+                      style: theme.typography.caption,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  children: [
+                    ListTile(
+                      title: buildOptionTitle(
+                        l10n.saveAsPsd,
+                        l10n.exportAsPsdTooltip,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(
+                        const _ExportChoice(_ExportType.psd, 'psd'),
+                      ),
+                    ),
+                    ListTile(
+                      title: buildOptionTitle(
+                        l10n.saveAsSai2,
+                        l10n.exportAsSai2Tooltip,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(
+                        const _ExportChoice(_ExportType.sai2, 'sai2'),
+                      ),
+                    ),
+                    ListTile(
+                      title: buildOptionTitle(l10n.saveAsRin),
+                      onPressed: () => Navigator.of(context).pop(
+                        const _ExportChoice(_ExportType.rin, 'rin'),
+                      ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      title: Text(l10n.cancel),
+                      onPressed: () => Navigator.of(context).pop(null),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    return showDialog<_ExportChoice?>(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {
