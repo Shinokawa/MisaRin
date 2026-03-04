@@ -24,12 +24,28 @@ class TabletStylusPoint {
   final double? pressure;
 }
 
+class TabletHoverSample {
+  const TabletHoverSample({
+    required this.position,
+    required this.inContact,
+    required this.inRange,
+    required this.deviceId,
+  });
+
+  final Offset position;
+  final bool inContact;
+  final bool inRange;
+  final int deviceId;
+}
+
 class TabletInputBridge {
   TabletInputBridge._();
 
   static final TabletInputBridge instance = TabletInputBridge._();
 
   final MethodChannel _channel = const MethodChannel('misarin/tablet_input');
+  final StreamController<TabletHoverSample> _hoverController =
+      StreamController<TabletHoverSample>.broadcast();
   final StreamController<void> _pencilDoubleTapController =
       StreamController<void>.broadcast();
   bool _initialized = false;
@@ -61,6 +77,7 @@ class TabletInputBridge {
   bool get _supportApplePencilMotionChannel => !kIsWeb && Platform.isIOS;
 
   Stream<void> get pencilDoubleTapEvents => _pencilDoubleTapController.stream;
+  Stream<TabletHoverSample> get hoverEvents => _hoverController.stream;
 
   void ensureInitialized() {
     if (_initialized) {
@@ -99,14 +116,28 @@ class TabletInputBridge {
     final double pressureMin = (raw['pressureMin'] as num?)?.toDouble() ?? 0.0;
     final double pressureMax = (raw['pressureMax'] as num?)?.toDouble() ?? 1.0;
     final bool inContact = raw['inContact'] as bool? ?? false;
+    final bool inRange = raw['inRange'] as bool? ?? inContact;
+    final double? x = (raw['x'] as num?)?.toDouble();
+    final double? y = (raw['y'] as num?)?.toDouble();
     _samples[deviceId] = _TabletSample(
       pressure: pressure,
       min: pressureMin,
       max: pressureMax,
       inContact: inContact,
+      inRange: inRange,
     );
-    if (!inContact && pressure <= 0.0) {
+    if (!inContact && pressure <= 0.0 && !inRange) {
       _samples.remove(deviceId);
+    }
+    if (x != null && y != null && x.isFinite && y.isFinite) {
+      _hoverController.add(
+        TabletHoverSample(
+          position: Offset(x, y),
+          inContact: inContact,
+          inRange: inRange,
+          deviceId: deviceId,
+        ),
+      );
     }
   }
 
@@ -472,12 +503,14 @@ class _TabletSample {
     required this.min,
     required this.max,
     required this.inContact,
+    required this.inRange,
   });
 
   final double pressure;
   final double min;
   final double max;
   final bool inContact;
+  final bool inRange;
 }
 
 class _PencilMotionFrame {

@@ -146,6 +146,18 @@ void FlutterWindow::HandlePointerMessage(UINT message,
   }
   const bool in_contact =
       (pointer_info.pointerFlags & POINTER_FLAG_INCONTACT) != 0;
+  const bool in_range =
+      (pointer_info.pointerFlags & POINTER_FLAG_INRANGE) != 0;
+  POINT client_point = pointer_info.ptPixelLocation;
+  if (flutter_view_hwnd_ != nullptr) {
+    ScreenToClient(flutter_view_hwnd_, &client_point);
+  }
+  const HWND dpi_window =
+      flutter_view_hwnd_ != nullptr ? flutter_view_hwnd_ : GetHandle();
+  const UINT dpi = GetDpiForWindow(dpi_window);
+  const double scale = dpi > 0 ? (static_cast<double>(dpi) / 96.0) : 1.0;
+  const double logical_x = client_point.x / scale;
+  const double logical_y = client_point.y / scale;
   flutter::EncodableMap payload;
   payload[flutter::EncodableValue("tag")] =
       flutter::EncodableValue("winPointer");
@@ -159,6 +171,12 @@ void FlutterWindow::HandlePointerMessage(UINT message,
       flutter::EncodableValue(1.0);
   payload[flutter::EncodableValue("inContact")] =
       flutter::EncodableValue(in_contact);
+  payload[flutter::EncodableValue("inRange")] =
+      flutter::EncodableValue(in_range);
+  payload[flutter::EncodableValue("x")] =
+      flutter::EncodableValue(logical_x);
+  payload[flutter::EncodableValue("y")] =
+      flutter::EncodableValue(logical_y);
   tablet_channel_->InvokeMethod(
       "tabletEvent",
       std::make_unique<flutter::EncodableValue>(std::move(payload)));
