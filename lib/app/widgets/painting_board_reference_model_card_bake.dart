@@ -41,18 +41,19 @@ Future<_MobileImageExportDestination?> _showMobileImageExportDestinationDialog(
                 children: [
                   ListTile(
                     title: Text(l10n.exportDestinationPhotos),
-                    onPressed: () => Navigator.of(context)
-                        .pop(_MobileImageExportDestination.photos),
+                    onPressed: () => MobileBottomSheetScope.of(context)
+                        .close(_MobileImageExportDestination.photos),
                   ),
                   ListTile(
                     title: Text(l10n.exportDestinationFiles),
-                    onPressed: () => Navigator.of(context)
-                        .pop(_MobileImageExportDestination.files),
+                    onPressed: () => MobileBottomSheetScope.of(context)
+                        .close(_MobileImageExportDestination.files),
                   ),
                   const Divider(),
                   ListTile(
                     title: Text(l10n.cancel),
-                    onPressed: () => Navigator.of(context).pop(null),
+                    onPressed: () =>
+                        MobileBottomSheetScope.of(context).close(null),
                   ),
                 ],
               ),
@@ -282,7 +283,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                           children: [
                             Expanded(
                               child: Button(
-                                onPressed: () => Navigator.of(context).pop(),
+                                onPressed: () => MobileBottomSheetScope.of(context)
+                                    .close(null),
                                 child: Text(context.l10n.cancel),
                               ),
                             ),
@@ -299,7 +301,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                                   if (resolution == null) {
                                     return;
                                   }
-                                  Navigator.of(context).pop(resolution);
+                                  MobileBottomSheetScope.of(context)
+                                      .close(resolution);
                                 },
                                 child: const Text('确定'),
                               ),
@@ -564,11 +567,30 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
       builder: (BuildContext overlayContext) {
         return HeroControllerScope.none(
           child: Navigator(
-          onGenerateRoute: (settings) => PageRouteBuilder<void>(
-            settings: settings,
-            transitionDuration: Duration.zero,
-            reverseTransitionDuration: Duration.zero,
-            pageBuilder: (context, animation, secondaryAnimation) {
+            onPopPage: (route, result) {
+              if (!route.didPop(result)) {
+                return false;
+              }
+              closeDialog();
+              return true;
+            },
+            onGenerateInitialRoutes: (navigator, initialRoute) =>
+                <Route<void>>[
+              PageRouteBuilder<void>(
+                settings: const RouteSettings(
+                  name: '__bake_dialog_placeholder__',
+                ),
+                transitionDuration: Duration.zero,
+                reverseTransitionDuration: Duration.zero,
+                pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+              PageRouteBuilder<void>(
+                settings: const RouteSettings(
+                  name: '__bake_dialog_content__',
+                ),
+                transitionDuration: Duration.zero,
+                reverseTransitionDuration: Duration.zero,
+                pageBuilder: (context, animation, secondaryAnimation) {
               final Color barrierColor = Colors.black.withValues(alpha: 0.35);
               return Stack(
           fit: StackFit.expand,
@@ -1575,6 +1597,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
         );
             },
           ),
+        ],
           ),
         );
       },

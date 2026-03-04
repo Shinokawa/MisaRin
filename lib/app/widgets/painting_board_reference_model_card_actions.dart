@@ -601,21 +601,12 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
       selectedIsDynamic =
           selectedItem?.isAnimated ?? selectedAnimation?.isDynamic ?? false;
       syncPreviewController();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _selectedAction = selection;
-        _selectedActionItem = selectedItem;
-        _selectedAnimation = selectedAnimation;
-      });
-      _applySelectedAnimation();
       sheetSetState?.call(() {});
     }
 
     syncPreviewController();
     try {
-      await showMobileBottomSheetOnRootOverlay<void>(
+      final String? result = await showMobileBottomSheetOnRootOverlay<String>(
         context: widget.dialogContext,
         heightFactor: 0.9,
         builder: (BuildContext context) {
@@ -928,6 +919,27 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
                         }),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Button(
+                            child: Text(context.l10n.cancel),
+                            onPressed: () =>
+                                MobileBottomSheetScope.of(context).close(null),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            child: Text(context.l10n.confirm),
+                            onPressed: () =>
+                                MobileBottomSheetScope.of(context)
+                                    .close(selection),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               );
@@ -935,6 +947,17 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
           );
         },
       );
+      if (!mounted || result == null) {
+        return;
+      }
+      setState(() {
+        _selectedAction = result;
+        _selectedActionItem = catalog.byId[result];
+        _selectedAnimation = result == _kReferenceModelActionNone
+            ? null
+            : library.animations[result];
+      });
+      _applySelectedAnimation();
     } finally {
       previewController.dispose();
       sheetSetState = null;
@@ -1005,8 +1028,8 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
                         color: theme.accentColor,
                       )
                     : null,
-                onPressed: () =>
-                    Navigator.of(context).pop(_kReferenceModelActionNone),
+                onPressed: () => MobileBottomSheetScope.of(context)
+                    .close(_kReferenceModelActionNone),
               ),
               const Divider(),
             ];
@@ -1062,10 +1085,11 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
                               color: theme.accentColor,
                             )
                           : null,
-                      onPressed: () => Navigator.of(context).pop(item.id),
-                    ),
-                  );
-                }
+                    onPressed: () =>
+                        MobileBottomSheetScope.of(context).close(item.id),
+                  ),
+                );
+              }
               }
 
               addSection('姿势', poses, icon: FluentIcons.contact);
@@ -1076,7 +1100,8 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
             items.add(
               ListTile(
                 title: Text(context.l10n.cancel),
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () =>
+                    MobileBottomSheetScope.of(context).close(null),
               ),
             );
 

@@ -40,6 +40,29 @@ class MobileBottomSheetController {
   }
 }
 
+class MobileBottomSheetScope extends InheritedWidget {
+  const MobileBottomSheetScope({
+    super.key,
+    required this.close,
+    required super.child,
+  });
+
+  final void Function(Object? result) close;
+
+  static MobileBottomSheetScope? maybeOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<MobileBottomSheetScope>();
+  }
+
+  static MobileBottomSheetScope of(BuildContext context) {
+    final MobileBottomSheetScope? scope = maybeOf(context);
+    assert(scope != null, 'No MobileBottomSheetScope found in context.');
+    return scope!;
+  }
+
+  @override
+  bool updateShouldNotify(MobileBottomSheetScope oldWidget) => false;
+}
+
 Future<T?> showMobileBottomSheet<T>({
   required BuildContext context,
   Widget? child,
@@ -231,6 +254,8 @@ class _MobileBottomSheetOverlayHostState<T>
     with TickerProviderStateMixin {
   static const Duration _kTransitionDuration =
       Duration(milliseconds: 320);
+  static const String _kPlaceholderRouteName = '__mobile_sheet_placeholder__';
+  static const String _kContentRouteName = '__mobile_sheet_content__';
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: _kTransitionDuration,
@@ -284,6 +309,15 @@ class _MobileBottomSheetOverlayHostState<T>
             animation: widget.rebuildListenable!,
             builder: (context, _) => widget.builder(context),
           );
+
+    Route<void> buildRoute(Widget child, {required String name}) {
+      return PageRouteBuilder<void>(
+        settings: RouteSettings(name: name),
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => child,
+      );
+    }
 
     Widget buildBarrier() {
       final Color color = Colors.black.withOpacity(0.4);
@@ -353,19 +387,27 @@ class _MobileBottomSheetOverlayHostState<T>
                             MobileBottomSheetConstants.borderRadius,
                           ),
                         ),
-                        child: Navigator(
-                          onPopPage: (route, result) {
-                            if (!route.didPop(result)) {
-                              return false;
-                            }
-                            _close(result as T?);
-                            return true;
-                          },
-                          onGenerateRoute: (settings) => PageRouteBuilder<void>(
-                            settings: settings,
-                            transitionDuration: Duration.zero,
-                            reverseTransitionDuration: Duration.zero,
-                            pageBuilder: (_, __, ___) => content,
+                        child: MobileBottomSheetScope(
+                          close: (result) => _close(result as T?),
+                          child: Navigator(
+                            onPopPage: (route, result) {
+                              if (!route.didPop(result)) {
+                                return false;
+                              }
+                              _close(result as T?);
+                              return true;
+                            },
+                            onGenerateInitialRoutes:
+                                (navigator, initialRoute) => <Route<void>>[
+                              buildRoute(
+                                const SizedBox.shrink(),
+                                name: _kPlaceholderRouteName,
+                              ),
+                              buildRoute(
+                                content,
+                                name: _kContentRouteName,
+                              ),
+                            ],
                           ),
                         ),
                       ),
