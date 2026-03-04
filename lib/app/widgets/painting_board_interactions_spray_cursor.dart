@@ -29,6 +29,9 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     if (event.kind != PointerDeviceKind.touch) {
       return false;
     }
+    if (_isStylusEvent(event)) {
+      return false;
+    }
     final CanvasTool tool = _effectiveActiveTool;
     final bool drawingTool =
         tool == CanvasTool.pen || tool == CanvasTool.eraser || tool == CanvasTool.spray;
@@ -56,6 +59,9 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       return (event.buttons & kPrimaryMouseButton) != 0;
     }
     if (event.kind == PointerDeviceKind.touch) {
+      if (_isStylusEvent(event)) {
+        return true;
+      }
       if (_shouldRejectTouchAsPalm(event)) {
         return false;
       }

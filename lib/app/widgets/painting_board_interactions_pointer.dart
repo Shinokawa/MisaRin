@@ -126,7 +126,12 @@ extension _PaintingBoardInteractionPointerImpl
   Future<void> _handlePointerDownImpl(PointerDownEvent event) async {
     _debugPointerEvent('down', event);
     _trackStylusContact(event);
-    final bool isTouch = event.kind == PointerDeviceKind.touch;
+    final bool isStylus = _isStylusEvent(event);
+    final bool isTouch = event.kind == PointerDeviceKind.touch && !isStylus;
+    _debugPointerInput(
+      'down flags stylus=$isStylus touch=$isTouch '
+      'touchDrawing=$_touchDrawingEnabled',
+    );
     if (isTouch) {
       _activeTouchPointers.add(event.pointer);
       _primaryTouchPointer ??= event.pointer;
@@ -261,8 +266,7 @@ extension _PaintingBoardInteractionPointerImpl
       _debugPointerInput('down handled: layer transform mode');
       return;
     }
-    if (event.kind == PointerDeviceKind.touch &&
-        _shouldDeferTouchBrushStroke(tool)) {
+    if (isTouch && _shouldDeferTouchBrushStroke(tool)) {
       _pendingTouchStrokePointer = event.pointer;
       _pendingTouchStrokeStart = boardLocal;
       _pendingTouchStrokeTimestamp = event.timeStamp;
@@ -476,7 +480,8 @@ extension _PaintingBoardInteractionPointerImpl
   void _handlePointerMoveImpl(PointerMoveEvent event) {
     _debugPointerEvent('move', event);
     _trackStylusContact(event);
-    if (event.kind == PointerDeviceKind.touch) {
+    final bool isStylus = _isStylusEvent(event);
+    if (event.kind == PointerDeviceKind.touch && !isStylus) {
       if (_touchIgnoreUntilAllUp) {
         return;
       }
@@ -709,7 +714,8 @@ extension _PaintingBoardInteractionPointerImpl
     _debugPointerEvent('up', event);
     _trackStylusContact(event);
     final bool wasIgnoring = _touchIgnoreUntilAllUp;
-    if (event.kind == PointerDeviceKind.touch) {
+    final bool isStylus = _isStylusEvent(event);
+    if (event.kind == PointerDeviceKind.touch && !isStylus) {
       _activeTouchPointers.remove(event.pointer);
       if (_activeTouchPointers.isEmpty) {
         _touchIgnoreUntilAllUp = false;
@@ -859,7 +865,8 @@ extension _PaintingBoardInteractionPointerImpl
     _debugPointerEvent('cancel', event);
     _trackStylusContact(event);
     final bool wasIgnoring = _touchIgnoreUntilAllUp;
-    if (event.kind == PointerDeviceKind.touch) {
+    final bool isStylus = _isStylusEvent(event);
+    if (event.kind == PointerDeviceKind.touch && !isStylus) {
       _activeTouchPointers.remove(event.pointer);
       if (_activeTouchPointers.isEmpty) {
         _touchIgnoreUntilAllUp = false;
