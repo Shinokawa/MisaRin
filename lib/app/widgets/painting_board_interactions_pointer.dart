@@ -1,5 +1,48 @@
 part of 'painting_board.dart';
 
+final bool _kDebugPointerInput =
+    kDebugMode ||
+    bool.fromEnvironment(
+      'MISA_RIN_DEBUG_POINTER_INPUT',
+      defaultValue: false,
+    );
+
+int _pointerLogLastEpochMs = 0;
+int _pointerLogLastPointer = -1;
+PointerDeviceKind? _pointerLogLastKind;
+
+void _debugPointerInput(String message) {
+  if (!_kDebugPointerInput) {
+    return;
+  }
+  // Use print so logs still appear even when debugPrint is throttled/disabled.
+  print('[pointer] $message');
+}
+
+void _debugPointerEvent(String phase, PointerEvent event) {
+  if (!_kDebugPointerInput) {
+    return;
+  }
+  final int now = DateTime.now().millisecondsSinceEpoch;
+  if (phase == 'move') {
+    final bool shouldLog =
+        (now - _pointerLogLastEpochMs) > 200 ||
+        _pointerLogLastPointer != event.pointer ||
+        _pointerLogLastKind != event.kind;
+    if (!shouldLog) {
+      return;
+    }
+    _pointerLogLastEpochMs = now;
+    _pointerLogLastPointer = event.pointer;
+    _pointerLogLastKind = event.kind;
+  }
+  _debugPointerInput(
+    '$phase id=${event.pointer} kind=${event.kind} '
+    'down=${event.down} buttons=${event.buttons} '
+    'pressure=${event.pressure} pos=${event.localPosition}',
+  );
+}
+
 extension _PaintingBoardInteractionPointerImpl
     on _PaintingBoardInteractionMixin {
   void _clearPendingTouchStroke() {
@@ -81,8 +124,14 @@ extension _PaintingBoardInteractionPointerImpl
   }
 
   Future<void> _handlePointerDownImpl(PointerDownEvent event) async {
+    _debugPointerEvent('down', event);
     _trackStylusContact(event);
-    final bool isTouch = event.kind == PointerDeviceKind.touch;
+    final bool isStylus = _isStylusEvent(event);
+    final bool isTouch = event.kind == PointerDeviceKind.touch && !isStylus;
+    _debugPointerInput(
+      'down flags stylus=$isStylus touch=$isTouch '
+      'touchDrawing=$_touchDrawingEnabled',
+    );
     if (isTouch) {
       _activeTouchPointers.add(event.pointer);
       _primaryTouchPointer ??= event.pointer;
@@ -94,28 +143,35 @@ extension _PaintingBoardInteractionPointerImpl
         if (box != null) {
           _cancelActiveGestureDrawing(box, event.position);
         }
+        _debugPointerInput('down ignored: multi-touch active');
         return;
       }
       if (_touchIgnoreUntilAllUp) {
+        _debugPointerInput('down ignored: touch ignore until all up');
         return;
       }
     }
     final bool isPrimary = _isPrimaryPointer(event);
+    _debugPointerInput('down primary=$isPrimary');
     if (isTouch &&
         _primaryTouchPointer != null &&
         event.pointer != _primaryTouchPointer) {
+      _debugPointerInput('down ignored: non-primary touch pointer');
       return;
     }
     if (_isScalingGesture) {
+      _debugPointerInput('down ignored: scaling gesture active');
       return;
     }
     if (_layerTransformApplying) {
+      _debugPointerInput('down ignored: layer transform applying');
       return;
     }
     _recordWorkspacePointer(event.localPosition);
     _updateToolCursorOverlay(event.localPosition);
     final Offset pointer = event.localPosition;
     if (_isInsideToolArea(pointer) || _isInsideWorkspacePanelArea(pointer)) {
+      _debugPointerInput('down ignored: inside tool/panel area');
       return;
     }
     final Offset boardLocal = _toBoardLocal(pointer);
@@ -130,11 +186,14 @@ extension _PaintingBoardInteractionPointerImpl
         workspacePosition: pointer,
         screenRadius: perspectiveScreenRadius,
       )) {
+        _debugPointerInput('down handled: perspective (touch secondary)');
         return;
       }
+      _debugPointerInput('down ignored: touch secondary not primary');
       return;
     }
     if (!isPrimary) {
+      _debugPointerInput('down ignored: not primary pointer');
       return;
     }
     final CanvasTool tool = _effectiveActiveTool;
@@ -156,6 +215,7 @@ extension _PaintingBoardInteractionPointerImpl
       workspacePosition: isTouch ? pointer : null,
       screenRadius: perspectiveScreenRadius,
     )) {
+      _debugPointerInput('down handled: perspective');
       return;
     }
     final bool pointerInsideBoard = _isWithinCanvasBounds(boardLocal);
@@ -185,27 +245,33 @@ extension _PaintingBoardInteractionPointerImpl
         tool == CanvasTool.eraser ||
         tool == CanvasTool.perspectivePen;
     if (!pointerInsideBoard && !toolCanStartOutsideCanvas) {
+      _debugPointerInput(
+        'down ignored: outside board tool=$tool inside=$pointerInsideBoard',
+      );
       return;
     }
     if (_shouldBlockToolOnTextLayer(tool)) {
       _showTextToolConflictWarning();
+      _debugPointerInput('down ignored: text tool conflict');
       return;
     }
     if (_isTextEditingActive) {
+      _debugPointerInput('down ignored: text editing active');
       return;
     }
     if (_layerTransformModeActive) {
       if (pointerInsideBoard) {
         _handleLayerTransformPointerDown(boardLocal);
       }
+      _debugPointerInput('down handled: layer transform mode');
       return;
     }
-    if (event.kind == PointerDeviceKind.touch &&
-        _shouldDeferTouchBrushStroke(tool)) {
+    if (isTouch && _shouldDeferTouchBrushStroke(tool)) {
       _pendingTouchStrokePointer = event.pointer;
       _pendingTouchStrokeStart = boardLocal;
       _pendingTouchStrokeTimestamp = event.timeStamp;
       _pendingTouchStrokeEvent = event;
+      _debugPointerInput('down deferred: pending touch stroke');
       return;
     }
     switch (tool) {
@@ -219,9 +285,11 @@ extension _PaintingBoardInteractionPointerImpl
             _backend.isSupported && _brushShapeSupportsBackend;
         if (!useBackendCanvas) {
           if (!_canStartBitmapStroke()) {
+            _debugPointerInput('down ignored: cannot start bitmap stroke');
             return;
           }
           if (!isPointInsideSelection(boardLocal)) {
+            _debugPointerInput('down ignored: outside selection');
             return;
           }
           if (shiftPressed) {
@@ -270,16 +338,20 @@ extension _PaintingBoardInteractionPointerImpl
               timestamp: event.timeStamp,
               event: event,
             );
+            _debugPointerInput('down queued: cpu stroke');
             return;
           }
           await _startStroke(boardLocal, event.timeStamp, event);
+          _debugPointerInput('down handled: cpu stroke start');
           return;
         }
         if (!_canStartBackendStroke()) {
           _showBackendCanvasMessage('画布后端尚未准备好。');
+          _debugPointerInput('down ignored: backend not ready');
           return;
         }
         if (!isPointInsideSelection(boardLocal)) {
+          _debugPointerInput('down ignored: outside selection (backend)');
           return;
         }
         if (shiftPressed) {
@@ -296,6 +368,7 @@ extension _PaintingBoardInteractionPointerImpl
           }
         }
         _beginBackendStroke(event);
+        _debugPointerInput('down handled: backend stroke start');
         break;
       case CanvasTool.perspectivePen:
         _focusNode.requestFocus();
@@ -405,8 +478,10 @@ extension _PaintingBoardInteractionPointerImpl
   }
 
   void _handlePointerMoveImpl(PointerMoveEvent event) {
+    _debugPointerEvent('move', event);
     _trackStylusContact(event);
-    if (event.kind == PointerDeviceKind.touch) {
+    final bool isStylus = _isStylusEvent(event);
+    if (event.kind == PointerDeviceKind.touch && !isStylus) {
       if (_touchIgnoreUntilAllUp) {
         return;
       }
@@ -636,9 +711,11 @@ extension _PaintingBoardInteractionPointerImpl
   }
 
   Future<void> _handlePointerUpImpl(PointerUpEvent event) async {
+    _debugPointerEvent('up', event);
     _trackStylusContact(event);
     final bool wasIgnoring = _touchIgnoreUntilAllUp;
-    if (event.kind == PointerDeviceKind.touch) {
+    final bool isStylus = _isStylusEvent(event);
+    if (event.kind == PointerDeviceKind.touch && !isStylus) {
       _activeTouchPointers.remove(event.pointer);
       if (_activeTouchPointers.isEmpty) {
         _touchIgnoreUntilAllUp = false;
@@ -785,9 +862,11 @@ extension _PaintingBoardInteractionPointerImpl
   }
 
   void _handlePointerCancelImpl(PointerCancelEvent event) {
+    _debugPointerEvent('cancel', event);
     _trackStylusContact(event);
     final bool wasIgnoring = _touchIgnoreUntilAllUp;
-    if (event.kind == PointerDeviceKind.touch) {
+    final bool isStylus = _isStylusEvent(event);
+    if (event.kind == PointerDeviceKind.touch && !isStylus) {
       _activeTouchPointers.remove(event.pointer);
       if (_activeTouchPointers.isEmpty) {
         _touchIgnoreUntilAllUp = false;

@@ -2,7 +2,27 @@
 
 #include <optional>
 
+#include <windows.h>
+#include <windowsx.h>
+
 #include "flutter/generated_plugin_registrant.h"
+
+namespace {
+
+constexpr const wchar_t kTabletBridgeProp[] = L"MISARIN_TABLET_BRIDGE";
+constexpr double kPenPressureMax = 1024.0;
+
+double Clamp01(double value) {
+  if (value < 0.0) {
+    return 0.0;
+  }
+  if (value > 1.0) {
+    return 1.0;
+  }
+  return value;
+}
+
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -26,6 +46,16 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  SetupTabletChannel();
+
+  flutter_view_hwnd_ = flutter_controller_->view()->GetNativeWindow();
+  if (flutter_view_hwnd_ != nullptr) {
+    SetPropW(flutter_view_hwnd_, kTabletBridgeProp, this);
+    flutter_view_proc_ = reinterpret_cast<WNDPROC>(SetWindowLongPtr(
+        flutter_view_hwnd_, GWLP_WNDPROC,
+        reinterpret_cast<LONG_PTR>(FlutterWindow::FlutterViewSubclassProc)));
+    RegisterPointerInputTarget(flutter_view_hwnd_, PT_PEN);
+  }
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
@@ -40,6 +70,14 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  if (flutter_view_hwnd_ != nullptr && flutter_view_proc_ != nullptr) {
+    SetWindowLongPtr(flutter_view_hwnd_, GWLP_WNDPROC,
+                     reinterpret_cast<LONG_PTR>(flutter_view_proc_));
+    RemovePropW(flutter_view_hwnd_, kTabletBridgeProp);
+    flutter_view_hwnd_ = nullptr;
+    flutter_view_proc_ = nullptr;
+  }
+  tablet_channel_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -51,6 +89,10 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (message == WM_POINTERDOWN || message == WM_POINTERUP ||
+      message == WM_POINTERUPDATE) {
+    HandlePointerMessage(message, wparam, lparam);
+  }
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
@@ -68,4 +110,95 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
+}
+
+void FlutterWindow::SetupTabletChannel() {
+  if (tablet_channel_ || flutter_controller_ == nullptr) {
+    return;
+  }
+  tablet_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "misarin/tablet_input",
+          &flutter::StandardMethodCodec::GetInstance());
+}
+
+void FlutterWindow::HandlePointerMessage(UINT message,
+                                         WPARAM wparam,
+                                         LPARAM lparam) {
+  if (!tablet_channel_) {
+    return;
+  }
+  const UINT32 pointer_id = GET_POINTERID_WPARAM(wparam);
+  POINTER_INFO pointer_info;
+  if (!GetPointerInfo(pointer_id, &pointer_info)) {
+    return;
+  }
+  if (pointer_info.pointerType != PT_PEN) {
+    return;
+  }
+  POINTER_PEN_INFO pen_info;
+  if (!GetPointerPenInfo(pointer_id, &pen_info)) {
+    return;
+  }
+  double pressure = 0.0;
+  if (pen_info.penMask & PEN_MASK_PRESSURE) {
+    pressure = Clamp01(pen_info.pressure / kPenPressureMax);
+  }
+  const bool in_contact =
+      (pointer_info.pointerFlags & POINTER_FLAG_INCONTACT) != 0;
+  const bool in_range =
+      (pointer_info.pointerFlags & POINTER_FLAG_INRANGE) != 0;
+  POINT client_point = pointer_info.ptPixelLocation;
+  if (flutter_view_hwnd_ != nullptr) {
+    ScreenToClient(flutter_view_hwnd_, &client_point);
+  }
+  const HWND dpi_window =
+      flutter_view_hwnd_ != nullptr ? flutter_view_hwnd_ : GetHandle();
+  const UINT dpi = GetDpiForWindow(dpi_window);
+  const double scale = dpi > 0 ? (static_cast<double>(dpi) / 96.0) : 1.0;
+  const double logical_x = client_point.x / scale;
+  const double logical_y = client_point.y / scale;
+  flutter::EncodableMap payload;
+  payload[flutter::EncodableValue("tag")] =
+      flutter::EncodableValue("winPointer");
+  payload[flutter::EncodableValue("device")] =
+      flutter::EncodableValue(static_cast<int>(pointer_id));
+  payload[flutter::EncodableValue("pressure")] =
+      flutter::EncodableValue(pressure);
+  payload[flutter::EncodableValue("pressureMin")] =
+      flutter::EncodableValue(0.0);
+  payload[flutter::EncodableValue("pressureMax")] =
+      flutter::EncodableValue(1.0);
+  payload[flutter::EncodableValue("inContact")] =
+      flutter::EncodableValue(in_contact);
+  payload[flutter::EncodableValue("inRange")] =
+      flutter::EncodableValue(in_range);
+  payload[flutter::EncodableValue("x")] =
+      flutter::EncodableValue(logical_x);
+  payload[flutter::EncodableValue("y")] =
+      flutter::EncodableValue(logical_y);
+  tablet_channel_->InvokeMethod(
+      "tabletEvent",
+      std::make_unique<flutter::EncodableValue>(std::move(payload)));
+}
+
+LRESULT CALLBACK FlutterWindow::FlutterViewSubclassProc(HWND window,
+                                                        UINT message,
+                                                        WPARAM wparam,
+                                                        LPARAM lparam) {
+  if (message == WM_POINTERDOWN || message == WM_POINTERUP ||
+      message == WM_POINTERUPDATE) {
+    auto* that = reinterpret_cast<FlutterWindow*>(
+        GetPropW(window, kTabletBridgeProp));
+    if (that != nullptr) {
+      that->HandlePointerMessage(message, wparam, lparam);
+    }
+  }
+  auto* that = reinterpret_cast<FlutterWindow*>(
+      GetPropW(window, kTabletBridgeProp));
+  if (that != nullptr && that->flutter_view_proc_ != nullptr) {
+    return CallWindowProc(that->flutter_view_proc_, window, message, wparam,
+                          lparam);
+  }
+  return DefWindowProc(window, message, wparam, lparam);
 }

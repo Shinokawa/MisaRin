@@ -29,6 +29,9 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
     if (event.kind != PointerDeviceKind.touch) {
       return false;
     }
+    if (_isStylusEvent(event)) {
+      return false;
+    }
     final CanvasTool tool = _effectiveActiveTool;
     final bool drawingTool =
         tool == CanvasTool.pen || tool == CanvasTool.eraser || tool == CanvasTool.spray;
@@ -50,9 +53,15 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
       if (event is PointerUpEvent || event is PointerCancelEvent) {
         return true;
       }
+      if (event.buttons == 0) {
+        return event.down;
+      }
       return (event.buttons & kPrimaryMouseButton) != 0;
     }
     if (event.kind == PointerDeviceKind.touch) {
+      if (_isStylusEvent(event)) {
+        return true;
+      }
       if (_shouldRejectTouchAsPalm(event)) {
         return false;
       }
@@ -82,6 +91,26 @@ extension _PaintingBoardInteractionSprayCursorExtension on _PaintingBoardInterac
         }
       }
       return event.down;
+    }
+    if (event.kind == PointerDeviceKind.unknown) {
+      if (event is PointerUpEvent || event is PointerCancelEvent) {
+        return true;
+      }
+      if (event is PointerHoverEvent) {
+        return true;
+      }
+      if (event.buttons == 0) {
+        return event.down;
+      }
+      if (event is PointerMoveEvent) {
+        return event.down ||
+            event.pressure > 0.0 ||
+            (event.buttons & kPrimaryMouseButton) != 0 ||
+            (event.buttons & kPrimaryStylusButton) != 0;
+      }
+      return event.down ||
+          (event.buttons & kPrimaryMouseButton) != 0 ||
+          (event.buttons & kPrimaryStylusButton) != 0;
     }
     return false;
   }

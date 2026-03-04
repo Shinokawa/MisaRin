@@ -32,6 +32,7 @@ class PaintingBoardState extends _PaintingBoardBase
   bool? _menuCopyEnabled;
   bool? _menuPasteEnabled;
   bool? _menuMergeDownEnabled;
+  StreamSubscription<TabletHoverSample>? _tabletHoverSubscription;
 
   int _layerSignature(CanvasLayerData layer) {
     return layer.id.hashCode;
@@ -92,6 +93,12 @@ class PaintingBoardState extends _PaintingBoardBase
     _magicWandTolerance = prefs.magicWandTolerance;
     _brushToolsEraserMode = prefs.brushToolsEraserMode;
     _touchDrawingEnabled = prefs.touchDrawingEnabled;
+    if (_kDebugPointerInput) {
+      print(
+        '[pointer] debug enabled platform=$defaultTargetPlatform '
+        'touchDrawing=$_touchDrawingEnabled',
+      );
+    }
     _shapeFillEnabled = prefs.shapeToolFillEnabled;
     _layerAdjustCropOutside = prefs.layerAdjustCropOutside;
     _penStrokeSliderRange = prefs.penStrokeSliderRange;
@@ -175,6 +182,10 @@ class PaintingBoardState extends _PaintingBoardBase
             _handleApplePencilDoubleTap();
           });
     }
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      _tabletHoverSubscription =
+          TabletInputBridge.instance.hoverEvents.listen(_handleTabletHover);
+    }
     BackendCanvasTimeline.mark(
       'paintingBoard: initState '
       'size=${widget.settings.width.round()}x${widget.settings.height.round()}',
@@ -230,10 +241,33 @@ class PaintingBoardState extends _PaintingBoardBase
     _backendLayerSnapshotHandle = null;
     _pencilDoubleTapSubscription?.cancel();
     _pencilDoubleTapSubscription = null;
+    _tabletHoverSubscription?.cancel();
+    _tabletHoverSubscription = null;
     MobileBottomSheetController.activeCount.removeListener(
       _handleMobileBottomSheetChanged,
     );
     super.dispose();
+  }
+
+  void _handleTabletHover(TabletHoverSample sample) {
+    if (!mounted) {
+      return;
+    }
+    if (!sample.inRange) {
+      _clearToolCursorOverlay();
+      return;
+    }
+    if (sample.inContact) {
+      return;
+    }
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    if (box == null) {
+      return;
+    }
+    final Offset local = box.globalToLocal(sample.position);
+    _recordWorkspacePointer(local);
+    _updateToolCursorOverlay(local);
+    _updatePerspectiveHover(_toBoardLocal(local));
   }
 
   void _handleMobileBottomSheetChanged() {
