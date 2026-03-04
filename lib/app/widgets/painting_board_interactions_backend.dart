@@ -10,7 +10,17 @@ extension _PaintingBoardInteractionBackendImpl
       return _touchDrawingEnabled;
     }
     if (event.kind == PointerDeviceKind.mouse) {
+      if (event.buttons == 0) {
+        return event.down;
+      }
       return (event.buttons & kPrimaryMouseButton) != 0;
+    }
+    if (event.kind == PointerDeviceKind.unknown) {
+      if (event.buttons == 0) {
+        return event.down;
+      }
+      return (event.buttons & kPrimaryMouseButton) != 0 ||
+          (event.buttons & kPrimaryStylusButton) != 0;
     }
     return false;
   }
