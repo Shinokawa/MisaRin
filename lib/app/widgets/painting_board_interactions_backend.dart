@@ -726,6 +726,12 @@ extension _PaintingBoardInteractionBackendImpl
 
   void _beginBackendStroke(PointerDownEvent event) {
     if (!_isBackendDrawingPointer(event)) {
+      if (_kDebugPointerInput) {
+        debugPrint(
+          '[pointer] backend stroke blocked: id=${event.pointer} '
+          'kind=${event.kind} down=${event.down} buttons=${event.buttons}',
+        );
+      }
       return;
     }
     _suppressRasterOutputForBackendStroke();
