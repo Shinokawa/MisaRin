@@ -1,5 +1,96 @@
 part of 'painting_board.dart';
 
+enum _MobileImageExportDestination { photos, files }
+
+Future<_MobileImageExportDestination?> _showMobileImageExportDestinationDialog(
+  BuildContext context,
+) {
+  final l10n = context.l10n;
+  if (isMobileOrPhone(context)) {
+    return showMobileBottomSheetOnRootOverlay<_MobileImageExportDestination?>(
+      context: context,
+      heightFactor: 0.45,
+      builder: (BuildContext context) {
+        final theme = FluentTheme.of(context);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.exportDestinationTitle,
+                    style: theme.typography.subtitle?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.exportDestinationDesc,
+                    style: theme.typography.caption,
+                  ),
+                ],
+              ),
+            ),
+            const Divider(),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                children: [
+                  ListTile(
+                    title: Text(l10n.exportDestinationPhotos),
+                    onPressed: () => MobileBottomSheetScope.of(context)
+                        .close(_MobileImageExportDestination.photos),
+                  ),
+                  ListTile(
+                    title: Text(l10n.exportDestinationFiles),
+                    onPressed: () => MobileBottomSheetScope.of(context)
+                        .close(_MobileImageExportDestination.files),
+                  ),
+                  const Divider(),
+                  ListTile(
+                    title: Text(l10n.cancel),
+                    onPressed: () =>
+                        MobileBottomSheetScope.of(context).close(null),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  return showDialog<_MobileImageExportDestination?>(
+    context: context,
+    barrierDismissible: true,
+    builder: (BuildContext context) {
+      return ContentDialog(
+        title: Text(l10n.exportDestinationTitle),
+        content: Text(l10n.exportDestinationDesc),
+        actions: [
+          Button(
+            onPressed: () => Navigator.of(context).pop(null),
+            child: Text(l10n.cancel),
+          ),
+          Button(
+            onPressed: () =>
+                Navigator.of(context).pop(_MobileImageExportDestination.files),
+            child: Text(l10n.exportDestinationFiles),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(context).pop(_MobileImageExportDestination.photos),
+            child: Text(l10n.exportDestinationPhotos),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
   Future<void> _showBakeDialogImpl() async {
     if (!mounted) {
@@ -7,6 +98,7 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
     }
 
     final BuildContext dialogContext = widget.dialogContext;
+    final bool useMobileSheet = isMobileOrPhone(dialogContext);
     final OverlayState? overlay = Overlay.maybeOf(dialogContext, rootOverlay: true);
     if (overlay == null) {
       return;
@@ -145,63 +237,139 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
       );
 
       try {
-        final ({int width, int height})? result =
-            await showMisarinDialog<({int width, int height})>(
-          context: context,
-          title: const Text('自定义分辨率'),
-          contentWidth: 360,
-          maxWidth: 420,
-          barrierDismissible: true,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              InfoLabel(
-                label: '宽度 (px)',
-                child: TextFormBox(
-                  controller: customWidthController,
-                  inputFormatters: <TextInputFormatter>[
-                    FilteringTextInputFormatter.digitsOnly,
+        final ({int width, int height})? result = isMobileOrPhone(context)
+            ? await showMobileBottomSheetOnRootOverlay<({int width, int height})?>(
+                context: widget.dialogContext,
+                heightFactor: 0.55,
+                builder: (BuildContext context) {
+                  final FluentThemeData theme = FluentTheme.of(context);
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '自定义分辨率',
+                          style: theme.typography.subtitle?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        InfoLabel(
+                          label: '宽度 (px)',
+                          child: TextFormBox(
+                            controller: customWidthController,
+                            inputFormatters: <TextInputFormatter>[
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        InfoLabel(
+                          label: '高度 (px)',
+                          child: TextFormBox(
+                            controller: customHeightController,
+                            inputFormatters: <TextInputFormatter>[
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          '提示：单边最大 8192px，总像素建议不超过 1600 万。',
+                        ),
+                        const Spacer(),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Button(
+                                onPressed: () => MobileBottomSheetScope.of(context)
+                                    .close(null),
+                                child: Text(context.l10n.cancel),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: () {
+                                  final ({int width, int height})?
+                                      resolution = parseAndValidateResolution(
+                                    context,
+                                    widthText: customWidthController.text,
+                                    heightText: customHeightController.text,
+                                  );
+                                  if (resolution == null) {
+                                    return;
+                                  }
+                                  MobileBottomSheetScope.of(context)
+                                      .close(resolution);
+                                },
+                                child: const Text('确定'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              )
+            : await showMisarinDialog<({int width, int height})>(
+                context: context,
+                title: const Text('自定义分辨率'),
+                contentWidth: 360,
+                maxWidth: 420,
+                barrierDismissible: true,
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    InfoLabel(
+                      label: '宽度 (px)',
+                      child: TextFormBox(
+                        controller: customWidthController,
+                        inputFormatters: <TextInputFormatter>[
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    InfoLabel(
+                      label: '高度 (px)',
+                      child: TextFormBox(
+                        controller: customHeightController,
+                        inputFormatters: <TextInputFormatter>[
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      '提示：单边最大 8192px，总像素建议不超过 1600 万。',
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 12),
-              InfoLabel(
-                label: '高度 (px)',
-                child: TextFormBox(
-                  controller: customHeightController,
-                  inputFormatters: <TextInputFormatter>[
-                    FilteringTextInputFormatter.digitsOnly,
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                '提示：单边最大 8192px，总像素建议不超过 1600 万。',
-              ),
-            ],
-          ),
-          actions: [
-            Button(
-              child: Text(context.l10n.cancel),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            Button(
-              child: const Text('确定'),
-              onPressed: () {
-                final ({int width, int height})? resolution =
-                    parseAndValidateResolution(
-                  context,
-                  widthText: customWidthController.text,
-                  heightText: customHeightController.text,
-                );
-                if (resolution == null) {
-                  return;
-                }
-                Navigator.of(context).pop(resolution);
-              },
-            ),
-          ],
-        );
+                actions: [
+                  Button(
+                    child: Text(context.l10n.cancel),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  Button(
+                    child: const Text('确定'),
+                    onPressed: () {
+                      final ({int width, int height})? resolution =
+                          parseAndValidateResolution(
+                        context,
+                        widthText: customWidthController.text,
+                        heightText: customHeightController.text,
+                      );
+                      if (resolution == null) {
+                        return;
+                      }
+                      Navigator.of(context).pop(resolution);
+                    },
+                  ),
+                ],
+              );
 
         if (result == null) {
           return false;
@@ -235,6 +403,8 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
 
       String? normalizedPath;
       String? downloadName;
+      String? mobileFileName;
+      _MobileImageExportDestination? mobileDestination;
 
       if (kIsWeb) {
         final String? fileName = await showWebFileNameDialog(
@@ -248,6 +418,34 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
           return;
         }
         downloadName = _ensurePngExtension(_sanitizeFileName(fileName));
+      } else if (Platform.isAndroid || Platform.isIOS) {
+        if (Platform.isIOS) {
+          mobileDestination =
+              await _showMobileImageExportDestinationDialog(context);
+          if (mobileDestination == null) {
+            return;
+          }
+        } else {
+          mobileDestination = _MobileImageExportDestination.files;
+        }
+
+        if (mobileDestination == _MobileImageExportDestination.files) {
+          final String? fileName = await showFileNameDialog(
+            context: context,
+            title: '导出烘焙结果',
+            suggestedFileName: suggestedName,
+            confirmLabel: context.l10n.export,
+          );
+          if (fileName == null) {
+            return;
+          }
+          mobileFileName = _ensurePngExtension(_sanitizeFileName(fileName));
+          normalizedPath = await MobileExportPaths.resolveExportPath(
+            mobileFileName,
+          );
+        } else {
+          mobileFileName = suggestedName;
+        }
       } else {
         final String? outputPath = await FilePicker.platform.saveFile(
           dialogTitle: '导出烘焙结果',
@@ -320,6 +518,12 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
             bytes: bytes,
             mimeType: 'image/png',
           );
+        } else if (Platform.isIOS &&
+            mobileDestination == _MobileImageExportDestination.photos) {
+          await IosPhotoSaver.saveImageToPhotos(
+            bytes,
+            fileName: mobileFileName,
+          );
         } else {
           final File file = File(normalizedPath!);
           await file.writeAsBytes(bytes, flush: true);
@@ -330,7 +534,13 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
         }
         AppNotifications.show(
           context,
-          message: kIsWeb ? '已下载：$downloadName' : '已导出：$normalizedPath',
+          message: kIsWeb
+              ? '已下载：$downloadName'
+              : (Platform.isIOS &&
+                      mobileDestination ==
+                          _MobileImageExportDestination.photos)
+                  ? context.l10n.imageSavedToPhotos
+                  : '已导出：$normalizedPath',
           severity: InfoBarSeverity.success,
         );
       } catch (error) {
@@ -357,11 +567,24 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
       builder: (BuildContext overlayContext) {
         return HeroControllerScope.none(
           child: Navigator(
-          onGenerateRoute: (settings) => PageRouteBuilder<void>(
-            settings: settings,
-            transitionDuration: Duration.zero,
-            reverseTransitionDuration: Duration.zero,
-            pageBuilder: (context, animation, secondaryAnimation) {
+            onPopPage: (route, result) {
+              if (!route.didPop(result)) {
+                return false;
+              }
+              closeDialog();
+              return true;
+            },
+            onGenerateInitialRoutes: (navigator, initialRoute) =>
+                <Route<void>>[
+              PageRouteBuilder<void>(
+                transitionDuration: Duration.zero,
+                reverseTransitionDuration: Duration.zero,
+                pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+              PageRouteBuilder<void>(
+                transitionDuration: Duration.zero,
+                reverseTransitionDuration: Duration.zero,
+                pageBuilder: (context, animation, secondaryAnimation) {
               final Color barrierColor = Colors.black.withValues(alpha: 0.35);
               return Stack(
           fit: StackFit.expand,
@@ -375,9 +598,13 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
               },
               child: ColoredBox(color: barrierColor),
             ),
-            Center(
-              child: StatefulBuilder(
-                builder: (BuildContext context, StateSetter setDialogState) {
+            Builder(
+              builder: (BuildContext context) {
+                final FluentThemeData sheetTheme = FluentTheme.of(context);
+                final double sheetHeight =
+                    MediaQuery.sizeOf(context).height * 0.85;
+                final Widget dialogBody = StatefulBuilder(
+                  builder: (BuildContext context, StateSetter setDialogState) {
                   dialogSetState = setDialogState;
                   final FluentThemeData theme = FluentTheme.of(context);
                   final Color border =
@@ -652,390 +879,455 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                     );
                   }
 
-                  return MisarinDialog(
-                    title: Row(children: [const Text('烘焙')]),
-                    contentWidth: null,
-                    maxWidth: 920,
-                    content: SingleChildScrollView(
+                  final Widget dialogContent = SingleChildScrollView(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           buildPreviewArea(),
                           const SizedBox(height: 12),
-                                                    Row(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      children: [
-                                                        InfoLabel(
-                                                          label: context.l10n.rendererLabel,
-                                                          child: Container(
-                                                            height: 32,
-                                                            decoration: BoxDecoration(
-                                                              border: Border.all(color: border),
-                                                              borderRadius: BorderRadius.circular(4),
-                                                              color: theme.resources.controlFillColorDefault,
-                                                            ),
-                                                            child: Row(
-                                                              mainAxisSize: MainAxisSize.min,
-                                                              children: [
-                                                                for (int i = 0;
-                                                                    i <
-                                                                        _ReferenceModelBakeRendererPreset
-                                                                            .values.length;
-                                                                    i++) ...[
-                                                                  if (i > 0)
-                                                                    Container(
-                                                                      width: 1,
-                                                                      color: border,
-                                                                    ),
-                                                                  (() {
-                                                                    final preset =
-                                                                        _ReferenceModelBakeRendererPreset
-                                                                            .values[i];
-                                                                    final bool isSelected =
-                                                                        rendererPreset == preset;
-                                                                    IconData icon;
-                                                                    String title;
-                                                                    String detail;
-                                                                    
-                                                                    switch (preset) {
-                                                                      case _ReferenceModelBakeRendererPreset
-                                                                            .normal:
-                                                                        icon = FluentIcons.running;
-                                                                        title = context.l10n.rendererNormal;
-                                                                        detail = context.l10n.rendererNormalDesc;
-                                                                        break;
-                                                                      case _ReferenceModelBakeRendererPreset
-                                                                            .cinematic:
-                                                                        icon = FluentIcons.video;
-                                                                        title = context.l10n.rendererCinematic;
-                                                                        detail = context.l10n.rendererCinematicDesc;
-                                                                        break;
-                                                                      case _ReferenceModelBakeRendererPreset
-                                                                            .cycles:
-                                                                        icon = FluentIcons.camera;
-                                                                        title = context.l10n.rendererCycles;
-                                                                        detail = context.l10n.rendererCyclesDesc;
-                                                                        break;
-                                                                    }
-                          
-                                                                                                                                                                return HoverDetailTooltip(
-                          
-                                                                                                                                                                  message: title,
-                          
-                                                                                                                                                                  detail: detail,
-                          
-                                                                                                                                                                  child: SizedBox(
-                          
-                                                                                                                                                                    width: 32,
-                          
-                                                                                                                                                                    height: 32,
-                          
-                                                                                                                                                                    child: Button(
-                          
-                                                                                                                                                                      style: ButtonStyle(
-                          
-                                                                                                                                                                        padding: ButtonState.all(EdgeInsets.zero),
-                          
-                                                                                                                                                                        backgroundColor:
-                          
-                                                                                                                                                                            ButtonState.resolveWith(
-                          
-                                                                                                                                                                                (states) {
-                          
-                                                                                                                                                                          if (isSelected) {
-                          
-                                                                                                                                                                            return theme
-                          
-                                                                                                                                                                                .accentColor.normal;
-                          
-                                                                                                                                                                          }
-                          
-                                                                                                                                                                          if (states.isHovering && !isBaking) {
-                          
-                                                                                                                                                                            return theme.resources.controlFillColorSecondary;
-                          
-                                                                                                                                                                          }
-                          
-                                                                                                                                                                          return Colors.transparent;
-                          
-                                                                                                                                                                        }),
-                          
-                                                                                                                                                                        foregroundColor:
-                          
-                                                                                                                                                                            ButtonState.resolveWith(
-                          
-                                                                                                                                                                                (states) {
-                          
-                                                                                                                                                                          if (isSelected) {
-                          
-                                                                                                                                                                            return Colors.white;
-                          
-                                                                                                                                                                          }
-                          
-                                                                                                                                                                          if (isBaking) {
-                          
-                                                                                                                                                                            return theme.resources.textFillColorDisabled;
-                          
-                                                                                                                                                                          }
-                          
-                                                                                                                                                                          return theme.typography
-                          
-                                                                                                                                                                              .body?.color;
-                          
-                                                                                                                                                                        }),
-                          
-                                                                                                                                                                        shape: ButtonState.all(
-                          
-                                                                                                                                                                          const RoundedRectangleBorder(
-                          
-                                                                                                                                                                            side: BorderSide.none,
-                          
-                                                                                                                                                                            borderRadius:
-                          
-                                                                                                                                                                                BorderRadius.zero,
-                          
-                                                                                                                                                                          ),
-                          
-                                                                                                                                                                        ),
-                          
-                                                                                                                                                                      ),
-                          
-                                                                                                                                                                                                                          onPressed: () {
-                          
-                                                                                                                                                                                                                            if (isBaking) return;
-                          
-                                                                                                                                                                                                                            setDialogState(() {
-                          
-                                                                                                                                                                                                                              rendererPreset = preset;
-                                                                                                                                                                                                                              if (!preset.usesBakedLighting && isTimePlaying) {
-                                                                                                                                                                                                                                isTimePlaying = false;
-                                                                                                                                                                                                                                timeTicker.stop();
-                                                                                                                                                                                                                                lastTickElapsed = null;
-                                                                                                                                                                                                                              }
-                          
-                                                                                                                                                                                                                              markPreviewDirty();
-                          
-                                                                                                                                                                                                                            });
-                          
-                                                                                                                                                                                                                          },
-                          
-                                                                                                                                                                                                                          child: IconTheme(
-                          
-                                                                                                                                                                                                                            data: IconThemeData(
-                          
-                                                                                                                                                                                                                              color: isSelected
-                          
-                                                                                                                                                                                                                                  ? theme.resources
-                          
-                                                                                                                                                                                                                                      .textOnAccentFillColorPrimary
-                          
-                                                                                                                                                                                                                                  : (isBaking
-                          
-                                                                                                                                                                                                                                      ? theme.resources
-                          
-                                                                                                                                                                                                                                          .textFillColorDisabled
-                          
-                                                                                                                                                                                                                                      : theme.typography
-                          
-                                                                                                                                                                                                                                          .body?.color),
-                          
-                                                                                                                                                                                                                              size: 16,
-                          
-                                                                                                                                                                                                                            ),
-                          
-                                                                                                                                                                                                                            child: Icon(icon),
-                          
-                                                                                                                                                                                                                          ),
-                          
-                                                                                                                                                                                                                        ),
-                          
-                                                                                                                                                                                                                      ),
-                          
-                                                                                                                                                                                                                    );                                                                      }()),
-                                                                    ],
-                                                                  ],
-                                                                ),
-                                                              ),
-                                                            ),
-                                                            const SizedBox(width: 24),
-                                                            InfoLabel(
-                                                              label: context.l10n.resolutionPreset,
-                                                              child: Row(
-                                                                mainAxisSize: MainAxisSize.min,
-                                                                children: [
-                                                                  SizedBox(
-                                                                    width: 240,
-                                                                    child: ComboBox<
-                                                                        _ReferenceModelBakeResolutionPreset?>(
-                                                                      isExpanded: true,
-                                                                      value: resolutionPreset,
-                                                                      items: [
-                                                                        ComboBoxItem<
-                                                                            _ReferenceModelBakeResolutionPreset?>(
-                                                                          value: null,
-                                                                          child: Text(
-                                                                            '${context.l10n.custom} (${widthController.text} × ${heightController.text})',
-                                                                          ),
-                                                                        ),
-                                                                        ..._kReferenceModelBakeResolutionPresets
-                                                                            .map(
-                                                                          (preset) => ComboBoxItem<
-                                                                              _ReferenceModelBakeResolutionPreset?>(
-                                                                            value: preset,
-                                                                            child: Text(preset.label),
-                                                                          ),
-                                                                        ),
-                                                                      ],
-                                                                      onChanged: isBaking
-                                                                          ? null
-                                                                          : (value) async {
-                                                                              if (value != null) {
-                                                                                setDialogState(() {
-                                                                                  resolutionPreset = value;
-                                                                                  widthController.text =
-                                                                                      value.width.toString();
-                                                                                  heightController.text =
-                                                                                      value.height.toString();
-                                                                                });
-                                                                                return;
-                                                                              }
-                          
-                                                                              final _ReferenceModelBakeResolutionPreset?
-                                                                                  previousPreset =
-                                                                                  resolutionPreset;
-                                                                              final String previousWidth =
-                                                                                  widthController.text;
-                                                                              final String previousHeight =
-                                                                                  heightController.text;
-                          
-                                                                              final bool updated =
-                                                                                  await editCustomResolution(
-                                                                                context,
-                                                                              );
-                                                                              if (!mounted) {
-                                                                                return;
-                                                                              }
-                          
-                                                                              setDialogState(() {
-                                                                                if (updated) {
-                                                                                  resolutionPreset = null;
-                                                                                } else {
-                                                                                  resolutionPreset =
-                                                                                      previousPreset;
-                                                                                  widthController.text =
-                                                                                      previousWidth;
-                                                                                  heightController.text =
-                                                                                      previousHeight;
-                                                                                }
-                                                                              });
-                                                                            },
-                                                                    ),
-                                                                  ),
-                                                                  if (resolutionPreset == null) ...[
-                                                                    const SizedBox(width: 8),
-                                                                    Button(
-                                                                      onPressed: isBaking
-                                                                          ? null
-                                                                          : () async {
-                                                                              final bool updated =
-                                                                                  await editCustomResolution(
-                                                                                context,
-                                                                              );
-                                                                              if (!mounted) {
-                                                                                return;
-                                                                              }
-                                                                              if (!updated) {
-                                                                                return;
-                                                                              }
-                                                                              setDialogState(() {});
-                                                                            },
-                                                                      child: Text(context.l10n.settingsTitle),
-                                                                    ),
-                                                                  ],
-                                                                  const SizedBox(width: 12),
-                                                                  Row(
-                                                                    mainAxisSize: MainAxisSize.min,
-                                                                    children: [
-                                                                      Text(
-                                                                        '透明背景',
-                                                                        style: theme.typography.bodyStrong,
-                                                                      ),
-                                                                      const SizedBox(width: 8),
-                                                                      ToggleSwitch(
-                                                                        checked: transparentBackground,
-                                                                        onChanged: isBaking
-                                                                            ? null
-                                                                            : (value) {
-                                                                                setDialogState(() {
-                                                                                  transparentBackground = value;
-                                                                                  if (transparentBackground) {
-                                                                                    showSkyBeforeTransparent ??= showSky;
-                                                                                    showGroundBeforeTransparent ??= showGround;
-                                                                                    showSky = false;
-                                                                                    showGround = false;
-                                                                                  } else {
-                                                                                    showSky =
-                                                                                        showSkyBeforeTransparent ?? showSky;
-                                                                                    showGround =
-                                                                                        showGroundBeforeTransparent ?? showGround;
-                                                                                    showSkyBeforeTransparent = null;
-                                                                                    showGroundBeforeTransparent = null;
-                                                                                  }
-                                                                                  markPreviewDirty();
-                                                                                });
-                                                                              },
-                                                                      ),
-                                                                    ],
-                                                                  ),
-                                                                  const SizedBox(width: 12),
-                                                                  Row(
-                                                                    mainAxisSize: MainAxisSize.min,
-                                                                    children: [
-                                                                      Text(
-                                                                        '天空',
-                                                                        style: theme.typography.bodyStrong,
-                                                                      ),
-                                                                      const SizedBox(width: 8),
-                                                                      ToggleSwitch(
-                                                                        checked: showSky,
-                                                                        onChanged: isBaking || transparentBackground
-                                                                            ? null
-                                                                            : (value) {
-                                                                                setDialogState(() {
-                                                                                  showSky = value;
-                                                                                  markPreviewDirty();
-                                                                                });
-                                                                              },
-                                                                      ),
-                                                                    ],
-                                                                  ),
-                                                                  const SizedBox(width: 12),
-                                                                  Row(
-                                                                    mainAxisSize: MainAxisSize.min,
-                                                                    children: [
-                                                                      Text(
-                                                                        '地面',
-                                                                        style: theme.typography.bodyStrong,
-                                                                      ),
-                                                                      const SizedBox(width: 8),
-                                                                      ToggleSwitch(
-                                                                        checked: showGround,
-                                                                        onChanged: isBaking || transparentBackground
-                                                                            ? null
-                                                                            : (value) {
-                                                                                setDialogState(() {
-                                                                                  showGround = value;
-                                                                                  markPreviewDirty();
-                                                                                });
-                                                                              },
-                                                                      ),
-                                                                    ],
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),                          const SizedBox(height: 12),
+                          Builder(
+                            builder: (context) {
+                              Widget buildBackgroundToggle(
+                                String label,
+                                bool value,
+                                ValueChanged<bool>? onChanged,
+                              ) {
+                                return Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      label,
+                                      style: theme.typography.bodyStrong,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ToggleSwitch(
+                                      checked: value,
+                                      onChanged: onChanged,
+                                    ),
+                                  ],
+                                );
+                              }
+
+                              final Widget rendererSection = InfoLabel(
+                                label: context.l10n.rendererLabel,
+                                child: Container(
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: border),
+                                    borderRadius: BorderRadius.circular(4),
+                                    color: theme.resources.controlFillColorDefault,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      for (int i = 0;
+                                          i <
+                                              _ReferenceModelBakeRendererPreset
+                                                  .values.length;
+                                          i++) ...[
+                                        if (i > 0)
+                                          Container(
+                                            width: 1,
+                                            color: border,
+                                          ),
+                                        (() {
+                                          final preset =
+                                              _ReferenceModelBakeRendererPreset
+                                                  .values[i];
+                                          final bool isSelected =
+                                              rendererPreset == preset;
+                                          IconData icon;
+                                          String title;
+                                          String detail;
+
+                                          switch (preset) {
+                                            case _ReferenceModelBakeRendererPreset
+                                                .normal:
+                                              icon = FluentIcons.running;
+                                              title = context.l10n.rendererNormal;
+                                              detail =
+                                                  context.l10n.rendererNormalDesc;
+                                              break;
+                                            case _ReferenceModelBakeRendererPreset
+                                                .cinematic:
+                                              icon = FluentIcons.video;
+                                              title =
+                                                  context.l10n.rendererCinematic;
+                                              detail =
+                                                  context.l10n.rendererCinematicDesc;
+                                              break;
+                                            case _ReferenceModelBakeRendererPreset
+                                                .cycles:
+                                              icon = FluentIcons.camera;
+                                              title = context.l10n.rendererCycles;
+                                              detail =
+                                                  context.l10n.rendererCyclesDesc;
+                                              break;
+                                          }
+
+                                          return HoverDetailTooltip(
+                                            message: title,
+                                            detail: detail,
+                                            child: SizedBox(
+                                              width: 32,
+                                              height: 32,
+                                              child: Button(
+                                                style: ButtonStyle(
+                                                  padding: ButtonState.all(
+                                                    EdgeInsets.zero,
+                                                  ),
+                                                  backgroundColor:
+                                                      ButtonState.resolveWith(
+                                                    (states) {
+                                                      if (isSelected) {
+                                                        return theme
+                                                            .accentColor.normal;
+                                                      }
+                                                      if (states.isHovering &&
+                                                          !isBaking) {
+                                                        return theme.resources
+                                                            .controlFillColorSecondary;
+                                                      }
+                                                      return Colors.transparent;
+                                                    },
+                                                  ),
+                                                  foregroundColor:
+                                                      ButtonState.resolveWith(
+                                                    (states) {
+                                                      if (isSelected) {
+                                                        return Colors.white;
+                                                      }
+                                                      if (isBaking) {
+                                                        return theme.resources
+                                                            .textFillColorDisabled;
+                                                      }
+                                                      return theme
+                                                          .typography.body?.color;
+                                                    },
+                                                  ),
+                                                  shape: ButtonState.all(
+                                                    const RoundedRectangleBorder(
+                                                      side: BorderSide.none,
+                                                      borderRadius:
+                                                          BorderRadius.zero,
+                                                    ),
+                                                  ),
+                                                ),
+                                                onPressed: () {
+                                                  if (isBaking) {
+                                                    return;
+                                                  }
+                                                  setDialogState(() {
+                                                    rendererPreset = preset;
+                                                    if (!preset
+                                                            .usesBakedLighting &&
+                                                        isTimePlaying) {
+                                                      isTimePlaying = false;
+                                                      timeTicker.stop();
+                                                      lastTickElapsed = null;
+                                                    }
+                                                    markPreviewDirty();
+                                                  });
+                                                },
+                                                child: IconTheme(
+                                                  data: IconThemeData(
+                                                    color: isSelected
+                                                        ? theme.resources
+                                                            .textOnAccentFillColorPrimary
+                                                        : (isBaking
+                                                            ? theme.resources
+                                                                .textFillColorDisabled
+                                                            : theme.typography
+                                                                .body?.color),
+                                                    size: 16,
+                                                  ),
+                                                  child: Icon(icon),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }()),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              );
+
+                              final Widget backgroundRow = Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  buildBackgroundToggle(
+                                    '透明背景',
+                                    transparentBackground,
+                                    isBaking
+                                        ? null
+                                        : (value) {
+                                            setDialogState(() {
+                                              transparentBackground = value;
+                                              if (transparentBackground) {
+                                                showSkyBeforeTransparent ??=
+                                                    showSky;
+                                                showGroundBeforeTransparent ??=
+                                                    showGround;
+                                                showSky = false;
+                                                showGround = false;
+                                              } else {
+                                                showSky =
+                                                    showSkyBeforeTransparent ??
+                                                        showSky;
+                                                showGround =
+                                                    showGroundBeforeTransparent ??
+                                                        showGround;
+                                                showSkyBeforeTransparent = null;
+                                                showGroundBeforeTransparent =
+                                                    null;
+                                              }
+                                              markPreviewDirty();
+                                            });
+                                          },
+                                  ),
+                                  const SizedBox(width: 12),
+                                  buildBackgroundToggle(
+                                    '天空',
+                                    showSky,
+                                    isBaking || transparentBackground
+                                        ? null
+                                        : (value) {
+                                            setDialogState(() {
+                                              showSky = value;
+                                              markPreviewDirty();
+                                            });
+                                          },
+                                  ),
+                                  const SizedBox(width: 12),
+                                  buildBackgroundToggle(
+                                    '地面',
+                                    showGround,
+                                    isBaking || transparentBackground
+                                        ? null
+                                        : (value) {
+                                            setDialogState(() {
+                                              showGround = value;
+                                              markPreviewDirty();
+                                            });
+                                          },
+                                  ),
+                                ],
+                              );
+
+                              final Widget backgroundWrap = Wrap(
+                                spacing: 12,
+                                runSpacing: 8,
+                                children: [
+                                  buildBackgroundToggle(
+                                    '透明背景',
+                                    transparentBackground,
+                                    isBaking
+                                        ? null
+                                        : (value) {
+                                            setDialogState(() {
+                                              transparentBackground = value;
+                                              if (transparentBackground) {
+                                                showSkyBeforeTransparent ??=
+                                                    showSky;
+                                                showGroundBeforeTransparent ??=
+                                                    showGround;
+                                                showSky = false;
+                                                showGround = false;
+                                              } else {
+                                                showSky =
+                                                    showSkyBeforeTransparent ??
+                                                        showSky;
+                                                showGround =
+                                                    showGroundBeforeTransparent ??
+                                                        showGround;
+                                                showSkyBeforeTransparent = null;
+                                                showGroundBeforeTransparent =
+                                                    null;
+                                              }
+                                              markPreviewDirty();
+                                            });
+                                          },
+                                  ),
+                                  buildBackgroundToggle(
+                                    '天空',
+                                    showSky,
+                                    isBaking || transparentBackground
+                                        ? null
+                                        : (value) {
+                                            setDialogState(() {
+                                              showSky = value;
+                                              markPreviewDirty();
+                                            });
+                                          },
+                                  ),
+                                  buildBackgroundToggle(
+                                    '地面',
+                                    showGround,
+                                    isBaking || transparentBackground
+                                        ? null
+                                        : (value) {
+                                            setDialogState(() {
+                                              showGround = value;
+                                              markPreviewDirty();
+                                            });
+                                          },
+                                  ),
+                                ],
+                              );
+
+                              Widget buildResolutionCombo({
+                                required double width,
+                              }) {
+                                return SizedBox(
+                                  width: width,
+                                  child: ComboBox<
+                                      _ReferenceModelBakeResolutionPreset?>(
+                                    isExpanded: true,
+                                    value: resolutionPreset,
+                                    items: [
+                                      ComboBoxItem<
+                                          _ReferenceModelBakeResolutionPreset?>(
+                                        value: null,
+                                        child: Text(
+                                          '${context.l10n.custom} (${widthController.text} × ${heightController.text})',
+                                        ),
+                                      ),
+                                      ..._kReferenceModelBakeResolutionPresets
+                                          .map(
+                                        (preset) => ComboBoxItem<
+                                            _ReferenceModelBakeResolutionPreset?>(
+                                          value: preset,
+                                          child: Text(preset.label),
+                                        ),
+                                      ),
+                                    ],
+                                    onChanged: isBaking
+                                        ? null
+                                        : (value) async {
+                                            if (value != null) {
+                                              setDialogState(() {
+                                                resolutionPreset = value;
+                                                widthController.text =
+                                                    value.width.toString();
+                                                heightController.text =
+                                                    value.height.toString();
+                                              });
+                                              return;
+                                            }
+
+                                            final _ReferenceModelBakeResolutionPreset?
+                                                previousPreset = resolutionPreset;
+                                            final String previousWidth =
+                                                widthController.text;
+                                            final String previousHeight =
+                                                heightController.text;
+
+                                            final bool updated =
+                                                await editCustomResolution(
+                                              context,
+                                            );
+                                            if (!mounted) {
+                                              return;
+                                            }
+
+                                            setDialogState(() {
+                                              if (updated) {
+                                                resolutionPreset = null;
+                                              } else {
+                                                resolutionPreset =
+                                                    previousPreset;
+                                                widthController.text =
+                                                    previousWidth;
+                                                heightController.text =
+                                                    previousHeight;
+                                              }
+                                            });
+                                          },
+                                  ),
+                                );
+                              }
+
+                              Widget buildResolutionButton() {
+                                return Button(
+                                  onPressed: isBaking
+                                      ? null
+                                      : () async {
+                                          final bool updated =
+                                              await editCustomResolution(
+                                            context,
+                                          );
+                                          if (!mounted) {
+                                            return;
+                                          }
+                                          if (!updated) {
+                                            return;
+                                          }
+                                          setDialogState(() {});
+                                        },
+                                  child: Text(context.l10n.settingsTitle),
+                                );
+                              }
+
+                              if (!useMobileSheet) {
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    rendererSection,
+                                    const SizedBox(width: 24),
+                                    InfoLabel(
+                                      label: context.l10n.resolutionPreset,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          buildResolutionCombo(width: 240),
+                                          if (resolutionPreset == null) ...[
+                                            const SizedBox(width: 8),
+                                            buildResolutionButton(),
+                                          ],
+                                          const SizedBox(width: 12),
+                                          backgroundRow,
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  rendererSection,
+                                  const SizedBox(height: 12),
+                                  InfoLabel(
+                                    label: context.l10n.resolutionPreset,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        buildResolutionCombo(
+                                          width: double.infinity,
+                                        ),
+                                        if (resolutionPreset == null) ...[
+                                          const SizedBox(height: 8),
+                                          Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: buildResolutionButton(),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  InfoLabel(
+                                    label: '背景天空配置',
+                                    child: backgroundWrap,
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 12),
                           Row(
                             children: [
                               Text(context.l10n.brightness),
@@ -1169,27 +1461,137 @@ extension _ReferenceModelCardStateBakeDialog on _ReferenceModelCardState {
                           ),
                         ],
                       ),
+                    );
+
+                    if (useMobileSheet) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                            child: Text(
+                              '烘焙',
+                              style: theme.typography.subtitle?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Expanded(child: dialogContent),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Button(
+                                    onPressed: isBaking ? null : closeDialog,
+                                    child: Text(dialogContext.l10n.cancel),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed: isBaking
+                                        ? null
+                                        : () => exportBakeResult(
+                                              context,
+                                              setDialogState,
+                                            ),
+                                    child: const Text('导出'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    return MisarinDialog(
+                      title: Row(children: [const Text('烘焙')]),
+                      contentWidth: null,
+                      maxWidth: 920,
+                      content: dialogContent,
+                      actions: [
+                        Button(
+                          onPressed: isBaking ? null : closeDialog,
+                          child: Text(dialogContext.l10n.cancel),
+                        ),
+                        Button(
+                          onPressed: isBaking
+                              ? null
+                              : () => exportBakeResult(
+                                    context,
+                                    setDialogState,
+                                  ),
+                          child: const Text('导出'),
+                        ),
+                      ],
+                    );
+                  },
+                );
+                if (useMobileSheet) {
+                  return Align(
+                    alignment: Alignment.bottomCenter,
+                    child: material.Material(
+                      color: Colors.transparent,
+                      child: Container(
+                        width: double.infinity,
+                        height: sheetHeight,
+                        decoration: BoxDecoration(
+                          color: sheetTheme.micaBackgroundColor,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(
+                              MobileBottomSheetConstants.borderRadius,
+                            ),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 20,
+                              offset: const Offset(0, -2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 12),
+                            Container(
+                              width: 36,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: sheetTheme
+                                    .resources
+                                    .controlStrokeColorDefault
+                                    .withOpacity(0.6),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(
+                                    MobileBottomSheetConstants.borderRadius,
+                                  ),
+                                ),
+                                child: dialogBody,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    actions: [
-                      Button(
-                        onPressed: isBaking ? null : closeDialog,
-                        child: Text(dialogContext.l10n.cancel),
-                      ),
-                      Button(
-                        onPressed: isBaking
-                            ? null
-                            : () => exportBakeResult(context, setDialogState),
-                        child: const Text('导出'),
-                      ),
-                    ],
                   );
-                },
-              ),
+                }
+                return Center(child: dialogBody);
+              },
             ),
           ],
         );
             },
           ),
+        ],
           ),
         );
       },

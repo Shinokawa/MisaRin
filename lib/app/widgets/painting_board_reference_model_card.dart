@@ -218,6 +218,9 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
     final Color background = theme.brightness.isDark
         ? const Color(0xFF101010)
         : const Color(0xFFF7F7F7);
+    final double viewportHeight = _referenceModelViewportHeightForContext(
+      context,
+    );
     final Color accent = theme.accentColor.defaultBrushFor(theme.brightness);
     final l10n = context.l10n;
 
@@ -333,7 +336,7 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
       onChanged: widget.onSizeChanged,
       child: WorkspaceFloatingPanel(
         title: widget.title,
-        width: _referenceModelCardWidth,
+        width: _referenceModelCardWidthForContext(context),
         headerActions: [
           if (widget.supportsActions)
             HoverDetailTooltip(
@@ -420,14 +423,14 @@ class _ReferenceModelCardState extends State<_ReferenceModelCard>
           children: [
             if (!multiViewEnabled)
               buildModelViewport(
-                height: _referenceModelViewportHeight,
+                height: viewportHeight,
                 yaw: _yaw,
                 pitch: _pitch,
                 interactive: true,
               )
             else
               Container(
-                height: _referenceModelViewportHeight,
+                height: viewportHeight,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: background,

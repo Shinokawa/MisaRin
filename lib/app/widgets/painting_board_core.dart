@@ -26,7 +26,7 @@ const double _sidePanelWidth = 240;
 const double _sidePanelSpacing = 12;
 const double _colorIndicatorSize = 56;
 const double _colorIndicatorBorder = 3;
-const int _recentColorCapacity = 5;
+const int _recentColorCapacity = 8;
 const double _initialViewportScaleFactor = 0.8;
 const double _curveStrokeSampleSpacing = 3.4;
 const double _syntheticStrokeMinDeltaMs =
@@ -100,6 +100,7 @@ class PaintingBoard extends StatefulWidget {
     this.onResizeCanvas,
     this.onReadyChanged,
     this.toolbarLayoutStyle = PaintingToolbarLayoutStyle.floating,
+    this.showToolbars = true,
   });
 
   final String surfaceKey;
@@ -117,6 +118,7 @@ class PaintingBoard extends StatefulWidget {
   final Future<void> Function()? onResizeCanvas;
   final ValueChanged<bool>? onReadyChanged;
   final PaintingToolbarLayoutStyle toolbarLayoutStyle;
+  final bool showToolbars;
 
   @override
   State<PaintingBoard> createState() => PaintingBoardState();

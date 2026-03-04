@@ -88,7 +88,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
         image.dispose();
         return;
       }
-      final Size bodySize = _referenceCardBodySize(image);
+      final Size bodySize = _referenceCardInitialBodySize(image);
       final Size panelSize = _referencePanelSize(bodySize);
       _insertReferenceCard(
         image: image,
@@ -166,7 +166,7 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
         image.dispose();
         return;
       }
-      final Size bodySize = _referenceCardBodySize(image);
+      final Size bodySize = _referenceCardInitialBodySize(image);
       final Size panelSize = _referencePanelSize(bodySize);
       _insertReferenceCard(
         image: image,
@@ -503,6 +503,15 @@ mixin _PaintingBoardReferenceMixin on _PaintingBoardBase {
     }
 
     return Size(targetWidth, targetHeight);
+  }
+
+  Size _referenceCardInitialBodySize(ui.Image image) {
+    if (isMobileOrPhone(context)) {
+      final _ReferenceCardBodyConstraints limits =
+          _referenceCardBodyConstraints();
+      return Size(limits.minWidth, limits.minHeight);
+    }
+    return _referenceCardBodySize(image);
   }
 
   Size _referencePanelSize(Size bodySize) {

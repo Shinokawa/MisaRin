@@ -24,7 +24,7 @@ class WorkspaceFloatingPanel extends StatelessWidget {
     ),
     this.bodySpacing = 12,
     this.footerSpacing = 12,
-    this.closeIconSize = 14,
+    this.closeIconSize = 18,
   });
 
   final String title;
@@ -66,7 +66,7 @@ class WorkspaceFloatingPanel extends StatelessWidget {
           icon: Icon(FluentIcons.chrome_close, size: closeIconSize),
           iconButtonMode: IconButtonMode.small,
           style: ButtonStyle(
-            padding: WidgetStateProperty.all(const EdgeInsets.all(4)),
+            padding: WidgetStateProperty.all(const EdgeInsets.all(6)),
           ),
           onPressed: onClose,
         ),
@@ -132,6 +132,7 @@ Offset _workspacePanelSpawnOffset(
   required double panelHeight,
   double additionalDx = 0,
   double additionalDy = 0,
+  double? topOverride,
   double margin = 16,
   double verticalGap = 12,
 }) {
@@ -172,6 +173,10 @@ Offset _workspacePanelSpawnOffset(
     final double baseTop = math.max(margin, settingsBottom + verticalGap);
     targetLeft = baseLeft;
     targetTop = baseTop;
+  }
+
+  if (topOverride != null) {
+    targetTop = topOverride;
   }
 
   targetLeft += additionalDx;

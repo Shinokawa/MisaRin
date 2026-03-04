@@ -165,6 +165,7 @@
   "menuView": "View",
   "menuWorkspace": "Workspace",
   "menuWindow": "Window",
+  "menuRoot": "Menu",
   "menuAbout": "About Misa Rin",
   "menuPreferences": "Preferences…",
   "menuNewEllipsis": "New…",
@@ -1050,5 +1051,41 @@
       "limit": {}
     }
   },
-  "autoSaveCleanupDialogClean": "Clean Up"
+  "autoSaveCleanupDialogClean": "Clean Up",
+  "exportDestinationTitle": "Export destination",
+  "exportDestinationDesc": "Choose where to export the image.",
+  "imageSourceTitle": "Select image source",
+  "imageSourceDesc": "Choose to import from Photos or Files.",
+  "exportDestinationPhotos": "Photos",
+  "exportDestinationFiles": "Files",
+  "imageSavedToPhotos": "Image saved to Photos.",
+  "exportDirectoryLabel": "Export directory",
+  "exportDirectoryDesc": "Set the default export location on Android.",
+  "selectExportDirectory": "Choose folder",
+  "resetExportDirectory": "Use default",
+  "exportDirectoryCurrent": "Current: {path}",
+  "@exportDirectoryCurrent": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportDirectoryDefault": "Default: {path}",
+  "@exportDirectoryDefault": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportDirectoryUpdated": "Export directory updated: {path}",
+  "@exportDirectoryUpdated": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportDirectoryCleared": "Export directory reset to default.",
+  "exportDirectoryUpdateFailed": "Failed to update export directory: {error}",
+  "@exportDirectoryUpdateFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  }
 }

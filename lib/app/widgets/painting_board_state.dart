@@ -74,6 +74,9 @@ class PaintingBoardState extends _PaintingBoardBase
     _viewInfoNotifier = ValueNotifier<CanvasViewInfo>(_buildViewInfo());
     initializeTextTool();
     initializeSelectionTicker(this);
+    MobileBottomSheetController.activeCount.addListener(
+      _handleMobileBottomSheetChanged,
+    );
     _layerRenameFocusNode.addListener(_handleLayerRenameFocusChange);
     final AppPreferences prefs = AppPreferences.instance;
     _pixelGridVisible = prefs.pixelGridVisible;
@@ -227,7 +230,17 @@ class PaintingBoardState extends _PaintingBoardBase
     _backendLayerSnapshotHandle = null;
     _pencilDoubleTapSubscription?.cancel();
     _pencilDoubleTapSubscription = null;
+    MobileBottomSheetController.activeCount.removeListener(
+      _handleMobileBottomSheetChanged,
+    );
     super.dispose();
+  }
+
+  void _handleMobileBottomSheetChanged() {
+    if (!mounted) {
+      return;
+    }
+    _scheduleWorkspaceCardsOverlaySync();
   }
 
   void _perfStressOnTimings(List<ui.FrameTiming> timings) {

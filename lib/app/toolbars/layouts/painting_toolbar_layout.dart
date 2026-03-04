@@ -18,6 +18,11 @@ class ToolbarPanelData {
   final Widget child;
   final Widget? trailing;
   final bool expand;
+
+  static ToolbarPanelData empty() => const ToolbarPanelData(
+        title: '',
+        child: SizedBox.shrink(),
+      );
 }
 
 class PaintingToolbarElements {

@@ -1,8 +1,11 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:misa_rin/mobile/responsive_dialog.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/l10n.dart';
 import '../models/canvas_resize_anchor.dart';
+import 'misarin_dialog.dart';
+import '../../mobile/mobile_utils.dart';
 
 class CanvasSizeConfig {
   const CanvasSizeConfig({
@@ -22,7 +25,7 @@ Future<CanvasSizeConfig?> showCanvasSizeDialog(
   required int initialHeight,
   CanvasResizeAnchor initialAnchor = CanvasResizeAnchor.center,
 }) {
-  return showDialog<CanvasSizeConfig>(
+  return showResponsiveDialog<CanvasSizeConfig>(
     context: context,
     builder: (context) => _CanvasSizeDialog(
       initialWidth: initialWidth,
@@ -96,52 +99,66 @@ class _CanvasSizeDialogState extends State<_CanvasSizeDialog> {
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final l10n = context.l10n;
+    final Widget content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InfoLabel(
+          label: l10n.widthPx,
+          child: TextBox(
+            controller: _widthController,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            keyboardType: TextInputType.number,
+          ),
+        ),
+        const SizedBox(height: 12),
+        InfoLabel(
+          label: l10n.heightPx,
+          child: TextBox(
+            controller: _heightController,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            keyboardType: TextInputType.number,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(l10n.canvasSizeAnchorLabel, style: theme.typography.caption),
+        const SizedBox(height: 8),
+        _AnchorGrid(selected: _selectedAnchor, onSelected: _selectAnchor),
+        const SizedBox(height: 8),
+        Text(l10n.canvasSizeAnchorDesc, style: theme.typography.caption),
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _errorMessage!,
+            style: theme.typography.caption?.copyWith(color: Colors.red),
+          ),
+        ],
+      ],
+    );
+
+    final List<Widget> actions = [
+      Button(
+        onPressed: () => Navigator.of(context).pop(),
+        child: Text(l10n.cancel),
+      ),
+      FilledButton(onPressed: _submit, child: Text(l10n.confirm)),
+    ];
+
+    if (isMobileOrPhone(context)) {
+      return MisarinDialog(
+        title: Text(l10n.canvasSizeTitle),
+        content: content,
+        actions: actions,
+        contentWidth: null,
+        maxWidth: 460,
+      );
+    }
+
     return ContentDialog(
       constraints: const BoxConstraints(maxWidth: 420),
       title: Text(l10n.canvasSizeTitle),
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InfoLabel(
-            label: l10n.widthPx,
-            child: TextBox(
-              controller: _widthController,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              keyboardType: TextInputType.number,
-            ),
-          ),
-          const SizedBox(height: 12),
-          InfoLabel(
-            label: l10n.heightPx,
-            child: TextBox(
-              controller: _heightController,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              keyboardType: TextInputType.number,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(l10n.canvasSizeAnchorLabel, style: theme.typography.caption),
-          const SizedBox(height: 8),
-          _AnchorGrid(selected: _selectedAnchor, onSelected: _selectAnchor),
-          const SizedBox(height: 8),
-          Text(l10n.canvasSizeAnchorDesc, style: theme.typography.caption),
-          if (_errorMessage != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage!,
-              style: theme.typography.caption?.copyWith(color: Colors.red),
-            ),
-          ],
-        ],
-      ),
-      actions: [
-        Button(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.cancel),
-        ),
-        FilledButton(onPressed: _submit, child: Text(l10n.confirm)),
-      ],
+      content: content,
+      actions: actions,
     );
   }
 }

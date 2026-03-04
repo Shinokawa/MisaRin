@@ -2,6 +2,11 @@ part of 'painting_board.dart';
 
 enum _PerspectiveHandle { vp1, vp2, vp3 }
 
+const double _kPerspectiveHandleFillRadius = 5.0;
+const double _kPerspectiveHandleOutlineRadius = 8.0;
+const double _kPerspectiveHandleOutlineWidth = 1.0;
+const double _kPerspectiveHandleTouchScale = 2.0;
+
 class _PerspectiveSnapPreviewResult {
   const _PerspectiveSnapPreviewResult({
     required this.snapped,
@@ -126,21 +131,39 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
   bool _handlePerspectivePointerDown(
     Offset boardLocal, {
     bool allowNearest = false,
+    double? hitRadius,
+    Offset? workspacePosition,
+    double? screenRadius,
   }) {
     if (!_perspectiveVisible || _perspectiveMode == PerspectiveGuideMode.off) {
       return false;
     }
-    final _PerspectiveHandle? handle =
-        _hitTestPerspectiveHandle(boardLocal) ??
-        (allowNearest ? _nearestPerspectiveHandle(boardLocal) : null);
+    _PerspectiveHandle? handle;
+    if (workspacePosition != null && screenRadius != null) {
+      handle = _hitTestPerspectiveHandleWorkspace(
+            workspacePosition,
+            screenRadius: screenRadius,
+          ) ??
+          (allowNearest
+              ? _nearestPerspectiveHandleWorkspace(
+                  workspacePosition,
+                  screenRadius: screenRadius,
+                )
+              : null);
+    }
+    handle ??= _hitTestPerspectiveHandle(boardLocal, hitRadius: hitRadius) ??
+        (allowNearest
+            ? _nearestPerspectiveHandle(boardLocal, hitRadius: hitRadius)
+            : null);
     if (handle == null) {
       return false;
     }
+    final _PerspectiveHandle resolvedHandle = handle;
     setState(() {
-      _activePerspectiveHandle = handle;
-      _hoveringPerspectiveHandle = handle;
+      _activePerspectiveHandle = resolvedHandle;
+      _hoveringPerspectiveHandle = resolvedHandle;
       if (allowNearest) {
-        switch (handle) {
+        switch (resolvedHandle) {
           case _PerspectiveHandle.vp1:
             _perspectiveVp1 = boardLocal;
             break;
@@ -190,8 +213,12 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
     _markDirty();
   }
 
-  _PerspectiveHandle? _hitTestPerspectiveHandle(Offset boardLocal) {
-    final double radius = 18.0 / _viewport.scale;
+  _PerspectiveHandle? _hitTestPerspectiveHandle(
+    Offset boardLocal, {
+    double? hitRadius,
+  }) {
+    final double radius =
+        hitRadius ?? _kPerspectiveHandleOutlineRadius / _viewport.scale;
     bool hit(Offset target) => (boardLocal - target).distance <= radius;
 
     if (hit(_perspectiveVp1)) {
@@ -212,8 +239,12 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
     return null;
   }
 
-  _PerspectiveHandle? _nearestPerspectiveHandle(Offset boardLocal) {
-    final double radius = 18.0 / _viewport.scale;
+  _PerspectiveHandle? _nearestPerspectiveHandle(
+    Offset boardLocal, {
+    double? hitRadius,
+  }) {
+    final double radius =
+        hitRadius ?? _kPerspectiveHandleOutlineRadius / _viewport.scale;
     final double fallbackRadius = radius * 3.5;
     _PerspectiveHandle? nearest;
     double nearestDistance = double.infinity;
@@ -245,6 +276,120 @@ mixin _PaintingBoardPerspectiveMixin on _PaintingBoardBase {
     }
     return nearest;
   }
+
+  Offset _boardToWorkspace(Offset boardLocal) {
+    final Rect boardRect = _boardRect;
+    Offset local = boardLocal;
+    if (_viewMirrorOverlay) {
+      local = Offset(_canvasSize.width - local.dx, local.dy);
+    }
+    Offset relative = local * _viewport.scale;
+    final double rotation = _viewport.rotation;
+    if (rotation != 0) {
+      final Offset center = boardRect.size.center(Offset.zero);
+      final double dx = relative.dx - center.dx;
+      final double dy = relative.dy - center.dy;
+      final double cosA = math.cos(rotation);
+      final double sinA = math.sin(rotation);
+      relative = Offset(
+        dx * cosA - dy * sinA + center.dx,
+        dx * sinA + dy * cosA + center.dy,
+      );
+    }
+    return boardRect.topLeft + relative;
+  }
+
+  _PerspectiveHandle? _hitTestPerspectiveHandleWorkspace(
+    Offset workspacePosition, {
+    required double screenRadius,
+  }) {
+    bool hit(Offset boardTarget) {
+      final Offset target = _boardToWorkspace(boardTarget);
+      return (workspacePosition - target).distance <= screenRadius;
+    }
+
+    if (hit(_perspectiveVp1)) {
+      return _PerspectiveHandle.vp1;
+    }
+    if (_perspectiveMode != PerspectiveGuideMode.onePoint) {
+      final Offset? vp2 = _perspectiveVp2;
+      if (vp2 != null && hit(vp2)) {
+        return _PerspectiveHandle.vp2;
+      }
+    }
+    if (_perspectiveMode == PerspectiveGuideMode.threePoint) {
+      final Offset? vp3 = _perspectiveVp3;
+      if (vp3 != null && hit(vp3)) {
+        return _PerspectiveHandle.vp3;
+      }
+    }
+    return null;
+  }
+
+  _PerspectiveHandle? _nearestPerspectiveHandleWorkspace(
+    Offset workspacePosition, {
+    required double screenRadius,
+  }) {
+    final double fallbackRadius = screenRadius * 3.5;
+    _PerspectiveHandle? nearest;
+    double nearestDistance = double.infinity;
+
+    void consider(_PerspectiveHandle handle, Offset? boardPosition) {
+      if (boardPosition == null) {
+        return;
+      }
+      final Offset target = _boardToWorkspace(boardPosition);
+      final double distance = (workspacePosition - target).distance;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = handle;
+      }
+    }
+
+    consider(_PerspectiveHandle.vp1, _perspectiveVp1);
+    if (_perspectiveMode != PerspectiveGuideMode.onePoint) {
+      consider(_PerspectiveHandle.vp2, _perspectiveVp2 ?? _perspectiveVp1);
+    }
+    if (_perspectiveMode == PerspectiveGuideMode.threePoint) {
+      consider(_PerspectiveHandle.vp3, _perspectiveVp3 ?? _perspectiveVp1);
+    }
+
+    if (nearestDistance > fallbackRadius) {
+      return null;
+    }
+    return nearest;
+  }
+
+  double get _perspectiveHandleScreenScale {
+    if (_activeTouchPointers.isNotEmpty) {
+      return _kPerspectiveHandleTouchScale;
+    }
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+        return _kPerspectiveHandleTouchScale;
+      default:
+        return 1.0;
+    }
+  }
+
+  double _perspectiveHandleHitRadius() {
+    return (_kPerspectiveHandleOutlineRadius * _perspectiveHandleScreenScale) /
+        _viewport.scale;
+  }
+
+  double _perspectiveHandleScreenRadius() {
+    return _kPerspectiveHandleOutlineRadius * _perspectiveHandleScreenScale;
+  }
+
+  double get _perspectiveHandleFillRadiusScreen =>
+      _kPerspectiveHandleFillRadius * _perspectiveHandleScreenScale;
+
+  double get _perspectiveHandleOutlineRadiusScreen =>
+      _kPerspectiveHandleOutlineRadius * _perspectiveHandleScreenScale;
+
+  double get _perspectiveHandleOutlineWidthScreen =>
+      _kPerspectiveHandleOutlineWidth * _perspectiveHandleScreenScale;
 
   void _resetPerspectiveLock() {
     _perspectiveLockedDirection = null;
@@ -491,6 +636,9 @@ class _PerspectiveGuidePainter extends CustomPainter {
     required this.mode,
     required this.activeHandle,
     required this.viewportScale,
+    required this.handleFillRadiusScreen,
+    required this.handleOutlineRadiusScreen,
+    required this.handleOutlineWidthScreen,
   });
 
   final Size canvasSize;
@@ -500,14 +648,14 @@ class _PerspectiveGuidePainter extends CustomPainter {
   final PerspectiveGuideMode mode;
   final _PerspectiveHandle? activeHandle;
   final double viewportScale;
+  final double handleFillRadiusScreen;
+  final double handleOutlineRadiusScreen;
+  final double handleOutlineWidthScreen;
 
   static const Color _lineColor = Color(0xFF6BA6FF);
   static const Color _handleColor = Color(0xFF0F6FFF);
   static const Color _handleActiveColor = Color(0xFF7CC4FF);
   static const double _kLineScreenWidth = 1.5;
-  static const double _kHandleFillRadius = 5.0;
-  static const double _kHandleOutlineRadius = 8.0;
-  static const double _kHandleOutlineWidth = 1.0;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -535,9 +683,10 @@ class _PerspectiveGuidePainter extends CustomPainter {
       ..color = _handleActiveColor
       ..style = PaintingStyle.fill;
 
-    final double handleFillRadius = _kHandleFillRadius / resolvedScale;
-    final double handleOutlineRadius = _kHandleOutlineRadius / resolvedScale;
-    final double handleOutlineWidth = _kHandleOutlineWidth / resolvedScale;
+    final double handleFillRadius = handleFillRadiusScreen / resolvedScale;
+    final double handleOutlineRadius =
+        handleOutlineRadiusScreen / resolvedScale;
+    final double handleOutlineWidth = handleOutlineWidthScreen / resolvedScale;
 
     final List<Offset> targets = <Offset>[
       Offset.zero,
@@ -599,7 +748,10 @@ class _PerspectiveGuidePainter extends CustomPainter {
         oldDelegate.vp3 != vp3 ||
         oldDelegate.mode != mode ||
         oldDelegate.activeHandle != activeHandle ||
-        oldDelegate.viewportScale != viewportScale;
+        oldDelegate.viewportScale != viewportScale ||
+        oldDelegate.handleFillRadiusScreen != handleFillRadiusScreen ||
+        oldDelegate.handleOutlineRadiusScreen != handleOutlineRadiusScreen ||
+        oldDelegate.handleOutlineWidthScreen != handleOutlineWidthScreen;
   }
 }
 

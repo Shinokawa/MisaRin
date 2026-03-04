@@ -339,6 +339,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get menuWindow => '창';
 
   @override
+  String get menuRoot => '메뉴';
+
+  @override
   String get menuAbout => 'Misa Rin 정보';
 
   @override
@@ -2230,4 +2233,61 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get autoSaveCleanupDialogClean => '정리';
+
+  @override
+  String get exportDestinationTitle => 'Export destination';
+
+  @override
+  String get exportDestinationDesc => 'Choose where to export the image.';
+
+  @override
+  String get imageSourceTitle => '이미지 가져오기 위치 선택';
+
+  @override
+  String get imageSourceDesc => '사진 또는 파일에서 이미지를 가져옵니다.';
+
+  @override
+  String get exportDestinationPhotos => 'Photos';
+
+  @override
+  String get exportDestinationFiles => 'Files';
+
+  @override
+  String get imageSavedToPhotos => 'Image saved to Photos.';
+
+  @override
+  String get exportDirectoryLabel => 'Export directory';
+
+  @override
+  String get exportDirectoryDesc =>
+      'Set the default export location on Android.';
+
+  @override
+  String get selectExportDirectory => 'Choose folder';
+
+  @override
+  String get resetExportDirectory => 'Use default';
+
+  @override
+  String exportDirectoryCurrent(Object path) {
+    return 'Current: $path';
+  }
+
+  @override
+  String exportDirectoryDefault(Object path) {
+    return 'Default: $path';
+  }
+
+  @override
+  String exportDirectoryUpdated(Object path) {
+    return 'Export directory updated: $path';
+  }
+
+  @override
+  String get exportDirectoryCleared => 'Export directory reset to default.';
+
+  @override
+  String exportDirectoryUpdateFailed(Object error) {
+    return 'Failed to update export directory: $error';
+  }
 }

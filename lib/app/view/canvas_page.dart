@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:misa_rin/mobile/responsive_dialog.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/widgets.dart'
     show
@@ -45,9 +46,18 @@ import '../widgets/canvas_title_bar.dart';
 import '../widgets/painting_board.dart';
 import '../workspace/canvas_workspace_controller.dart';
 import '../workspace/workspace_shared_state.dart';
+import '../utils/file_name_dialog.dart';
+import '../utils/ios_photo_saver.dart';
+import '../utils/mobile_export_paths.dart';
 import '../utils/platform_target.dart';
 import '../utils/web_file_dialog.dart';
 import '../utils/web_file_saver.dart';
+import '../../mobile/mobile_utils.dart';
+import '../../mobile/mobile_menu_button.dart';
+import '../../mobile/mobile_right_buttons.dart';
+import '../../mobile/mobile_tool_buttons.dart';
+import '../../mobile/mobile_undo_redo_buttons.dart';
+import '../../mobile/mobile_bottom_sheet.dart';
 
 class CanvasPage extends StatefulWidget {
   const CanvasPage({
@@ -649,19 +659,41 @@ class CanvasPageState extends State<CanvasPage> {
         fileName: normalizedName,
       );
     }
-    final String? selectedPath = await FilePicker.platform.saveFile(
-      dialogTitle: l10n.saveProjectAs,
-      fileName: _suggestedFileName(choice.extension),
-      type: FileType.custom,
-      allowedExtensions: <String>[choice.extension],
-    );
-    if (selectedPath == null) {
-      return false;
+    final bool isMobile =
+        !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+    String? normalizedPath;
+    if (isMobile) {
+      final String? fileName = await showFileNameDialog(
+        context: context,
+        title: l10n.saveProjectAs,
+        suggestedFileName: _suggestedFileName(choice.extension),
+        confirmLabel: l10n.save,
+      );
+      if (fileName == null) {
+        return false;
+      }
+      final String normalizedName = _normalizeExportPath(
+        _sanitizeFileName(fileName),
+        choice.extension,
+      );
+      normalizedPath = await MobileExportPaths.resolveExportPath(
+        normalizedName,
+      );
+    } else {
+      final String? selectedPath = await FilePicker.platform.saveFile(
+        dialogTitle: l10n.saveProjectAs,
+        fileName: _suggestedFileName(choice.extension),
+        type: FileType.custom,
+        allowedExtensions: <String>[choice.extension],
+      );
+      if (selectedPath == null) {
+        return false;
+      }
+      normalizedPath = _normalizeExportPath(
+        selectedPath,
+        choice.extension,
+      );
     }
-    final String normalizedPath = _normalizeExportPath(
-      selectedPath,
-      choice.extension,
-    );
 
     setState(() => _isSaving = true);
     try {
@@ -809,6 +841,92 @@ class CanvasPageState extends State<CanvasPage> {
 
   Future<_ExportChoice?> _showExportFormatDialog() async {
     final l10n = context.l10n;
+    if (isMobileOrPhone(context)) {
+      return showMobileBottomSheet<_ExportChoice?>(
+        context: context,
+        heightFactor: 0.5,
+        builder: (BuildContext context) {
+          final theme = FluentTheme.of(context);
+          Widget buildOptionTitle(String title, [String? description]) {
+            final String? trimmed = description?.trim();
+            if (trimmed == null || trimmed.isEmpty) {
+              return Text(title);
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title),
+                const SizedBox(height: 2),
+                Text(trimmed, style: theme.typography.caption),
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.selectExportFormat,
+                      style: theme.typography.subtitle?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.selectSaveFormat,
+                      style: theme.typography.caption,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  children: [
+                    ListTile(
+                      title: buildOptionTitle(
+                        l10n.saveAsPsd,
+                        l10n.exportAsPsdTooltip,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(
+                        const _ExportChoice(_ExportType.psd, 'psd'),
+                      ),
+                    ),
+                    ListTile(
+                      title: buildOptionTitle(
+                        l10n.saveAsSai2,
+                        l10n.exportAsSai2Tooltip,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(
+                        const _ExportChoice(_ExportType.sai2, 'sai2'),
+                      ),
+                    ),
+                    ListTile(
+                      title: buildOptionTitle(l10n.saveAsRin),
+                      onPressed: () => Navigator.of(context).pop(
+                        const _ExportChoice(_ExportType.rin, 'rin'),
+                      ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      title: Text(l10n.cancel),
+                      onPressed: () => Navigator.of(context).pop(null),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
     return showDialog<_ExportChoice?>(
       context: context,
       barrierDismissible: true,
@@ -851,6 +969,92 @@ class CanvasPageState extends State<CanvasPage> {
     );
   }
 
+  Future<_MobileImageExportDestination?> _showMobileImageExportDestinationDialog() {
+    final l10n = context.l10n;
+    if (isMobileOrPhone(context)) {
+      return showMobileBottomSheet<_MobileImageExportDestination?>(
+        context: context,
+        heightFactor: 0.45,
+        builder: (BuildContext context) {
+          final theme = FluentTheme.of(context);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.exportDestinationTitle,
+                      style: theme.typography.subtitle?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.exportDestinationDesc,
+                      style: theme.typography.caption,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  children: [
+                    ListTile(
+                      title: Text(l10n.exportDestinationPhotos),
+                      onPressed: () => Navigator.of(context)
+                          .pop(_MobileImageExportDestination.photos),
+                    ),
+                    ListTile(
+                      title: Text(l10n.exportDestinationFiles),
+                      onPressed: () => Navigator.of(context)
+                          .pop(_MobileImageExportDestination.files),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      title: Text(l10n.cancel),
+                      onPressed: () => Navigator.of(context).pop(null),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+    return showDialog<_MobileImageExportDestination?>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return ContentDialog(
+          title: Text(l10n.exportDestinationTitle),
+          content: Text(l10n.exportDestinationDesc),
+          actions: [
+            Button(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: Text(l10n.cancel),
+            ),
+            Button(
+              onPressed: () => Navigator.of(context)
+                  .pop(_MobileImageExportDestination.files),
+              child: Text(l10n.exportDestinationFiles),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context)
+                  .pop(_MobileImageExportDestination.photos),
+              child: Text(l10n.exportDestinationPhotos),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   String _normalizeExportPath(String raw, String extension) {
     final String lower = raw.toLowerCase();
     final String suffix = '.$extension';
@@ -876,6 +1080,8 @@ class CanvasPageState extends State<CanvasPage> {
     final String extension = exportVector ? 'svg' : 'png';
     String? normalizedPath;
     String? downloadName;
+    String? mobileFileName;
+    _MobileImageExportDestination? mobileDestination;
     if (kIsWeb) {
       final String? fileName = await _promptWebFileName(
         title: l10n.exportFileTitle(extension.toUpperCase()),
@@ -887,6 +1093,35 @@ class CanvasPageState extends State<CanvasPage> {
         return false;
       }
       downloadName = _normalizeExportPath(fileName, extension);
+    } else if (Platform.isAndroid || Platform.isIOS) {
+      if (Platform.isIOS && !exportVector) {
+        mobileDestination = await _showMobileImageExportDestinationDialog();
+        if (mobileDestination == null) {
+          return false;
+        }
+      } else {
+        mobileDestination = _MobileImageExportDestination.files;
+      }
+      if (mobileDestination == _MobileImageExportDestination.files) {
+        final String? fileName = await showFileNameDialog(
+          context: context,
+          title: l10n.exportFileTitle(extension.toUpperCase()),
+          suggestedFileName: _suggestedFileName(extension),
+          confirmLabel: l10n.export,
+        );
+        if (fileName == null) {
+          return false;
+        }
+        mobileFileName = _normalizeExportPath(
+          _sanitizeFileName(fileName),
+          extension,
+        );
+        normalizedPath = await MobileExportPaths.resolveExportPath(
+          mobileFileName,
+        );
+      } else {
+        mobileFileName = _suggestedFileName(extension);
+      }
     } else {
       final String? outputPath = await FilePicker.platform.saveFile(
         dialogTitle: l10n.exportFileTitle(extension.toUpperCase()),
@@ -928,6 +1163,17 @@ class CanvasPageState extends State<CanvasPage> {
         );
         _showInfoBar(
           l10n.fileDownloaded(extension.toUpperCase(), downloadName!),
+          severity: InfoBarSeverity.success,
+        );
+      } else if (Platform.isIOS &&
+          mobileDestination == _MobileImageExportDestination.photos &&
+          !exportVector) {
+        await IosPhotoSaver.saveImageToPhotos(
+          bytes,
+          fileName: mobileFileName,
+        );
+        _showInfoBar(
+          l10n.imageSavedToPhotos,
           severity: InfoBarSeverity.success,
         );
       } else {
@@ -1142,7 +1388,7 @@ class CanvasPageState extends State<CanvasPage> {
 
   Future<_ExitAction?> _showExitDialog({String? title, String? content}) {
     final l10n = context.l10n;
-    return showDialog<_ExitAction>(
+    return showResponsiveDialog<_ExitAction>(
       context: context,
       barrierDismissible: true,
       builder: (context) => MisarinDialog(
@@ -1846,6 +2092,7 @@ class CanvasPageState extends State<CanvasPage> {
       onResizeCanvas: _handleResizeCanvas,
       onReadyChanged: (ready) => _handleBoardReadyChanged(id, ready),
       toolbarLayoutStyle: _toolbarLayoutStyle,
+      showToolbars: !isMobileOrPhone(context),
     );
   }
 
@@ -2233,17 +2480,46 @@ class CanvasPageState extends State<CanvasPage> {
         child: workspace,
       );
     }
+    final bool isMobile = isMobileOrPhone(context);
+
+    final Widget body = isMobile
+        ? SafeArea(
+            bottom: false,
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    titleBar,
+                    Expanded(child: workspace),
+                  ],
+                ),
+                const Align(
+                  alignment: Alignment.topRight,
+                  child: MobileMenuButton(),
+                ),
+                Align(
+                  alignment: Alignment.topLeft,
+                  child: MobileUndoRedoButtons(
+                    onUndo: _handleUndo,
+                    onRedo: _handleRedo,
+                  ),
+                ),
+              ],
+            ),
+          )
+        : Column(
+            children: [
+              titleBar,
+              Expanded(child: ClipRect(child: workspace)),
+            ],
+          );
+
     return MenuActionBinding(
       handler: handler,
       child: NavigationView(
         content: ScaffoldPage(
           padding: EdgeInsets.zero,
-          content: Column(
-            children: [
-              titleBar,
-              Expanded(child: ClipRect(child: workspace)),
-            ],
-          ),
+          content: body,
         ),
       ),
     );
@@ -2336,6 +2612,8 @@ class _CanvasStatusOverlay extends StatelessWidget {
 }
 
 enum _ExportType { rin, psd, sai2 }
+
+enum _MobileImageExportDestination { photos, files }
 
 class _ExportChoice {
   const _ExportChoice(this.type, this.extension);

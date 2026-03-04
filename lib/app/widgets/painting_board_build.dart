@@ -88,7 +88,7 @@ mixin _PaintingBoardBuildMixin
     if (renderObject is! RenderBox) {
       return const SizedBox.shrink();
     }
-    return Stack(
+    final Widget stack = Stack(
       fit: StackFit.expand,
       clipBehavior: Clip.none,
       children: [
@@ -96,6 +96,15 @@ mixin _PaintingBoardBuildMixin
         ..._buildReferenceModelCards(),
         ..._buildPaletteCards(),
       ],
+    );
+    return ValueListenableBuilder<int>(
+      valueListenable: MobileBottomSheetController.activeCount,
+      builder: (context, activeCount, _) {
+        return Offstage(
+          offstage: activeCount > 0,
+          child: stack,
+        );
+      },
     );
   }
 

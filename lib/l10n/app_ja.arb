@@ -54,6 +54,8 @@
     }
   },
   "importImageDialogTitle": "画像をインポート",
+  "imageSourceTitle": "画像の取得元を選択",
+  "imageSourceDesc": "写真またはファイルから画像を読み込みます。",
   "importedImageInfo": "画像をインポートしました: {name}",
   "@importedImageInfo": {
     "placeholders": {
@@ -165,6 +167,7 @@
   "menuView": "表示",
   "menuWorkspace": "ワークスペース",
   "menuWindow": "ウィンドウ",
+  "menuRoot": "メニュー",
   "menuAbout": "Misa Rin について",
   "menuPreferences": "環境設定…",
   "menuNewEllipsis": "新規…",

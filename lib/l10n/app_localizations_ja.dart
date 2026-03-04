@@ -338,6 +338,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuWindow => 'ウィンドウ';
 
   @override
+  String get menuRoot => 'メニュー';
+
+  @override
   String get menuAbout => 'Misa Rin について';
 
   @override
@@ -2219,4 +2222,61 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get autoSaveCleanupDialogClean => 'クリーンアップ';
+
+  @override
+  String get exportDestinationTitle => 'Export destination';
+
+  @override
+  String get exportDestinationDesc => 'Choose where to export the image.';
+
+  @override
+  String get imageSourceTitle => '画像の取得元を選択';
+
+  @override
+  String get imageSourceDesc => '写真またはファイルから画像を読み込みます。';
+
+  @override
+  String get exportDestinationPhotos => 'Photos';
+
+  @override
+  String get exportDestinationFiles => 'Files';
+
+  @override
+  String get imageSavedToPhotos => 'Image saved to Photos.';
+
+  @override
+  String get exportDirectoryLabel => 'Export directory';
+
+  @override
+  String get exportDirectoryDesc =>
+      'Set the default export location on Android.';
+
+  @override
+  String get selectExportDirectory => 'Choose folder';
+
+  @override
+  String get resetExportDirectory => 'Use default';
+
+  @override
+  String exportDirectoryCurrent(Object path) {
+    return 'Current: $path';
+  }
+
+  @override
+  String exportDirectoryDefault(Object path) {
+    return 'Default: $path';
+  }
+
+  @override
+  String exportDirectoryUpdated(Object path) {
+    return 'Export directory updated: $path';
+  }
+
+  @override
+  String get exportDirectoryCleared => 'Export directory reset to default.';
+
+  @override
+  String exportDirectoryUpdateFailed(Object error) {
+    return 'Failed to update export directory: $error';
+  }
 }

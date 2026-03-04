@@ -23,7 +23,7 @@ import 'package:misa_rin/utils/io_shim.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart'
     as material
-    show ReorderableDragStartListener, ReorderableListView;
+    show Material, ReorderableDragStartListener, ReorderableListView;
 import 'package:flutter/painting.dart' show MatrixUtils;
 import 'package:flutter/services.dart'
     show
@@ -63,6 +63,9 @@ import 'package:flutter/widgets.dart'
         CustomPaint,
         EditableText,
         FocusNode,
+        KeyedSubtree,
+        LayoutBuilder,
+        NeverScrollableScrollPhysics,
         StatefulBuilder,
         SingleChildRenderObjectWidget,
         StrutStyle,
@@ -80,6 +83,8 @@ import 'package:vector_math/vector_math_64.dart' show Matrix4, Vector3;
 import 'package:file_picker/file_picker.dart';
 
 import '../dialogs/misarin_dialog.dart';
+import '../../mobile/responsive_dialog.dart';
+import '../../mobile/mobile_bottom_sheet.dart';
 import '../dialogs/brush_preset_picker_dialog.dart';
 import '../l10n/l10n.dart';
 import 'package:misa_rin/canvas/canvas_facade.dart';
@@ -134,12 +139,20 @@ import '../models/image_resize_sampling.dart';
 import '../utils/tablet_input_bridge.dart';
 import '../utils/color_filter_generator.dart';
 import '../palette/palette_exporter.dart';
+import '../utils/file_name_dialog.dart';
+import '../utils/ios_photo_saver.dart';
+import '../utils/mobile_export_paths.dart';
 import '../utils/web_file_dialog.dart';
 import '../utils/web_file_saver.dart';
 import '../utils/platform_target.dart';
 import '../utils/clipboard_image_reader.dart';
 import 'layer_visibility_button.dart';
 import 'app_notification.dart';
+import '../../mobile/mobile_menu_button.dart';
+import '../../mobile/mobile_tool_buttons.dart';
+import '../../mobile/mobile_right_buttons.dart';
+import '../../mobile/mobile_bottom_sheet.dart';
+import '../../mobile/mobile_utils.dart';
 import '../native/system_fonts.dart';
 import '../tooltips/hover_detail_tooltip.dart';
 import '../../backend/layout_compute_worker.dart';

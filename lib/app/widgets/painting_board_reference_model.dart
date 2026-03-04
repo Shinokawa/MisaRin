@@ -10,6 +10,42 @@ const String _kReferenceModelAnimationAsset =
 
 const double _referenceModelCardWidth = 420;
 const double _referenceModelViewportHeight = 320;
+const double _referenceModelCardChromeHeight = 120;
+const double _referenceModelCardBaseHeight =
+    _referenceModelViewportHeight + _referenceModelCardChromeHeight;
+const double _referenceModelCardMobileWidthFactor = 0.6;
+
+double _referenceModelCardWidthForContext(BuildContext context) {
+  if (isMobileOrPhone(context)) {
+    final double screenWidth = MediaQuery.sizeOf(context).width;
+    if (screenWidth.isFinite && screenWidth > 0) {
+      return screenWidth * _referenceModelCardMobileWidthFactor;
+    }
+  }
+  return _referenceModelCardWidth;
+}
+
+double _referenceModelViewportHeightForContext(BuildContext context) {
+  if (isMobileOrPhone(context)) {
+    final double width = _referenceModelCardWidthForContext(context);
+    return (width - _referenceModelCardChromeHeight).clamp(0.0, width);
+  }
+  return _referenceModelViewportHeight;
+}
+
+double _referenceModelCardHeightForContext(BuildContext context) {
+  if (isMobileOrPhone(context)) {
+    return _referenceModelCardWidthForContext(context);
+  }
+  return _referenceModelCardBaseHeight;
+}
+
+Size _referenceModelCardDefaultSize(BuildContext context) {
+  return Size(
+    _referenceModelCardWidthForContext(context),
+    _referenceModelCardHeightForContext(context),
+  );
+}
 
 const String _kReferenceModelActionNone = '__none__';
 
@@ -858,10 +894,11 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
 
   Offset _initialReferenceModelCardOffset() {
     final double stackOffset = _referenceModelCards.length * 28.0;
+    final Size panelSize = _referenceModelCardDefaultSize(context);
     return _workspacePanelSpawnOffset(
       this,
-      panelWidth: _referenceModelCardWidth,
-      panelHeight: _referenceModelViewportHeight + 120,
+      panelWidth: panelSize.width,
+      panelHeight: panelSize.height,
       additionalDy: stackOffset,
     );
   }
@@ -890,7 +927,7 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
     final _ReferenceModelCardEntry? entry = _referenceModelCardById(id);
     if (entry == null) return;
     setState(() {
-      final Size size = entry.size ?? const Size(_referenceModelCardWidth, 420);
+      final Size size = entry.size ?? _referenceModelCardDefaultSize(context);
       entry.offset = _clampWorkspaceOffsetToViewport(
         this,
         entry.offset + delta,
@@ -940,7 +977,7 @@ mixin _PaintingBoardReferenceModelMixin on _PaintingBoardBase {
   @override
   bool _isInsideReferenceModelCardArea(Offset workspacePosition) {
     for (final _ReferenceModelCardEntry entry in _referenceModelCards) {
-      final Size size = entry.size ?? const Size(_referenceModelCardWidth, 420);
+      final Size size = entry.size ?? _referenceModelCardDefaultSize(context);
       final Rect rect = Rect.fromLTWH(
         entry.offset.dx,
         entry.offset.dy,

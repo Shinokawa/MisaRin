@@ -140,11 +140,27 @@ class CanvasWorkspaceController extends ChangeNotifier {
     if (oldIndex < 0 || oldIndex >= _entries.length) {
       return;
     }
+    int boundedNewIndex = newIndex;
+    if (boundedNewIndex < 0) {
+      boundedNewIndex = 0;
+    }
+    if (boundedNewIndex > _entries.length) {
+      boundedNewIndex = _entries.length;
+    }
+    int targetIndex = boundedNewIndex;
+    if (targetIndex > oldIndex) {
+      targetIndex -= 1;
+    }
+    if (targetIndex != oldIndex) {
+      final CanvasWorkspaceEntry entry = _entries.removeAt(oldIndex);
+      _entries.insert(targetIndex, entry);
+      _scheduleNotify(immediate: true);
+    }
     final workspace_backend.WorkspaceState state = workspace_backend.reorderWorkspace(
       oldIndex: oldIndex,
-      newIndex: newIndex,
+      newIndex: boundedNewIndex,
     );
-    _applyBackendState(state);
+    _applyBackendState(state, immediateNotify: true);
   }
 
   void _restoreFromBackend() {
@@ -160,6 +176,7 @@ class CanvasWorkspaceController extends ChangeNotifier {
   void _applyBackendState(
     workspace_backend.WorkspaceState state, {
     ProjectDocument? documentOverride,
+    bool immediateNotify = false,
   }) {
     final Map<String, CanvasWorkspaceEntry> cache =
         <String, CanvasWorkspaceEntry>{
@@ -214,12 +231,18 @@ class CanvasWorkspaceController extends ChangeNotifier {
       ..clear()
       ..addAll(nextEntries);
     _activeId = state.activeId;
-    _scheduleNotify();
+    _scheduleNotify(immediate: immediateNotify);
   }
 
-  void _scheduleNotify() {
+  void _scheduleNotify({bool immediate = false}) {
     final WidgetsBinding binding = WidgetsBinding.instance;
     if (_notifyScheduled) {
+      return;
+    }
+    if (immediate) {
+      _notifyScheduled = true;
+      notifyListeners();
+      _notifyScheduled = false;
       return;
     }
     _notifyScheduled = true;

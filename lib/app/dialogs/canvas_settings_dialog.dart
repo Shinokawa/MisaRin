@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:misa_rin/mobile/responsive_dialog.dart';
+import 'package:misa_rin/mobile/mobile_utils.dart';
 import 'package:flutter/services.dart';
 
 import '../../canvas/canvas_settings.dart';
@@ -57,6 +59,17 @@ class _BackgroundOption {
   final String label;
 
   bool get isTransparent => color.alpha == 0;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _BackgroundOption &&
+        other.color.value == color.value &&
+        other.label == label;
+  }
+
+  @override
+  int get hashCode => Object.hash(color.value, label);
 }
 
 class _WorkspacePresetOption {
@@ -75,9 +88,10 @@ Future<NewProjectConfig?> showCanvasSettingsDialog(
   BuildContext context, {
   CanvasSettings? initialSettings,
 }) {
-  return showDialog<NewProjectConfig>(
+  return showResponsiveDialog<NewProjectConfig>(
     context: context,
     barrierDismissible: true,
+    mobileHeightFactor: 0.9,
     builder: (_) => _CanvasSettingsDialog(
       initialSettings: initialSettings ?? CanvasSettings.defaults,
     ),
@@ -273,157 +287,210 @@ class _CanvasSettingsDialogState extends State<_CanvasSettingsDialog> {
     ];
   }
 
+  Widget _buildResolutionPresets(FluentThemeData theme, bool isMobile) {
+    if (!isMobile) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _presets
+            .map((preset) => _buildResolutionPresetButton(theme, preset))
+            .toList(),
+      );
+    }
+    return ComboBox<_ResolutionPreset>(
+      value: _selectedPreset,
+      items: _presets.map((preset) {
+        return ComboBoxItem<_ResolutionPreset>(
+          value: preset,
+          child: Text(preset.label),
+        );
+      }).toList(),
+      placeholder: Text(context.l10n.resolutionPreset),
+      onChanged: (preset) => _applyPreset(preset),
+      isExpanded: true,
+    );
+  }
+
+  Widget _buildWorkspacePresets(FluentThemeData theme, bool isMobile) {
+    if (!isMobile) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _workspacePresets
+            .map((option) => _buildPresetButton(theme, option))
+            .toList(),
+      );
+    }
+    return ComboBox<WorkspacePreset>(
+      value: _selectedWorkspacePreset,
+      items: _workspacePresets.map((option) {
+        return ComboBoxItem<WorkspacePreset>(
+          value: option.preset,
+          child: Text(option.title),
+        );
+      }).toList(),
+      onChanged: (v) => setState(() => _selectedWorkspacePreset = v ?? WorkspacePreset.none),
+      isExpanded: true,
+    );
+  }
+
+  Widget _buildBackgroundColorSelector(FluentThemeData theme, bool isMobile) {
+    if (!isMobile) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _backgroundOptions
+            .map((option) => _buildBackgroundOption(theme, option))
+            .toList(),
+      );
+    }
+
+    final selectedOption = _backgroundOptions.firstWhere(
+      (o) => o.color.value == _selectedColor.value,
+      orElse: () => _backgroundOptions.first,
+    );
+
+    return ComboBox<_BackgroundOption>(
+      value: selectedOption,
+      items: _backgroundOptions.map((option) {
+        return ComboBoxItem<_BackgroundOption>(
+          value: option,
+          child: Text(option.label),
+        );
+      }).toList(),
+      onChanged: (option) {
+        if (option != null) {
+          setState(() => _selectedColor = option.color);
+        }
+      },
+      isExpanded: true,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = FluentTheme.of(context);
     final l10n = context.l10n;
+    final bool isMobile = isMobileOrPhone(context);
+
+    final leftColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InfoLabel(
+          label: l10n.projectName,
+          child: TextBox(
+            controller: _nameController,
+            placeholder: l10n.untitledProject,
+          ),
+        ),
+        const SizedBox(height: 12),
+        InfoLabel(
+          label: l10n.workspacePreset,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isMobile)
+                Text(
+                  l10n.workspacePresetDesc,
+                  style: theme.typography.caption ?? const TextStyle(fontSize: 12),
+                ),
+              if (!isMobile) const SizedBox(height: 8),
+              _buildWorkspacePresets(theme, isMobile),
+              const SizedBox(height: 8),
+              _buildPresetDescription(theme),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        InfoLabel(
+          label: l10n.resolutionPreset,
+          child: _buildResolutionPresets(theme, isMobile),
+        ),
+      ],
+    );
+
+    final rightColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InfoLabel(
+          label: l10n.customResolution,
+          child: Row(
+            children: [
+              Expanded(
+                child: TextFormBox(
+                  controller: _widthController,
+                  placeholder: l10n.widthPx,
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.digitsOnly,
+                  ],
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text('×'),
+              ),
+              Expanded(
+                child: TextFormBox(
+                  controller: _heightController,
+                  placeholder: l10n.heightPx,
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.digitsOnly,
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Tooltip(
+                message: l10n.swapDimensions,
+                child: IconButton(
+                  icon: const Icon(FluentIcons.rotate),
+                  onPressed: _swapDimensions,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (!isMobile) _buildCanvasPreview(theme),
+        if (!isMobile) const SizedBox(height: 12),
+        InfoLabel(
+          label: l10n.backgroundColor,
+          child: _buildBackgroundColorSelector(theme, isMobile),
+        ),
+      ],
+    );
+
+    final Widget contentBody = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (isMobile) ...[
+          leftColumn,
+          const SizedBox(height: 24),
+          rightColumn,
+        ] else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: leftColumn),
+              const SizedBox(width: 24),
+              Expanded(child: rightColumn),
+            ],
+          ),
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _errorMessage!,
+            style: TextStyle(color: Colors.warningPrimaryColor),
+          ),
+        ],
+      ],
+    );
+
     return MisarinDialog(
       title: Text(l10n.newCanvasSettingsTitle),
       contentWidth: 820,
       maxWidth: 980,
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 680),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        InfoLabel(
-                          label: l10n.projectName,
-                          child: TextBox(
-                            controller: _nameController,
-                            placeholder: l10n.untitledProject,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        InfoLabel(
-                          label: l10n.workspacePreset,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l10n.workspacePresetDesc,
-                                style:
-                                    theme.typography.caption ??
-                                    const TextStyle(fontSize: 12),
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: _workspacePresets
-                                    .map(
-                                      (option) =>
-                                          _buildPresetButton(theme, option),
-                                    )
-                                    .toList(),
-                              ),
-                              const SizedBox(height: 8),
-                              _buildPresetDescription(theme),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        InfoLabel(
-                          label: l10n.resolutionPreset,
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: _presets
-                                .map(
-                                  (preset) =>
-                                      _buildResolutionPresetButton(
-                                        theme,
-                                        preset,
-                                      ),
-                                )
-                                .toList(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        InfoLabel(
-                          label: l10n.customResolution,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextFormBox(
-                                  controller: _widthController,
-                                  placeholder: l10n.widthPx,
-                                  inputFormatters: <TextInputFormatter>[
-                                    FilteringTextInputFormatter.digitsOnly,
-                                  ],
-                                ),
-                              ),
-                              const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 8),
-                                child: Text('×'),
-                              ),
-                              Expanded(
-                                child: TextFormBox(
-                                  controller: _heightController,
-                                  placeholder: l10n.heightPx,
-                                  inputFormatters: <TextInputFormatter>[
-                                    FilteringTextInputFormatter.digitsOnly,
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Tooltip(
-                                message: l10n.swapDimensions,
-                                child: IconButton(
-                                  icon: const Icon(FluentIcons.rotate),
-                                  onPressed: _swapDimensions,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _buildCanvasPreview(theme),
-                        const SizedBox(height: 12),
-                        InfoLabel(
-                          label: l10n.backgroundColor,
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: _backgroundOptions
-                                .map(
-                                  (option) =>
-                                      _buildBackgroundOption(theme, option),
-                                )
-                                .toList(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (_errorMessage != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  _errorMessage!,
-                  style: TextStyle(color: Colors.warningPrimaryColor),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+      content: isMobile ? contentBody : SingleChildScrollView(child: contentBody),
       actions: [
         Button(
           onPressed: () => Navigator.of(context).pop(),

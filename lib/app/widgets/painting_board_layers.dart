@@ -6,6 +6,20 @@ const double _layerPreviewAspectRatio = 16 / 9;
 const double _layerPreviewDisplayWidth =
     _layerPreviewDisplayHeight * _layerPreviewAspectRatio;
 
+class _LayerContextAction {
+  const _LayerContextAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    required this.enabled,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+  final bool enabled;
+}
+
 mixin _PaintingBoardLayerMixin
     on _PaintingBoardBase, _PaintingBoardLayerTransformMixin {
   final TextEditingController _layerRenameController = TextEditingController();
@@ -105,7 +119,7 @@ mixin _PaintingBoardLayerMixin
     );
     String? errorText;
 
-    final String? result = await showDialog<String>(
+    final String? result = await showResponsiveDialog<String>(
       context: context,
       builder: (dialogContext) {
         final l10n = dialogContext.l10n;
@@ -693,6 +707,10 @@ mixin _PaintingBoardLayerMixin
 
   void _showLayerContextMenu(CanvasLayerInfo layer, Offset position) {
     _handleLayerSelected(layer.id);
+    if (isMobileOrPhone(context)) {
+      _showLayerContextMenuSheet(layer);
+      return;
+    }
     _layerContextMenuController.showFlyout(
       position: position,
       barrierDismissible: true,
@@ -709,7 +727,66 @@ mixin _PaintingBoardLayerMixin
     );
   }
 
+  void _showLayerContextMenuSheet(CanvasLayerInfo layer) {
+    showMobileBottomSheet<void>(
+      context: context,
+      heightFactor: 0.55,
+      builder: (context) {
+        final theme = FluentTheme.of(context);
+        final CanvasLayerInfo? target = _layerById(layer.id);
+        if (target == null) {
+          return const SizedBox.shrink();
+        }
+        final List<_LayerContextAction> actions =
+            _buildLayerContextActions(target);
+        return ListView.separated(
+          padding: const EdgeInsets.all(12),
+          itemCount: actions.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 4),
+          itemBuilder: (context, index) {
+            final _LayerContextAction action = actions[index];
+            final Color? iconColor = action.enabled
+                ? theme.resources.textFillColorPrimary
+                : theme.resources.textFillColorDisabled;
+            return ListTile(
+              leading: Icon(action.icon, size: 18, color: iconColor),
+              title: Text(
+                action.label,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: action.enabled
+                      ? theme.resources.textFillColorPrimary
+                      : theme.resources.textFillColorDisabled,
+                ),
+              ),
+              onPressed: action.enabled
+                  ? () {
+                      Navigator.of(context).pop();
+                      action.onPressed();
+                    }
+                  : null,
+            );
+          },
+        );
+      },
+    );
+  }
+
   List<MenuFlyoutItemBase> _buildLayerContextMenuItems(CanvasLayerInfo layer) {
+    final List<_LayerContextAction> actions =
+        _buildLayerContextActions(layer);
+    return actions
+        .map(
+          (action) => MenuFlyoutItem(
+            leading: Icon(action.icon),
+            text: Text(action.label),
+            onPressed: action.enabled ? action.onPressed : null,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  List<_LayerContextAction> _buildLayerContextActions(CanvasLayerInfo layer) {
     final bool canDelete = _layers.length > 1 && !layer.locked;
     final bool canMerge = _canMergeLayerDown(layer);
     final bool isLocked = layer.locked;
@@ -717,56 +794,59 @@ mixin _PaintingBoardLayerMixin
     final bool isClipping = layer.clippingMask;
     final l10n = context.l10n;
 
-    final List<MenuFlyoutItemBase> items = <MenuFlyoutItemBase>[
-      MenuFlyoutItem(
-        leading: Icon(isLocked ? FluentIcons.lock : FluentIcons.unlock),
-        text: Text(isLocked ? l10n.unlockLayer : l10n.lockLayer),
+    final List<_LayerContextAction> actions = <_LayerContextAction>[
+      _LayerContextAction(
+        icon: isLocked ? FluentIcons.lock : FluentIcons.unlock,
+        label: isLocked ? l10n.unlockLayer : l10n.lockLayer,
+        enabled: true,
         onPressed: () => _handleLayerLockToggle(layer),
       ),
-      MenuFlyoutItem(
-        leading: const Icon(FluentIcons.download),
-        text: Text(l10n.mergeDown),
-        onPressed: canMerge ? () => _handleMergeLayerDown(layer) : null,
+      _LayerContextAction(
+        icon: FluentIcons.download,
+        label: l10n.mergeDown,
+        enabled: canMerge,
+        onPressed: () => _handleMergeLayerDown(layer),
       ),
-      MenuFlyoutItem(
-        leading: Icon(
-          isClipping ? FluentIcons.subtract_shape : FluentIcons.subtract_shape,
-        ),
-        text: Text(isClipping ? l10n.releaseClippingMask : l10n.createClippingMask),
-        onPressed: isLocked ? null : () => _handleLayerClippingToggle(layer),
+      _LayerContextAction(
+        icon: FluentIcons.subtract_shape,
+        label: isClipping ? l10n.releaseClippingMask : l10n.createClippingMask,
+        enabled: !isLocked,
+        onPressed: () => _handleLayerClippingToggle(layer),
       ),
-      MenuFlyoutItem(
-        leading: Icon(isVisible ? FluentIcons.hide3 : FluentIcons.view),
-        text: Text(isVisible ? l10n.hide : l10n.show),
+      _LayerContextAction(
+        icon: isVisible ? FluentIcons.hide3 : FluentIcons.view,
+        label: isVisible ? l10n.hide : l10n.show,
+        enabled: true,
         onPressed: () =>
             _handleLayerVisibilityChanged(layer.id, !layer.visible),
       ),
-      MenuFlyoutItem(
-        leading: const Icon(FluentIcons.delete),
-        text: Text(l10n.delete),
-        onPressed: canDelete ? () => _handleRemoveLayer(layer.id) : null,
+      _LayerContextAction(
+        icon: FluentIcons.delete,
+        label: l10n.delete,
+        enabled: canDelete,
+        onPressed: () => _handleRemoveLayer(layer.id),
       ),
-      MenuFlyoutItem(
-        leading: const Icon(FluentIcons.copy),
-        text: Text(l10n.duplicate),
+      _LayerContextAction(
+        icon: FluentIcons.copy,
+        label: l10n.duplicate,
+        enabled: true,
         onPressed: () => _handleDuplicateLayer(layer),
       ),
     ];
     if (layer.text != null) {
-      items.insert(
+      actions.insert(
         0,
-        MenuFlyoutItem(
-          leading: const Icon(FluentIcons.font),
-          text: Text(l10n.rasterizeTextLayer),
-          onPressed: layer.locked
-              ? null
-              : () async {
-                  await _rasterizeTextLayer(layer);
-                },
+        _LayerContextAction(
+          icon: FluentIcons.font,
+          label: l10n.rasterizeTextLayer,
+          enabled: !layer.locked,
+          onPressed: () {
+            unawaited(_rasterizeTextLayer(layer));
+          },
         ),
       );
     }
-    return items;
+    return actions;
   }
 
   void _updateActiveLayerClipping(bool clipping) async {

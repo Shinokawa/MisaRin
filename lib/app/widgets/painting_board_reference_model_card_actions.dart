@@ -15,6 +15,10 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
       );
       return;
     }
+    if (isMobileOrPhone(context)) {
+      await _showMobileActionSheet(library: library, catalog: catalog);
+      return;
+    }
 
     String selection = catalog.byId.containsKey(_selectedAction)
         ? _selectedAction
@@ -537,6 +541,605 @@ extension _ReferenceModelCardStateActionDialog on _ReferenceModelCardState {
           : library.animations[selectedAction];
     });
     _applySelectedAnimation();
+  }
+
+  Future<void> _showMobileActionSheet({
+    required BedrockAnimationLibrary library,
+    required _ReferenceModelActionCatalog catalog,
+  }) async {
+    String selection = catalog.byId.containsKey(_selectedAction)
+        ? _selectedAction
+        : _kReferenceModelActionNone;
+    _ReferenceModelActionItem? selectedItem = catalog.byId[selection];
+    BedrockAnimation? selectedAnimation = selection == _kReferenceModelActionNone
+        ? null
+        : library.animations[selection];
+    bool selectedIsDynamic =
+        selectedItem?.isAnimated ?? selectedAnimation?.isDynamic ?? false;
+    bool showSelection = false;
+    String query = '';
+
+    double previewYaw = 0;
+    double previewPitch = 0;
+    double previewZoom = 1.0;
+    double previewZoomScaleStart = 1.0;
+    final AnimationController previewController = AnimationController(
+      vsync: this,
+    );
+    StateSetter? sheetSetState;
+    void syncPreviewController() {
+      previewController.stop();
+      if (selection == _kReferenceModelActionNone ||
+          selectedAnimation == null) {
+        previewController.value = 0;
+        return;
+      }
+      final bool shouldAnimate =
+          selectedItem?.isAnimated ?? selectedAnimation!.isDynamic;
+      if (!shouldAnimate || selectedAnimation!.lengthSeconds <= 0) {
+        previewController.value = 0;
+        return;
+      }
+      final int durationMs = math.max(
+        1,
+        (selectedAnimation!.lengthSeconds * 1000).round(),
+      );
+      previewController.duration = Duration(milliseconds: durationMs);
+      if (selectedAnimation!.loop) {
+        previewController.repeat();
+      } else {
+        previewController.forward(from: 0);
+      }
+    }
+
+    void applySelection(String nextSelection) {
+      selection = nextSelection;
+      selectedItem = catalog.byId[selection];
+      selectedAnimation = selection == _kReferenceModelActionNone
+          ? null
+          : library.animations[selection];
+      selectedIsDynamic =
+          selectedItem?.isAnimated ?? selectedAnimation?.isDynamic ?? false;
+      syncPreviewController();
+      sheetSetState?.call(() {});
+    }
+
+    syncPreviewController();
+    try {
+      final String? result = await showMobileBottomSheetOnRootOverlay<String>(
+        context: widget.dialogContext,
+        heightFactor: 0.9,
+        builder: (BuildContext context) {
+          final FluentThemeData theme = FluentTheme.of(context);
+          final Color border = theme.resources.controlStrokeColorDefault;
+          final Color background = theme.brightness.isDark
+              ? const Color(0xFF101010)
+              : const Color(0xFFF7F7F7);
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              sheetSetState = setDialogState;
+              if (showSelection) {
+                final String trimmedQuery = query.trim();
+                final List<_ReferenceModelActionItem> visible = catalog.items
+                    .where((item) {
+                      if (trimmedQuery.isEmpty) {
+                        return true;
+                      }
+                      final String haystack =
+                          '${item.label}\n${item.id}'.toLowerCase();
+                      return haystack.contains(trimmedQuery.toLowerCase());
+                    })
+                    .toList(growable: false);
+
+                final List<_ReferenceModelActionItem> poses =
+                    visible
+                        .where(
+                          (item) =>
+                              item.type == _ReferenceModelActionType.pose,
+                        )
+                        .toList()
+                      ..sort((a, b) => a.order.compareTo(b.order));
+                final List<_ReferenceModelActionItem> animations =
+                    visible
+                        .where(
+                          (item) =>
+                              item.type ==
+                              _ReferenceModelActionType.animation,
+                        )
+                        .toList()
+                      ..sort((a, b) => a.order.compareTo(b.order));
+
+    void handleSelection(String nextSelection) {
+      if (nextSelection == selection) {
+        setDialogState(() => showSelection = false);
+        return;
+      }
+      applySelection(nextSelection);
+      setDialogState(() => showSelection = false);
+    }
+
+                final List<Widget> items = <Widget>[
+                  ListTile(
+                    leading: const Icon(FluentIcons.clear, size: 18),
+                    title: const Text('无'),
+                    trailing: selection == _kReferenceModelActionNone
+                        ? Icon(
+                            FluentIcons.check_mark,
+                            size: 16,
+                            color: theme.accentColor,
+                          )
+                        : null,
+                    onPressed: () => handleSelection(
+                      _kReferenceModelActionNone,
+                    ),
+                  ),
+                  const Divider(),
+                ];
+
+                if (poses.isEmpty && animations.isEmpty) {
+                  items.add(
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        '没有匹配的动作。',
+                        style: theme.typography.caption,
+                      ),
+                    ),
+                  );
+                } else {
+                  void addSection(
+                    String label,
+                    List<_ReferenceModelActionItem> source, {
+                    required IconData icon,
+                  }) {
+                    if (source.isEmpty) {
+                      return;
+                    }
+                    items.add(
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        child: Row(
+                          children: [
+                            Icon(icon, size: 14),
+                            const SizedBox(width: 6),
+                            Text(
+                              label,
+                              style: theme.typography.bodyStrong,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                    for (final item in source) {
+                      items.add(
+                        ListTile(
+                          leading: Icon(
+                            item.type == _ReferenceModelActionType.animation
+                                ? FluentIcons.play
+                                : FluentIcons.contact,
+                            size: 18,
+                          ),
+                          title: Text(item.label),
+                          trailing: selection == item.id
+                              ? Icon(
+                                  FluentIcons.check_mark,
+                                  size: 16,
+                                  color: theme.accentColor,
+                                )
+                              : null,
+                          onPressed: () => handleSelection(item.id),
+                        ),
+                      );
+                    }
+                  }
+
+                  addSection('姿势', poses, icon: FluentIcons.contact);
+                  addSection('动画', animations, icon: FluentIcons.play);
+                }
+
+                items.add(const Divider());
+                items.add(
+                  ListTile(
+                    title: Text(context.l10n.cancel),
+                    onPressed: () => setDialogState(() {
+                      showSelection = false;
+                    }),
+                  ),
+                );
+
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(FluentIcons.back, size: 16),
+                            onPressed: () => setDialogState(() {
+                              showSelection = false;
+                            }),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '切换姿势',
+                            style: theme.typography.subtitle?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextBox(
+                        placeholder: '搜索动作…',
+                        prefix: const Icon(FluentIcons.search, size: 14),
+                        onChanged: (value) =>
+                            setDialogState(() => query = value),
+                      ),
+                      const SizedBox(height: 6),
+                      const Divider(),
+                      Expanded(
+                        child: ListView(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 8),
+                          children: items,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              final String label = selection == _kReferenceModelActionNone
+                  ? '选择动作预览'
+                  : _displayNameForActionId(selection);
+
+              Widget preview = Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: border.withValues(alpha: border.a * 0.85),
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: selection == _kReferenceModelActionNone ||
+                        selectedAnimation == null
+                    ? Center(
+                        child: Text(
+                          '选择一个动作以预览。',
+                          style: theme.typography.caption,
+                        ),
+                      )
+                    : SizedBox.expand(
+                        child: Listener(
+                          onPointerSignal: (event) {
+                            if (event is PointerScrollEvent) {
+                              setDialogState(() {
+                                previewZoom = (previewZoom -
+                                        event.scrollDelta.dy * 0.002)
+                                    .clamp(0.35, 6.0);
+                              });
+                            }
+                          },
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onDoubleTap: () {
+                              setDialogState(() {
+                                previewYaw = 0;
+                                previewPitch = 0;
+                                previewZoom = 1.0;
+                              });
+                            },
+                            onScaleStart: (_) =>
+                                previewZoomScaleStart = previewZoom,
+                            onScaleUpdate: (details) {
+                              setDialogState(() {
+                                final double scaleDelta =
+                                    details.scale - 1.0;
+                                if (scaleDelta.abs() > 0.001) {
+                                  previewZoom =
+                                      (previewZoomScaleStart * details.scale)
+                                          .clamp(0.35, 6.0);
+                                  return;
+                                }
+
+                                previewYaw -=
+                                    details.focalPointDelta.dx * 0.01;
+                                previewPitch =
+                                    (previewPitch -
+                                            details.focalPointDelta.dy * 0.01)
+                                        .clamp(
+                                          -math.pi / 2,
+                                          math.pi / 2,
+                                        );
+                              });
+                            },
+                            child: _BedrockModelZBufferView(
+                              baseModel: widget.modelMesh,
+                              modelTextureWidth:
+                                  widget.modelMesh.model.textureWidth,
+                              modelTextureHeight:
+                                  widget.modelMesh.model.textureHeight,
+                              texture: widget.texture,
+                              yaw: previewYaw,
+                              pitch: previewPitch,
+                              zoom: previewZoom,
+                              animation: selectedAnimation,
+                              animationController: previewController,
+                            ),
+                          ),
+                        ),
+                      ),
+              );
+
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '动作预览',
+                      style: theme.typography.subtitle?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(label, style: theme.typography.caption),
+                    const SizedBox(height: 12),
+                    Expanded(child: preview),
+                    if (selection != _kReferenceModelActionNone) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (selectedItem != null)
+                            _buildActionTag(
+                              context,
+                              switch (selectedItem!.type) {
+                                _ReferenceModelActionType.pose => '姿势',
+                                _ReferenceModelActionType.animation => '动画',
+                                _ReferenceModelActionType.none => '无',
+                              },
+                            ),
+                          if (selectedIsDynamic) _buildActionTag(context, '动画'),
+                          if (selectedAnimation?.loop == true)
+                            _buildActionTag(context, '循环'),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        child: const Text('切换姿势'),
+                        onPressed: () => setDialogState(() {
+                          showSelection = true;
+                        }),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Button(
+                            child: Text(context.l10n.cancel),
+                            onPressed: () =>
+                                MobileBottomSheetScope.of(context).close(null),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            child: Text(context.l10n.confirm),
+                            onPressed: () =>
+                                MobileBottomSheetScope.of(context)
+                                    .close(selection),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+      if (!mounted || result == null) {
+        return;
+      }
+      setState(() {
+        _selectedAction = result;
+        _selectedActionItem = catalog.byId[result];
+        _selectedAnimation = result == _kReferenceModelActionNone
+            ? null
+            : library.animations[result];
+      });
+      _applySelectedAnimation();
+    } finally {
+      previewController.dispose();
+      sheetSetState = null;
+    }
+  }
+
+  Future<String?> _showMobileActionSelectionSheet({
+    _ReferenceModelActionCatalog? catalog,
+    String? selection,
+  }) async {
+    if (!mounted) {
+      return Future<String?>.value(null);
+    }
+    // Avoid the current tap dismissing the newly opened sheet.
+    await Future<void>.delayed(const Duration(milliseconds: 48));
+    final _ReferenceModelActionCatalog? resolvedCatalog =
+        catalog ?? _actionCatalog;
+    if (resolvedCatalog == null) {
+      return null;
+    }
+    final String resolvedSelection = selection ?? _selectedAction;
+    String query = '';
+    final BuildContext resolvedContext = widget.dialogContext;
+    return showMobileBottomSheetOnRootOverlay<String>(
+      context: resolvedContext,
+      heightFactor: 0.8,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        final FluentThemeData theme = FluentTheme.of(context);
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final String trimmedQuery = query.trim();
+            final List<_ReferenceModelActionItem> visible = resolvedCatalog.items
+                .where((item) {
+                  if (trimmedQuery.isEmpty) {
+                    return true;
+                  }
+                  final String haystack =
+                      '${item.label}\n${item.id}'.toLowerCase();
+                  return haystack.contains(trimmedQuery.toLowerCase());
+                })
+                .toList(growable: false);
+
+            final List<_ReferenceModelActionItem> poses =
+                visible
+                    .where(
+                      (item) => item.type == _ReferenceModelActionType.pose,
+                    )
+                    .toList()
+                  ..sort((a, b) => a.order.compareTo(b.order));
+            final List<_ReferenceModelActionItem> animations =
+                visible
+                    .where(
+                      (item) =>
+                          item.type == _ReferenceModelActionType.animation,
+                    )
+                    .toList()
+                  ..sort((a, b) => a.order.compareTo(b.order));
+
+            final List<Widget> items = <Widget>[
+              ListTile(
+                leading: const Icon(FluentIcons.clear, size: 18),
+                title: const Text('无'),
+                trailing: resolvedSelection == _kReferenceModelActionNone
+                    ? Icon(
+                        FluentIcons.check_mark,
+                        size: 16,
+                        color: theme.accentColor,
+                      )
+                    : null,
+                onPressed: () => MobileBottomSheetScope.of(context)
+                    .close(_kReferenceModelActionNone),
+              ),
+              const Divider(),
+            ];
+
+            if (poses.isEmpty && animations.isEmpty) {
+              items.add(
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    '没有匹配的动作。',
+                    style: theme.typography.caption,
+                  ),
+                ),
+              );
+            } else {
+              void addSection(
+                String label,
+                List<_ReferenceModelActionItem> source, {
+                required IconData icon,
+              }) {
+                if (source.isEmpty) {
+                  return;
+                }
+                items.add(
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: Row(
+                      children: [
+                        Icon(icon, size: 14),
+                        const SizedBox(width: 6),
+                        Text(
+                          label,
+                          style: theme.typography.bodyStrong,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+                for (final item in source) {
+                  items.add(
+                    ListTile(
+                      leading: Icon(
+                        item.type == _ReferenceModelActionType.animation
+                            ? FluentIcons.play
+                            : FluentIcons.contact,
+                        size: 18,
+                      ),
+                      title: Text(item.label),
+                      trailing: resolvedSelection == item.id
+                          ? Icon(
+                              FluentIcons.check_mark,
+                              size: 16,
+                              color: theme.accentColor,
+                            )
+                          : null,
+                    onPressed: () =>
+                        MobileBottomSheetScope.of(context).close(item.id),
+                  ),
+                );
+              }
+              }
+
+              addSection('姿势', poses, icon: FluentIcons.contact);
+              addSection('动画', animations, icon: FluentIcons.play);
+            }
+
+            items.add(const Divider());
+            items.add(
+              ListTile(
+                title: Text(context.l10n.cancel),
+                onPressed: () =>
+                    MobileBottomSheetScope.of(context).close(null),
+              ),
+            );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Text(
+                    '切换姿势',
+                    style: theme.typography.subtitle?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: TextBox(
+                    placeholder: '搜索动作…',
+                    prefix: const Icon(FluentIcons.search, size: 14),
+                    onChanged: (value) =>
+                        setDialogState(() => query = value),
+                  ),
+                ),
+                const Divider(),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    children: items,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 }
 

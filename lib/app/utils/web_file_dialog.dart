@@ -1,4 +1,5 @@
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:misa_rin/mobile/responsive_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -19,7 +20,7 @@ Future<String?> showWebFileNameDialog({
   final TextEditingController controller =
       TextEditingController(text: suggestedFileName);
   String? error;
-  final String? result = await showDialog<String>(
+  final String? result = await showResponsiveDialog<String>(
     context: context,
     builder: (BuildContext context) {
       final FluentThemeData theme = FluentTheme.of(context);

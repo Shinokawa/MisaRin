@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
+import 'package:misa_rin/mobile/responsive_dialog.dart';
 
 import '../l10n/l10n.dart';
 import '../project/project_document.dart';
@@ -10,9 +11,10 @@ import 'misarin_dialog.dart';
 import '../utils/file_manager.dart';
 
 Future<ProjectSummary?> showRecentProjectsDialog(BuildContext context) {
-  return showDialog<ProjectSummary>(
+  return showResponsiveDialog<ProjectSummary>(
     context: context,
     barrierDismissible: true,
+    mobileHeightFactor: 0.9,
     builder: (_) => const _RecentProjectsDialog(),
   );
 }
@@ -91,7 +93,10 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
     final l10n = context.l10n;
     return MisarinDialog(
       title: Text(l10n.recentProjectsTitle),
-      content: SizedBox(height: 420, child: _buildContent(context, theme)),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 420),
+        child: _buildContent(context, theme),
+      ),
       contentWidth: null,
       maxWidth: 920,
       actions: [
@@ -114,57 +119,73 @@ class _RecentProjectsDialogState extends State<_RecentProjectsDialog> {
       return Center(child: Text(context.l10n.recentProjectsEmpty));
     }
     final ProjectSummary? focused = _resolveFocusedProject();
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          flex: 3,
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.resources.subtleFillColorTertiary,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: theme.resources.controlStrokeColorDefault,
+    
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool isSmallScreen = constraints.maxWidth < 600;
+        
+        final listWidget = Container(
+          decoration: BoxDecoration(
+            color: theme.resources.subtleFillColorTertiary,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: theme.resources.controlStrokeColorDefault,
+            ),
+          ),
+          child: Stack(
+            children: [
+              ListView.separated(
+                padding: const EdgeInsets.all(8),
+                itemBuilder: (context, index) {
+                  final ProjectSummary summary = _projects[index];
+                  return _RecentProjectTile(
+                    summary: summary,
+                    selected: focused?.path == summary.path,
+                    onSelect: () => _setFocus(summary.path),
+                    onOpen: () => _openProject(summary),
+                  );
+                },
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                itemCount: _projects.length,
               ),
-            ),
-            child: Stack(
-              children: [
-                ListView.separated(
-                  padding: const EdgeInsets.all(8),
-                  itemBuilder: (context, index) {
-                    final ProjectSummary summary = _projects[index];
-                    return _RecentProjectTile(
-                      summary: summary,
-                      selected: focused?.path == summary.path,
-                      onSelect: () => _setFocus(summary.path),
-                      onOpen: () => _openProject(summary),
-                    );
-                  },
-                  separatorBuilder: (_, __) => const SizedBox(height: 6),
-                  itemCount: _projects.length,
+              if (_loading)
+                const Positioned(
+                  right: 12,
+                  top: 12,
+                  child: ProgressRing(strokeWidth: 2.5),
                 ),
-                if (_loading)
-                  const Positioned(
-                    right: 12,
-                    top: 12,
-                    child: ProgressRing(strokeWidth: 2.5),
-                  ),
-              ],
-            ),
+            ],
           ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          flex: 2,
-          child: _RecentProjectDetails(
-            summary: focused,
-            onOpen: focused == null ? null : () => _openProject(focused),
-            onReveal: focused == null || focused.path.isEmpty
-                ? null
-                : () => unawaited(revealInFileManager(focused.path)),
-          ),
-        ),
-      ],
+        );
+
+        final detailsWidget = _RecentProjectDetails(
+          summary: focused,
+          onOpen: focused == null ? null : () => _openProject(focused),
+          onReveal: focused == null || focused.path.isEmpty
+              ? null
+              : () => unawaited(revealInFileManager(focused.path)),
+        );
+
+        if (isSmallScreen) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: listWidget),
+              const SizedBox(height: 16),
+              detailsWidget,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(flex: 3, child: listWidget),
+            const SizedBox(width: 16),
+            Expanded(flex: 2, child: detailsWidget),
+          ],
+        );
+      },
     );
   }
 

@@ -165,6 +165,7 @@
   "menuView": "视图",
   "menuWorkspace": "工作区",
   "menuWindow": "窗口",
+  "menuRoot": "菜单",
   "menuAbout": "关于 Misa Rin",
   "menuPreferences": "偏好设置…",
   "menuNewEllipsis": "新建…",
@@ -882,5 +883,41 @@
       "limit": {}
     }
   },
-  "autoSaveCleanupDialogClean": "清理"
+  "autoSaveCleanupDialogClean": "清理",
+  "exportDestinationTitle": "导出位置",
+  "exportDestinationDesc": "请选择导出到相册或文件管理。",
+  "imageSourceTitle": "选择图片来源",
+  "imageSourceDesc": "请选择从相册或文件管理器导入图片。",
+  "exportDestinationPhotos": "相册",
+  "exportDestinationFiles": "文件管理",
+  "imageSavedToPhotos": "已保存到相册。",
+  "exportDirectoryLabel": "导出保存目录",
+  "exportDirectoryDesc": "在安卓上设置导出文件的默认保存位置。",
+  "selectExportDirectory": "选择导出目录",
+  "resetExportDirectory": "恢复默认",
+  "exportDirectoryCurrent": "当前：{path}",
+  "@exportDirectoryCurrent": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportDirectoryDefault": "默认：{path}",
+  "@exportDirectoryDefault": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportDirectoryUpdated": "导出目录已更新：{path}",
+  "@exportDirectoryUpdated": {
+    "placeholders": {
+      "path": {}
+    }
+  },
+  "exportDirectoryCleared": "已恢复默认导出目录",
+  "exportDirectoryUpdateFailed": "设置导出目录失败：{error}",
+  "@exportDirectoryUpdateFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  }
 }

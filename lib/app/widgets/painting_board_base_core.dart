@@ -6,6 +6,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   late CanvasFacade _controller;
   _CanvasBackendFacade get _backend =>
       (this as _PaintingBoardBase)._backend;
+  final ValueNotifier<int> _mobileUiRevision = ValueNotifier<int>(0);
   final FocusNode _focusNode = FocusNode();
   bool _boardReadyNotified = false;
   int? _backendCanvasEngineHandle;
@@ -21,12 +22,33 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   int? _backendLayerSnapshotHandle;
   int? _backendPixelsSyncedHandle;
 
+  ValueListenable<int> get _mobileUiRebuildListenable => _mobileUiRevision;
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _mobileUiRevision.value++;
+  }
+
+  @override
+  void dispose() {
+    _mobileUiRevision.dispose();
+    super.dispose();
+  }
+
   CanvasTool _activeTool = CanvasTool.pen;
   bool _isDrawing = false;
   bool _isDraggingBoard = false;
   bool _isRotatingBoard = false;
   bool _isDirty = false;
   bool _isScalingGesture = false;
+  final Set<int> _activeTouchPointers = <int>{};
+  int? _primaryTouchPointer;
+  bool _touchIgnoreUntilAllUp = false;
+  int? _pendingTouchStrokePointer;
+  Offset? _pendingTouchStrokeStart;
+  Duration? _pendingTouchStrokeTimestamp;
+  PointerDownEvent? _pendingTouchStrokeEvent;
   bool _pixelGridVisible = false;
   bool _viewBlackWhiteOverlay = false;
   bool _viewMirrorOverlay = false;
@@ -248,6 +270,7 @@ abstract class _PaintingBoardBaseCore extends State<PaintingBoard> {
   @protected
   void _notifyBoardReadyIfNeeded();
   final List<Color> _recentColors = <Color>[];
+  final List<Color> _mobileRecentFallbackColors = <Color>[];
   Color _colorLineColor = AppPreferences.defaultColorLineColor;
   final List<_CanvasHistoryEntry> _undoStack = <_CanvasHistoryEntry>[];
   final List<_CanvasHistoryEntry> _redoStack = <_CanvasHistoryEntry>[];
@@ -2227,6 +2250,12 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
     required int fillGap,
     required int antialiasLevel,
   }) async {
+    if (kDebugMode) {
+      debugPrint(
+        '[bucket] backend entry supported=$_backendSupported ready=$_backendReady '
+        'pos=$position',
+      );
+    }
     if (!_backendSupported) {
       await _owner._pushUndoSnapshot();
       _owner._controller.floodFill(
@@ -2243,10 +2272,16 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
         _owner.setState(() {});
       }
       _owner._markDirty();
+      if (kDebugMode) {
+        debugPrint('[bucket] backend skipped: not supported');
+      }
       return true;
     }
 
     if (!_backendReady) {
+      if (kDebugMode) {
+        debugPrint('[bucket] backend unavailable: not ready');
+      }
       _owner._showBackendCanvasMessage('画布后端尚未准备好。');
       return false;
     }
@@ -2257,12 +2292,24 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
         ? _owner._backendCanvasLayerIndexForId(activeLayerId)
         : null;
     if (layerIndex == null) {
+      if (kDebugMode) {
+        debugPrint(
+          '[bucket] backend abort: layerIndex null '
+          'activeLayerId=$activeLayerId',
+        );
+      }
       return false;
     }
     final Size engineSize = _owner._backendCanvasEngineSize ?? _owner._canvasSize;
     final int engineWidth = engineSize.width.round();
     final int engineHeight = engineSize.height.round();
     if (engineWidth <= 0 || engineHeight <= 0) {
+      if (kDebugMode) {
+        debugPrint(
+          '[bucket] backend abort: invalid engineSize '
+          '${engineSize.width}x${engineSize.height}',
+        );
+      }
       return false;
     }
     final Offset enginePos = _owner._backendToEngineSpace(position);
@@ -2272,6 +2319,12 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
         startY < 0 ||
         startX >= engineWidth ||
         startY >= engineHeight) {
+      if (kDebugMode) {
+        debugPrint(
+          '[bucket] backend abort: out of bounds '
+          'start=($startX,$startY) engine=${engineWidth}x$engineHeight',
+        );
+      }
       return false;
     }
     final Uint8List? selectionMaskForBackend =
@@ -2301,6 +2354,14 @@ final class _CanvasBackendFacade implements CanvasBackendInterface {
       swallowColors: swallowColorsArgb,
       selectionMask: selectionMaskForBackend,
     );
+    if (kDebugMode) {
+      debugPrint(
+        '[bucket] backend result=$applied '
+        'layerIndex=$layerIndex start=($startX,$startY) '
+        'engine=${engineWidth}x$engineHeight '
+        'selectionMask=${selectionMaskForBackend?.length ?? 0}',
+      );
+    }
     if (applied) {
       _owner._recordBackendHistoryAction(layerId: activeLayerId);
       if (_owner.mounted) {

@@ -3,13 +3,17 @@ import 'dart:typed_data';
 
 import 'package:fluent_ui/fluent_ui.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/widgets.dart' show StatefulElement, State, StatefulWidget;
+import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:misa_rin/canvas/canvas_engine_bridge.dart';
 
 import '../../brushes/brush_library.dart';
 import '../../canvas/canvas_settings.dart';
+import '../../mobile/mobile_bottom_sheet.dart';
+import '../../mobile/mobile_utils.dart';
 import '../dialogs/canvas_settings_dialog.dart';
 import '../dialogs/settings_dialog.dart';
 import '../l10n/l10n.dart';
@@ -21,8 +25,11 @@ import '../view/canvas_page.dart';
 import '../widgets/app_notification.dart';
 import '../widgets/backend_canvas_surface.dart';
 
+enum _ImageSourceChoice { photos, files }
+
 class AppMenuActions {
   const AppMenuActions._();
+  static final ImagePicker _imagePicker = ImagePicker();
 
   static Future<void> createProject(BuildContext context) async {
     final AppPreferences prefs = AppPreferences.instance;
@@ -173,8 +180,175 @@ class AppMenuActions {
     }
   }
 
+  static bool _shouldPromptImageSource() {
+    if (kIsWeb) {
+      return false;
+    }
+    final TargetPlatform platform = defaultTargetPlatform;
+    return platform == TargetPlatform.iOS || platform == TargetPlatform.android;
+  }
+
+  static Future<_ImageSourceChoice?> _showImageSourceDialog(
+    BuildContext context,
+  ) {
+    final l10n = context.l10n;
+    if (isMobileOrPhone(context)) {
+      return showMobileBottomSheet<_ImageSourceChoice?>(
+        context: context,
+        heightFactor: 0.45,
+        builder: (BuildContext context) {
+          final theme = FluentTheme.of(context);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.imageSourceTitle,
+                      style: theme.typography.subtitle?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.imageSourceDesc,
+                      style: theme.typography.caption,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  children: [
+                    ListTile(
+                      title: Text(l10n.exportDestinationPhotos),
+                      onPressed: () => Navigator.of(context)
+                          .pop(_ImageSourceChoice.photos),
+                    ),
+                    ListTile(
+                      title: Text(l10n.exportDestinationFiles),
+                      onPressed: () => Navigator.of(context)
+                          .pop(_ImageSourceChoice.files),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      title: Text(l10n.cancel),
+                      onPressed: () => Navigator.of(context).pop(null),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+    return showDialog<_ImageSourceChoice?>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return ContentDialog(
+          title: Text(l10n.imageSourceTitle),
+          content: Text(l10n.imageSourceDesc),
+          actions: [
+            Button(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: Text(l10n.cancel),
+            ),
+            Button(
+              onPressed: () =>
+                  Navigator.of(context).pop(_ImageSourceChoice.files),
+              child: Text(l10n.exportDestinationFiles),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(_ImageSourceChoice.photos),
+              child: Text(l10n.exportDestinationPhotos),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  static Future<({String path, String name})?> _pickImageFromGallery(
+    BuildContext context,
+  ) async {
+    final XFile? file = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+    );
+    if (file == null || !context.mounted) {
+      return null;
+    }
+    final String name =
+        file.name.isNotEmpty ? file.name : p.basename(file.path);
+    return (path: file.path, name: name);
+  }
+
   static Future<void> openProjectFromDisk(BuildContext context) async {
     final l10n = context.l10n;
+    _ImageSourceChoice source = _ImageSourceChoice.files;
+    if (_shouldPromptImageSource()) {
+      final _ImageSourceChoice? selected = await _showImageSourceDialog(context);
+      if (selected == null || !context.mounted) {
+        return;
+      }
+      source = selected;
+    }
+
+    if (source == _ImageSourceChoice.photos) {
+      final ({String path, String name})? picked =
+          await _pickImageFromGallery(context);
+      if (picked == null || !context.mounted) {
+        return;
+      }
+      try {
+        final ProjectDocument document =
+            await _runWithWebProgress<ProjectDocument>(
+              context,
+              title: l10n.openingProjectTitle,
+              message: l10n.openingProjectMessage(picked.name),
+              action: () async {
+                final String name = p.basenameWithoutExtension(picked.name);
+                return ProjectRepository.instance.createDocumentFromImage(
+                  picked.path,
+                  name: name,
+                );
+              },
+            );
+        if (!context.mounted) {
+          return;
+        }
+        await _showProject(context, document);
+        if (!context.mounted) {
+          return;
+        }
+        _showInfoBar(
+          context,
+          l10n.openedProjectInfo(document.name),
+          severity: InfoBarSeverity.success,
+        );
+      } catch (error) {
+        if (!context.mounted) {
+          return;
+        }
+        _showInfoBar(
+          context,
+          l10n.openProjectFailed(error),
+          severity: InfoBarSeverity.error,
+        );
+      }
+      return;
+    }
+
     final FilePickerResult? result = await FilePicker.platform.pickFiles(
       dialogTitle: l10n.openProjectDialogTitle,
       type: FileType.custom,
@@ -292,6 +466,49 @@ class AppMenuActions {
 
   static Future<void> importImage(BuildContext context) async {
     final l10n = context.l10n;
+    _ImageSourceChoice source = _ImageSourceChoice.files;
+    if (_shouldPromptImageSource()) {
+      final _ImageSourceChoice? selected = await _showImageSourceDialog(context);
+      if (selected == null || !context.mounted) {
+        return;
+      }
+      source = selected;
+    }
+
+    if (source == _ImageSourceChoice.photos) {
+      final ({String path, String name})? picked =
+          await _pickImageFromGallery(context);
+      if (picked == null || !context.mounted) {
+        return;
+      }
+      try {
+        final ProjectDocument document = await ProjectRepository.instance
+            .createDocumentFromImage(picked.path, name: picked.name);
+        if (!context.mounted) {
+          return;
+        }
+        await _showProject(context, document);
+        if (!context.mounted) {
+          return;
+        }
+        _showInfoBar(
+          context,
+          l10n.importedImageInfo(picked.name),
+          severity: InfoBarSeverity.success,
+        );
+      } catch (error) {
+        if (!context.mounted) {
+          return;
+        }
+        _showInfoBar(
+          context,
+          l10n.importImageFailed(error),
+          severity: InfoBarSeverity.error,
+        );
+      }
+      return;
+    }
+
     final FilePickerResult? result = await FilePicker.platform.pickFiles(
       dialogTitle: l10n.importImageDialogTitle,
       type: FileType.custom,

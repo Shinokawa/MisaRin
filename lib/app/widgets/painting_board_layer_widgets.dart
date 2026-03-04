@@ -22,6 +22,7 @@ class _LayerTile extends StatefulWidget {
     required this.child,
     required this.backgroundColor,
     required this.borderColor,
+    this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     this.onTap,
     this.onTapDown,
     this.onSecondaryTapDown,
@@ -31,6 +32,7 @@ class _LayerTile extends StatefulWidget {
   final Widget child;
   final Color backgroundColor;
   final Color borderColor;
+  final EdgeInsets padding;
   final VoidCallback? onTap;
   final GestureTapDownCallback? onTapDown;
   final GestureTapDownCallback? onSecondaryTapDown;
@@ -89,7 +91,7 @@ class _LayerTileState extends State<_LayerTile> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: widget.padding,
           decoration: BoxDecoration(
             color: background,
             borderRadius: BorderRadius.circular(8),
@@ -110,6 +112,7 @@ class _LayerNameView extends StatelessWidget {
     required this.isActive,
     required this.isRenaming,
     required this.isLocked,
+    this.textScale = 1.0,
     required this.buildEditor,
     this.onRequestRename,
   });
@@ -119,14 +122,20 @@ class _LayerNameView extends StatelessWidget {
   final bool isActive;
   final bool isRenaming;
   final bool isLocked;
+  final double textScale;
   final Widget Function(TextStyle? effectiveStyle) buildEditor;
   final VoidCallback? onRequestRename;
 
   @override
   Widget build(BuildContext context) {
-    final TextStyle? style = isActive
-        ? theme.typography.bodyStrong
-        : theme.typography.body;
+    TextStyle? style =
+        isActive ? theme.typography.bodyStrong : theme.typography.body;
+    if (textScale != 1.0) {
+      final double baseSize = style?.fontSize ?? 14;
+      style = (style ?? const TextStyle()).copyWith(
+        fontSize: baseSize * textScale,
+      );
+    }
     final Widget text = Text(
       layer.name,
       style: style,
@@ -164,21 +173,25 @@ class _LayerSidebarButtons extends StatelessWidget {
   const _LayerSidebarButtons({
     required this.primary,
     required this.secondary,
+    this.width = 28,
+    this.spacing = 6,
   });
 
   final Widget primary;
   final Widget secondary;
+  final double width;
+  final double spacing;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 28,
+      width: width,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           primary,
-          const SizedBox(height: 6),
+          SizedBox(height: spacing),
           secondary,
         ],
       ),
@@ -191,11 +204,15 @@ class _LayerClippingToggleButton extends StatelessWidget {
     required this.active,
     required this.enabled,
     required this.onPressed,
+    this.size = 24,
+    this.iconSize = 14,
   });
 
   final bool active;
   final bool enabled;
   final VoidCallback onPressed;
+  final double size;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
@@ -220,6 +237,7 @@ class _LayerClippingToggleButton extends StatelessWidget {
             ? accent
             : theme.resources.textFillColorSecondary.withOpacity(0.85));
 
+    final double radius = size * 0.25;
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       child: GestureDetector(
@@ -227,10 +245,10 @@ class _LayerClippingToggleButton extends StatelessWidget {
         child: Opacity(
           opacity: enabled ? 1.0 : 0.55,
           child: Container(
-            width: 24,
-            height: 24,
+            width: size,
+            height: size,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(radius),
               color: background,
               border: Border.all(
                 color: borderColor.withValues(alpha: borderColor.a * 0.6),
@@ -240,7 +258,7 @@ class _LayerClippingToggleButton extends StatelessWidget {
             child: Center(
               child: Icon(
                 FluentIcons.subtract_shape,
-                size: 14,
+                size: iconSize,
                 color: iconColor,
               ),
             ),

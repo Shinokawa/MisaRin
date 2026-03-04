@@ -27,6 +27,7 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
     return LayoutBuilder(
       builder: (context, constraints) {
         final Size candidate = constraints.biggest;
+        final bool isLandscapeLayout = candidate.width > candidate.height;
         if (candidate.width.isFinite && candidate.height.isFinite) {
           _workspaceSize = candidate;
         }
@@ -314,11 +315,11 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
           expand: true,
         );
         final PaintingToolbarElements toolbarElements = PaintingToolbarElements(
-          toolbar: toolbarWidget,
-          toolSettings: toolSettingsCard,
-          colorIndicator: _buildColorIndicator(theme),
-          colorPanel: colorPanelData,
-          layerPanel: layerPanelData,
+          toolbar: widget.showToolbars ? toolbarWidget : const SizedBox.shrink(),
+          toolSettings: widget.showToolbars ? toolSettingsCard : const SizedBox.shrink(),
+          colorIndicator: widget.showToolbars ? _buildColorIndicator(theme) : const SizedBox.shrink(),
+          colorPanel: widget.showToolbars ? colorPanelData : ToolbarPanelData.empty(),
+          layerPanel: widget.showToolbars ? layerPanelData : ToolbarPanelData.empty(),
           exitButton: null,
         );
         final WorkspaceLayoutSplits workspaceSplits = WorkspaceLayoutSplits(
@@ -353,12 +354,13 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
             toolbarStyle == PaintingToolbarLayoutStyle.sai2
             ? const Sai2ToolbarLayoutDelegate()
             : const FloatingToolbarLayoutDelegate();
-        final PaintingToolbarLayoutResult toolbarLayoutResult =
-            toolbarLayoutDelegate.build(
-              context,
-              toolbarElements,
-              toolbarMetrics,
-            );
+        final PaintingToolbarLayoutResult toolbarLayoutResult = widget.showToolbars
+            ? toolbarLayoutDelegate.build(
+                context,
+                toolbarElements,
+                toolbarMetrics,
+              )
+            : const PaintingToolbarLayoutResult(widgets: [], hitRegions: []);
         _toolbarHitRegions = toolbarLayoutResult.hitRegions;
         _ensureToolbarDoesNotOverlapColorIndicator();
 
@@ -1168,6 +1170,12 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                                               activeHandle:
                                                   _activePerspectiveHandle,
                                               viewportScale: _viewport.scale,
+                                              handleFillRadiusScreen:
+                                                  _perspectiveHandleFillRadiusScreen,
+                                              handleOutlineRadiusScreen:
+                                                  _perspectiveHandleOutlineRadiusScreen,
+                                              handleOutlineWidthScreen:
+                                                  _perspectiveHandleOutlineWidthScreen,
                                             ),
                                           );
                                           if (_viewMirrorOverlay) {
@@ -1195,12 +1203,148 @@ extension _PaintingBoardBuildBodyExtension on _PaintingBoardBuildMixin {
                             ),
                           if (textHoverOverlay != null) textHoverOverlay,
                           if (textOverlay != null) textOverlay,
-                          ...toolbarLayoutResult.widgets,
-                          if (colorRangeCard != null) colorRangeCard,
-                          if (antialiasCard != null) antialiasCard,
-                          if (transformPanel != null) transformPanel,
-                          if (transformCursorOverlay != null)
-                            transformCursorOverlay,
+                          if (widget.showToolbars) ...[
+                            ...toolbarLayoutResult.widgets,
+                            if (colorRangeCard != null) colorRangeCard,
+                            if (antialiasCard != null) antialiasCard,
+                            if (transformPanel != null) transformPanel,
+                            if (transformCursorOverlay != null)
+                              transformCursorOverlay,
+                          ] else ...[
+                            Align(
+                              alignment: Alignment.bottomLeft,
+                              child: MobileToolButtons(
+                                activeTool: _activeTool,
+                                onToolSelected: _setActiveTool,
+                                rebuildListenable: _mobileUiRebuildListenable,
+                                toolSettingsBuilder: (context) {
+                                  return MisarinDialog(
+                                    title: Text(context.l10n.menuTool),
+                                    content: ToolSettingsCard(
+                                      activeTool: _activeTool,
+                                      penStrokeWidth: _penStrokeWidth,
+                                      sprayStrokeWidth: _sprayStrokeWidth,
+                                      eraserStrokeWidth: _eraserStrokeWidth,
+                                      sprayMode: _sprayMode,
+                                      penStrokeSliderRange: _penStrokeSliderRange,
+                                      sprayStrokeSliderRange: _sprayStrokeSliderRange,
+                                      eraserStrokeSliderRange: _eraserStrokeSliderRange,
+                                      onPenStrokeWidthChanged: _updatePenStrokeWidth,
+                                      onSprayStrokeWidthChanged: _updateSprayStrokeWidth,
+                                      onEraserStrokeWidthChanged: _updateEraserStrokeWidth,
+                                      onPenStrokeSliderRangeChanged: _updatePenStrokeSliderRange,
+                                      onSprayStrokeSliderRangeChanged: _updateSprayStrokeSliderRange,
+                                      onEraserStrokeSliderRangeChanged: _updateEraserStrokeSliderRange,
+                                      onSprayModeChanged: _updateSprayMode,
+                                      brushPresets: _brushLibrary?.presets ?? const <BrushPreset>[],
+                                      activeBrushPresetId: _activeBrushPreset?.id ?? _brushLibrary?.selectedId ?? 'pencil',
+                                      onOpenBrushPresetPicker: _openBrushPresetPicker,
+                                      strokeStabilizerStrength: _strokeStabilizerStrength,
+                                      onStrokeStabilizerChanged: _updateStrokeStabilizerStrength,
+                                      streamlineStrength: _streamlineStrength,
+                                      onStreamlineChanged: _updateStreamlineStrength,
+                                      stylusPressureEnabled: _stylusPressureEnabled,
+                                      onStylusPressureEnabledChanged: _updateStylusPressureEnabled,
+                                      touchDrawingEnabled: _touchDrawingEnabled,
+                                      onTouchDrawingEnabledChanged: _updateTouchDrawingEnabled,
+                                      simulatePenPressure: _simulatePenPressure,
+                                      onSimulatePenPressureChanged: _updatePenPressureSimulation,
+                                      penPressureProfile: _penPressureProfile,
+                                      onPenPressureProfileChanged: _updatePenPressureProfile,
+                                      bucketSampleAllLayers: _bucketSampleAllLayers,
+                                      bucketContiguous: _bucketContiguous,
+                                      bucketSwallowColorLine: _bucketSwallowColorLine,
+                                      bucketSwallowColorLineMode: _bucketSwallowColorLineMode,
+                                      bucketAntialiasLevel: _bucketAntialiasLevel,
+                                      onBucketSampleAllLayersChanged: _updateBucketSampleAllLayers,
+                                      onBucketContiguousChanged: _updateBucketContiguous,
+                                      onBucketSwallowColorLineChanged: _updateBucketSwallowColorLine,
+                                      onBucketSwallowColorLineModeChanged: _updateBucketSwallowColorLineMode,
+                                      onBucketAntialiasChanged: _updateBucketAntialiasLevel,
+                                      bucketTolerance: _bucketTolerance,
+                                      onBucketToleranceChanged: _updateBucketTolerance,
+                                      bucketFillGap: _bucketFillGap,
+                                      onBucketFillGapChanged: _updateBucketFillGap,
+                                      layerAdjustCropOutside: _layerAdjustCropOutside,
+                                      onLayerAdjustCropOutsideChanged: _updateLayerAdjustCropOutside,
+                                      selectionShape: selectionShape,
+                                      onSelectionShapeChanged: _updateSelectionShape,
+                                      selectionAdditiveEnabled: _selectionAdditiveEnabled,
+                                      onSelectionAdditiveChanged: _updateSelectionAdditiveEnabled,
+                                      shapeToolVariant: shapeToolVariant,
+                                      onShapeToolVariantChanged: _updateShapeToolVariant,
+                                      shapeFillEnabled: _shapeFillEnabled,
+                                      onShapeFillChanged: _updateShapeFillEnabled,
+                                      onSizeChanged: _updateToolSettingsCardSize,
+                                      magicWandTolerance: _magicWandTolerance,
+                                      onMagicWandToleranceChanged: _updateMagicWandTolerance,
+                                      brushToolsEraserMode: _brushToolsEraserMode,
+                                      onBrushToolsEraserModeChanged: _updateBrushToolsEraserMode,
+                                      strokeStabilizerMaxLevel: _strokeStabilizerMaxLevel,
+                                      streamlineMaxLevel: _streamlineMaxLevel,
+                                      compactLayout: true,
+                                      textFontSize: _textFontSize,
+                                      onTextFontSizeChanged: _updateTextFontSize,
+                                      textLineHeight: _textLineHeight,
+                                      onTextLineHeightChanged: _updateTextLineHeight,
+                                      textLetterSpacing: _textLetterSpacing,
+                                      onTextLetterSpacingChanged: _updateTextLetterSpacing,
+                                      textFontFamily: _textFontFamily,
+                                      onTextFontFamilyChanged: _updateTextFontFamily,
+                                      availableFontFamilies: _textFontFamilies,
+                                      fontsLoading: _textFontsLoading,
+                                      textAlign: _textAlign,
+                                      onTextAlignChanged: _updateTextAlign,
+                                      textOrientation: _textOrientation,
+                                      onTextOrientationChanged: _updateTextOrientation,
+                                      textAntialias: _textAntialias,
+                                      onTextAntialiasChanged: _updateTextAntialias,
+                                      textStrokeEnabled: _textStrokeEnabled,
+                                      onTextStrokeEnabledChanged: _updateTextStrokeEnabled,
+                                      textStrokeWidth: _textStrokeWidth,
+                                      onTextStrokeWidthChanged: _updateTextStrokeWidth,
+                                      textStrokeColor: _colorLineColor,
+                                      onTextStrokeColorPressed: _handleEditTextStrokeColor,
+                                      canvasRotation: _viewport.rotation,
+                                      onCanvasRotationChanged: _setViewportRotation,
+                                      onCanvasRotationReset: _resetViewportRotation,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            Align(
+                              alignment: isLandscapeLayout
+                                  ? Alignment.bottomCenter
+                                  : Alignment.centerRight,
+                              child: SafeArea(
+                                top: !isLandscapeLayout,
+                                left: isLandscapeLayout,
+                                child: Padding(
+                                  padding: isLandscapeLayout
+                                      ? const EdgeInsets.only(bottom: 16)
+                                      : const EdgeInsets.only(right: 16),
+                                  child: _buildMobileRecentColors(
+                                    theme,
+                                    axis: isLandscapeLayout
+                                        ? Axis.horizontal
+                                        : Axis.vertical,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Align(
+                              alignment: Alignment.bottomRight,
+                              child: MobileRightButtons(
+                                colorIndicator: _buildColorIndicator(theme),
+                                layerPanelBuilder: (context) => _buildLayerPanelContent(theme),
+                                rebuildListenable: _mobileUiRebuildListenable,
+                              ),
+                            ),
+                            if (transformPanel != null) transformPanel,
+                            if (transformCursorOverlay != null)
+                              transformCursorOverlay,
+                          ],
                           if (!suppressToolCursorOverlays &&
                               _toolCursorPosition != null &&
                               cursorStyle != null)

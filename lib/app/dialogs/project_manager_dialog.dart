@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
 
+import '../../mobile/responsive_dialog.dart';
+import '../../mobile/mobile_utils.dart';
 import '../l10n/l10n.dart';
 import '../project/project_repository.dart';
 import '../utils/file_manager.dart';
@@ -10,18 +12,21 @@ import 'misarin_dialog.dart';
 
 Future<void> showProjectManagerDialog(BuildContext context) {
   final l10n = context.l10n;
-  return showMisarinDialog<void>(
+  return showResponsiveDialog<void>(
     context: context,
-    title: Text(l10n.projectManagerTitle),
-    content: const _ProjectManagerContent(),
-    contentWidth: null,
-    maxWidth: 980,
-    actions: [
-      Button(
-        onPressed: () => Navigator.of(context).pop(),
-        child: Text(l10n.close),
-      ),
-    ],
+    mobileHeightFactor: 0.9,
+    builder: (dialogContext) => MisarinDialog(
+      title: Text(l10n.projectManagerTitle),
+      content: const _ProjectManagerContent(),
+      contentWidth: null,
+      maxWidth: 980,
+      actions: [
+        Button(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: Text(l10n.close),
+        ),
+      ],
+    ),
   );
 }
 
@@ -226,200 +231,208 @@ class _ProjectManagerContentState extends State<_ProjectManagerContent> {
       );
     }
 
-    return SizedBox(
-      height: 520,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool isSmallScreen = constraints.maxWidth < 600;
+
+        final listWidget = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Checkbox(
-                      checked: _selectAll,
-                      onChanged: (value) => _toggleSelectAll(value ?? false),
-                    ),
-                    Text(l10n.selectAll, style: theme.typography.bodyStrong),
-                    const Spacer(),
-                    Tooltip(
-                      message: l10n.revealProjectLocation,
-                      child: Button(
-                        onPressed: !_revealing && hasSelection
-                            ? () => _revealSelected()
-                            : null,
-                        child: _revealing
-                            ? const SizedBox(
-                                height: 14,
-                                width: 14,
-                                child: ProgressRing(strokeWidth: 2.0),
-                              )
-                            : Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(FluentIcons.open_file),
-                                  const SizedBox(width: 6),
-                                  Text(l10n.openFolder),
-                                ],
-                              ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Tooltip(
-                      message: l10n.deleteSelectedProjects,
-                      child: FilledButton(
-                        onPressed:
-                            !_deleting && hasSelection ? _deleteSelected : null,
-                        style: ButtonStyle(
-                          backgroundColor: WidgetStateProperty.resolveWith(
-                            (states) => states.isDisabled ? null : Colors.red,
-                          ),
-                        ),
-                        child: _deleting
-                            ? const SizedBox(
-                                height: 14,
-                                width: 14,
-                                child: ProgressRing(strokeWidth: 2.0),
-                              )
-                            : Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(FluentIcons.delete),
-                                  const SizedBox(width: 6),
-                                  Text(l10n.deleteSelected(totalSelected)),
-                                ],
-                              ),
-                      ),
-                    ),
-                  ],
+                Checkbox(
+                  checked: _selectAll,
+                  onChanged: (value) => _toggleSelectAll(value ?? false),
                 ),
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: 8),
-                  InfoBar(
-                    severity: InfoBarSeverity.error,
-                    title: Text(_errorMessage!),
-                    action: IconButton(
-                      icon: const Icon(FluentIcons.clear),
-                      onPressed: () => setState(() => _errorMessage = null),
+                Text(l10n.selectAll, style: theme.typography.bodyStrong),
+                const Spacer(),
+                if (!isSmallScreen) ...[
+                  Tooltip(
+                    message: l10n.revealProjectLocation,
+                    child: Button(
+                      onPressed: !_revealing && hasSelection
+                          ? () => _revealSelected()
+                          : null,
+                      child: _revealing
+                          ? const SizedBox(
+                              height: 14,
+                              width: 14,
+                              child: ProgressRing(strokeWidth: 2.0),
+                            )
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(FluentIcons.open_file),
+                                const SizedBox(width: 6),
+                                Text(l10n.openFolder),
+                              ],
+                            ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                 ],
-                const SizedBox(height: 12),
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: theme.resources.subtleFillColorTertiary,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: theme.resources.controlStrokeColorDefault,
+                Tooltip(
+                  message: l10n.deleteSelectedProjects,
+                  child: FilledButton(
+                    onPressed:
+                        !_deleting && hasSelection ? _deleteSelected : null,
+                    style: ButtonStyle(
+                      backgroundColor: WidgetStateProperty.resolveWith(
+                        (states) => states.isDisabled ? null : Colors.red,
                       ),
                     ),
-                    child: Stack(
-                      children: [
-                        ListView.separated(
-                          padding: const EdgeInsets.all(8),
-                          itemBuilder: (context, index) {
-                            final StoredProjectInfo info = _projects[index];
-                            final bool selected = _selected.contains(info.path);
-                            final bool isFocused =
-                                focusedInfo?.path == info.path;
-                            return ListTile.selectable(
-                              key: ValueKey(info.path),
-                              leading: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Checkbox(
-                                    checked: selected,
-                                    onChanged: (value) => _toggleSelection(
-                                        info.path, value ?? false),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  ProjectPreviewThumbnail(
-                                    bytes: info.summary?.previewBytes,
-                                    width: 96,
-                                    height: 72,
-                                  ),
-                                ],
-                              ),
-                              onPressed: () =>
-                                  _toggleSelection(info.path, !selected),
-                              title: Text(
-                                info.displayName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    info.fileName,
-                                    style: theme.typography.caption,
-                                  ),
-                                  Text(
-                                    l10n.projectFileInfo(
-                                        _formatFileSize(info.fileSize),
-                                        _formatDate(info.lastModified)),
-                                    style: theme.typography.caption,
-                                  ),
-                                  if (info.summary != null)
-                                    Text(
-                                      l10n.projectCanvasInfo(
-                                          info.summary!.settings.width.toInt(),
-                                          info.summary!.settings.height.toInt()),
-                                      style: theme.typography.caption,
-                                    ),
-                                ],
-                              ),
-                              selected: selected || isFocused,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              tileColor: WidgetStateProperty.resolveWith(
-                                (states) =>
-                                    states.isHovered || selected || isFocused
-                                        ? theme.resources
-                                            .subtleFillColorSecondary
-                                        : theme.resources
-                                            .subtleFillColorTertiary,
-                              ),
-                            );
-                          },
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 8),
-                          itemCount: totalCount,
-                        ),
-                        if (_loading)
-                          const Positioned(
-                            right: 12,
-                            top: 12,
-                            child: ProgressRing(strokeWidth: 2.5),
+                    child: _deleting
+                        ? const SizedBox(
+                            height: 14,
+                            width: 14,
+                            child: ProgressRing(strokeWidth: 2.0),
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(FluentIcons.delete),
+                              const SizedBox(width: 6),
+                              Text(l10n.deleteSelected(totalSelected)),
+                            ],
                           ),
-                      ],
-                    ),
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            flex: 2,
-            child: _ProjectManagerDetails(
-              info: focusedInfo,
-              selectedCount: totalSelected,
-              hasSelection: hasSelection,
-              deleting: _deleting,
-              onReveal: focusedInfo == null
-                  ? null
-                  : () => unawaited(_revealPath(focusedInfo.path)),
-              onDeleteSelected:
-                  !_deleting && hasSelection ? _deleteSelected : null,
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 8),
+              InfoBar(
+                severity: InfoBarSeverity.error,
+                title: Text(_errorMessage!),
+                action: IconButton(
+                  icon: const Icon(FluentIcons.clear),
+                  onPressed: () => setState(() => _errorMessage = null),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.resources.subtleFillColorTertiary,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: theme.resources.controlStrokeColorDefault,
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    ListView.separated(
+                      padding: const EdgeInsets.all(8),
+                      itemBuilder: (context, index) {
+                        final StoredProjectInfo info = _projects[index];
+                        final bool selected = _selected.contains(info.path);
+                        final bool isFocused = focusedInfo?.path == info.path;
+                        return ListTile.selectable(
+                          key: ValueKey(info.path),
+                          leading: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Checkbox(
+                                checked: selected,
+                                onChanged: (value) =>
+                                    _toggleSelection(info.path, value ?? false),
+                              ),
+                              const SizedBox(width: 12),
+                              ProjectPreviewThumbnail(
+                                bytes: info.summary?.previewBytes,
+                                width: 96,
+                                height: 72,
+                              ),
+                            ],
+                          ),
+                          onPressed: () =>
+                              _toggleSelection(info.path, !selected),
+                          title: Text(
+                            info.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                info.fileName,
+                                style: theme.typography.caption,
+                              ),
+                              Text(
+                                l10n.projectFileInfo(
+                                    _formatFileSize(info.fileSize),
+                                    _formatDate(info.lastModified)),
+                                style: theme.typography.caption,
+                              ),
+                              if (info.summary != null)
+                                Text(
+                                  l10n.projectCanvasInfo(
+                                      info.summary!.settings.width.toInt(),
+                                      info.summary!.settings.height.toInt()),
+                                  style: theme.typography.caption,
+                                ),
+                            ],
+                          ),
+                          selected: selected || isFocused,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          tileColor: WidgetStateProperty.resolveWith(
+                            (states) => states.isHovered || selected || isFocused
+                                ? theme.resources.subtleFillColorSecondary
+                                : theme.resources.subtleFillColorTertiary,
+                          ),
+                        );
+                      },
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemCount: totalCount,
+                    ),
+                    if (_loading)
+                      const Positioned(
+                        right: 12,
+                        top: 12,
+                        child: ProgressRing(strokeWidth: 2.5),
+                      ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        );
+
+        final detailsWidget = _ProjectManagerDetails(
+          info: focusedInfo,
+          selectedCount: totalSelected,
+          hasSelection: hasSelection,
+          deleting: _deleting,
+          onReveal: focusedInfo == null
+              ? null
+              : () => unawaited(_revealPath(focusedInfo.path)),
+          onDeleteSelected: !_deleting && hasSelection ? _deleteSelected : null,
+        );
+
+        return SizedBox(
+          height: isSmallScreen ? 600 : 520,
+          child: isSmallScreen
+              ? Column(
+                  children: [
+                    Expanded(child: listWidget),
+                    const SizedBox(height: 16),
+                    detailsWidget,
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(flex: 3, child: listWidget),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 2, child: detailsWidget),
+                  ],
+                ),
+        );
+      },
     );
   }
 

@@ -569,6 +569,24 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
   Widget _buildLayerPanelContentImpl(FluentThemeData theme) {
     final bool isSai2Layout =
         widget.toolbarLayoutStyle == PaintingToolbarLayoutStyle.sai2;
+    final bool isMobile = isMobileOrPhone(context);
+    final double controlSize = isMobile ? 28 : 24;
+    final double controlIconSize = isMobile ? 16 : 14;
+    final double actionIconSize = isMobile ? 18 : 14;
+    final EdgeInsets actionButtonPadding =
+        EdgeInsets.all(isMobile ? 6 : 4);
+    final double sidebarWidth = isMobile ? 32 : 28;
+    final double sidebarSpacing = isMobile ? 8 : 6;
+    final double buttonSpacing = isMobile ? 6 : 4;
+    final double rowSpacing = isMobile ? 8 : 6;
+    final double contentSpacing = isMobile ? 10 : 8;
+    final double itemSpacing = isMobile ? 10 : 8;
+    final double clippingIndent = isMobile ? 22 : 18;
+    final EdgeInsets tilePadding = EdgeInsets.symmetric(
+      horizontal: isMobile ? 14 : 12,
+      vertical: isMobile ? 12 : 10,
+    );
+    final double nameTextScale = isMobile ? 1.15 : 1.0;
     final List<CanvasLayerInfo> orderedLayers = _layers
         .toList(growable: false)
         .reversed
@@ -595,343 +613,425 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     }
     final Widget? layerControls = _buildLayerControlStrip(theme, activeLayer);
 
-    return Column(
-      mainAxisSize: MainAxisSize.max,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 4),
-        if (isSai2Layout) ...[
-          _buildPanelDivider(theme),
-          const SizedBox(height: 6),
-        ] else
-          const SizedBox(height: 6),
-        if (layerControls != null) ...[
-          layerControls,
-          const SizedBox(height: 6),
-          _buildPanelDivider(theme),
-          const SizedBox(height: 6),
-        ],
-        Expanded(
-          child: FlyoutTarget(
-            controller: _layerContextMenuController,
-            child: Scrollbar(
-              controller: _layerScrollController,
-              child: Localizations.override(
-                context: context,
-                delegates: const [GlobalMaterialLocalizations.delegate],
-                child: material.ReorderableListView.builder(
-                  scrollController: _layerScrollController,
-                  padding: EdgeInsets.zero,
-                  buildDefaultDragHandles: false,
-                  dragStartBehavior: DragStartBehavior.down,
-                  proxyDecorator: (child, index, animation) => child,
-                  itemCount: orderedLayers.length,
-                  onReorder: _handleLayerReorder,
-                  itemBuilder: (context, index) {
-                    final CanvasLayerInfo layer = orderedLayers[index];
-                    final bool isActive = layer.id == activeLayerId;
-                    final bool tileDimmed =
-                        layerTileDimStates[layer.id] ?? !layer.visible;
-                    final double contentOpacity = tileDimmed ? 0.45 : 1.0;
-                    final bool isTextLayer = layer.text != null;
-                    final bool isDark = theme.brightness.isDark;
-                    final Color accent = theme.accentColor.defaultBrushFor(
-                      theme.brightness,
-                    );
-                    final Color activeOverlay = isDark
-                        ? theme.resources.subtleFillColorSecondary
-                        : accent.withValues(alpha: accent.a * 0.12);
-                    final Color background = isActive
-                        ? Color.alphaBlend(activeOverlay, tileBaseColor)
-                        : tileBaseColor;
-                    final Color borderColor =
-                        theme.resources.controlStrokeColorSecondary;
-                    final Color baseTileBorder = Color.lerp(
-                      borderColor,
-                      Colors.transparent,
-                      0.6,
-                    )!;
-                    final Color tileBorder = isActive
-                        ? Color.lerp(
-                                baseTileBorder,
-                                accent,
-                                isDark ? 0.45 : 0.75,
-                              ) ??
-                              baseTileBorder
-                        : baseTileBorder;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool hasBoundedHeight = constraints.hasBoundedHeight;
+        final Widget listView = material.ReorderableListView.builder(
+          scrollController: _layerScrollController,
+          padding: EdgeInsets.zero,
+          buildDefaultDragHandles: false,
+          dragStartBehavior: DragStartBehavior.down,
+          proxyDecorator: (child, index, animation) => child,
+          itemCount: orderedLayers.length,
+          onReorder: _handleLayerReorder,
+          physics:
+              hasBoundedHeight ? null : const NeverScrollableScrollPhysics(),
+          shrinkWrap: !hasBoundedHeight,
+          itemBuilder: (context, index) {
+            final CanvasLayerInfo layer = orderedLayers[index];
+            final bool isActive = layer.id == activeLayerId;
+            final bool tileDimmed =
+                layerTileDimStates[layer.id] ?? !layer.visible;
+            final double contentOpacity = tileDimmed ? 0.45 : 1.0;
+            final bool isTextLayer = layer.text != null;
+            final bool isDark = theme.brightness.isDark;
+            final Color accent = theme.accentColor.defaultBrushFor(
+              theme.brightness,
+            );
+            final Color activeOverlay = isDark
+                ? theme.resources.subtleFillColorSecondary
+                : accent.withValues(alpha: accent.a * 0.12);
+            final Color background = isActive
+                ? Color.alphaBlend(activeOverlay, tileBaseColor)
+                : tileBaseColor;
+            final Color borderColor =
+                theme.resources.controlStrokeColorSecondary;
+            final Color baseTileBorder = Color.lerp(
+              borderColor,
+              Colors.transparent,
+              0.6,
+            )!;
+            final Color tileBorder = isActive
+                ? Color.lerp(
+                        baseTileBorder,
+                        accent,
+                        isDark ? 0.45 : 0.75,
+                      ) ??
+                      baseTileBorder
+                : baseTileBorder;
 
-                    final bool layerLocked = layer.locked;
-                    final bool canMergeDown = _canMergeLayerDown(layer);
-                    final bool layerClipping = layer.clippingMask;
-                    final bool showTileButtons = !isSai2Layout;
-                    final l10n = context.l10n;
-                    _ensureLayerPreview(layer);
-                    final ui.Image? layerPreview = _layerPreviewImage(layer.id);
-                    final String lockTooltip = layerLocked
-                        ? l10n.unlockLayer
-                        : l10n.lockLayer;
-                    final String lockDetail = layerLocked
-                        ? l10n.unlockLayerDesc
-                        : l10n.lockLayerDesc;
-                    final String clippingTooltip = layerClipping
-                        ? l10n.releaseClippingMask
-                        : l10n.createClippingMask;
-                    final String clippingDetail = layerClipping
-                        ? l10n.clippingMaskDescOn
-                        : l10n.clippingMaskDescOff;
+            final bool layerLocked = layer.locked;
+            final bool canMergeDown = _canMergeLayerDown(layer);
+            final bool layerClipping = layer.clippingMask;
+            final bool showTileButtons = !isSai2Layout;
+            final l10n = context.l10n;
+            _ensureLayerPreview(layer);
+            final ui.Image? layerPreview = _layerPreviewImage(layer.id);
+            final String lockTooltip =
+                layerLocked ? l10n.unlockLayer : l10n.lockLayer;
+            final String lockDetail =
+                layerLocked ? l10n.unlockLayerDesc : l10n.lockLayerDesc;
+            final String clippingTooltip = layerClipping
+                ? l10n.releaseClippingMask
+                : l10n.createClippingMask;
+            final String clippingDetail = layerClipping
+                ? l10n.clippingMaskDescOn
+                : l10n.clippingMaskDescOff;
 
-                    final Widget visibilityButton = LayerVisibilityButton(
-                      visible: layer.visible,
-                      onChanged: backendLayerSupported
-                          ? (value) =>
-                              _handleLayerVisibilityChanged(layer.id, value)
+            final Widget visibilityButton = LayerVisibilityButton(
+              visible: layer.visible,
+              onChanged: backendLayerSupported
+                  ? (value) => _handleLayerVisibilityChanged(layer.id, value)
+                  : null,
+              size: controlSize,
+              iconSize: controlIconSize,
+            );
+            Widget leadingButtons = visibilityButton;
+            if (isSai2Layout) {
+              leadingButtons = _LayerSidebarButtons(
+                primary: visibilityButton,
+                secondary: _LayerClippingToggleButton(
+                  active: layerClipping,
+                  enabled: !layerLocked,
+                  onPressed: () => _handleLayerClippingToggle(layer),
+                  size: controlSize,
+                  iconSize: controlIconSize,
+                ),
+                width: sidebarWidth,
+                spacing: sidebarSpacing,
+              );
+            }
+
+            Widget? lockButton;
+            Widget? clippingButton;
+            if (showTileButtons) {
+              lockButton = _buildLayerActionTooltip(
+                message: lockTooltip,
+                detail: lockDetail,
+                child: IconButton(
+                  icon: Icon(
+                    layerLocked ? FluentIcons.lock : FluentIcons.unlock,
+                    size: actionIconSize,
+                  ),
+                  style: ButtonStyle(
+                    padding: WidgetStateProperty.all<EdgeInsets>(
+                      actionButtonPadding,
+                    ),
+                  ),
+                  onPressed: () => _handleLayerLockToggle(layer),
+                ),
+              );
+              final Color clippingActiveBackground = Color.alphaBlend(
+                (theme.brightness.isDark ? Colors.white : Colors.black)
+                    .withOpacity(theme.brightness.isDark ? 0.18 : 0.08),
+                background,
+              );
+              clippingButton = _buildLayerActionTooltip(
+                message: clippingTooltip,
+                detail: clippingDetail,
+                child: IconButton(
+                  icon: Icon(
+                    FluentIcons.subtract_shape,
+                    size: actionIconSize,
+                  ),
+                  style: ButtonStyle(
+                    padding: WidgetStateProperty.all<EdgeInsets>(
+                      actionButtonPadding,
+                    ),
+                    backgroundColor: WidgetStateProperty.resolveWith((states) {
+                      if (layerClipping) {
+                        return clippingActiveBackground;
+                      }
+                      if (states.contains(WidgetState.disabled)) {
+                        return theme.resources.controlFillColorDisabled;
+                      }
+                      return null;
+                    }),
+                  ),
+                  onPressed:
+                      layerLocked ? null : () => _handleLayerClippingToggle(layer),
+                ),
+              );
+            }
+
+            final bool canDelete = _layers.length > 1 && !layerLocked;
+            final Widget deleteButton = _buildLayerActionTooltip(
+              message: l10n.deleteLayerTitle,
+              detail: l10n.deleteLayerDesc,
+              child: IconButton(
+                icon: Icon(
+                  FluentIcons.delete,
+                  size: actionIconSize,
+                ),
+                style: ButtonStyle(
+                  padding: WidgetStateProperty.all<EdgeInsets>(
+                    actionButtonPadding,
+                  ),
+                ),
+                onPressed: canDelete ? () => _handleRemoveLayer(layer.id) : null,
+              ),
+            );
+            Widget? trailingWidget;
+            if (isSai2Layout) {
+              final Widget lockToggleButton = _buildLayerActionTooltip(
+                message: lockTooltip,
+                detail: lockDetail,
+                child: IconButton(
+                  icon: Icon(
+                    layerLocked ? FluentIcons.lock : FluentIcons.unlock,
+                    size: actionIconSize,
+                  ),
+                  style: ButtonStyle(
+                    padding: WidgetStateProperty.all<EdgeInsets>(
+                      actionButtonPadding,
+                    ),
+                  ),
+                  onPressed: () => _handleLayerLockToggle(layer),
+                ),
+              );
+              trailingWidget = Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  deleteButton,
+                  SizedBox(height: buttonSpacing),
+                  lockToggleButton,
+                ],
+              );
+            } else {
+              final List<Widget> topRowButtons = <Widget>[];
+              void addTopButton(Widget widget) {
+                if (topRowButtons.isNotEmpty) {
+                  topRowButtons.add(SizedBox(width: buttonSpacing));
+                }
+                topRowButtons.add(widget);
+              }
+
+              if (clippingButton != null) {
+                addTopButton(clippingButton);
+              }
+              if (lockButton != null) {
+                addTopButton(lockButton);
+              }
+              addTopButton(deleteButton);
+
+              Widget wrapIconButton({
+                required Widget child,
+                required String tooltip,
+                String? detail,
+              }) {
+                return _buildLayerActionTooltip(
+                  message: tooltip,
+                  detail: detail,
+                  child: child,
+                );
+              }
+
+              final Widget mergeButton = wrapIconButton(
+                tooltip: l10n.mergeDown,
+                detail: l10n.mergeDownDesc,
+                child: IconButton(
+                  icon: Icon(
+                    FluentIcons.download,
+                    size: actionIconSize,
+                  ),
+                  style: ButtonStyle(
+                    padding: WidgetStateProperty.all<EdgeInsets>(
+                      actionButtonPadding,
+                    ),
+                  ),
+                  onPressed:
+                      canMergeDown ? () => _handleMergeLayerDown(layer) : null,
+                ),
+              );
+              final Widget duplicateButton = wrapIconButton(
+                tooltip: l10n.duplicateLayer,
+                detail: l10n.duplicateLayerDesc,
+                child: IconButton(
+                  icon: Icon(
+                    FluentIcons.copy,
+                    size: actionIconSize,
+                  ),
+                  style: ButtonStyle(
+                    padding: WidgetStateProperty.all<EdgeInsets>(
+                      actionButtonPadding,
+                    ),
+                  ),
+                  onPressed: () => _handleDuplicateLayer(layer),
+                ),
+              );
+              final Widget placeholderButton = wrapIconButton(
+                tooltip: l10n.more,
+                detail: null,
+                child: Builder(
+                  builder: (context) {
+                    return IconButton(
+                      icon: Icon(
+                        FluentIcons.more,
+                        size: actionIconSize,
+                      ),
+                      style: ButtonStyle(
+                        padding: WidgetStateProperty.all<EdgeInsets>(
+                          actionButtonPadding,
+                        ),
+                      ),
+                      onPressed: backendLayerSupported
+                          ? () {
+                              final RenderBox? box =
+                                  context.findRenderObject() as RenderBox?;
+                              final Offset position = box == null
+                                  ? Offset.zero
+                                  : box.localToGlobal(
+                                      box.size.center(Offset.zero),
+                                    );
+                              _showLayerContextMenu(layer, position);
+                            }
                           : null,
-                    );
-                    Widget leadingButtons = visibilityButton;
-                    if (isSai2Layout) {
-                      leadingButtons = _LayerSidebarButtons(
-                        primary: visibilityButton,
-                        secondary: _LayerClippingToggleButton(
-                          active: layerClipping,
-                          enabled: !layerLocked,
-                          onPressed: () => _handleLayerClippingToggle(layer),
-                        ),
-                      );
-                    }
-
-                    Widget? lockButton;
-                    Widget? clippingButton;
-                    if (showTileButtons) {
-                      lockButton = _buildLayerActionTooltip(
-                        message: lockTooltip,
-                        detail: lockDetail,
-                        child: IconButton(
-                          icon: Icon(
-                            layerLocked ? FluentIcons.lock : FluentIcons.unlock,
-                          ),
-                          onPressed: () => _handleLayerLockToggle(layer),
-                        ),
-                      );
-                      final Color clippingActiveBackground = Color.alphaBlend(
-                        (theme.brightness.isDark ? Colors.white : Colors.black)
-                            .withOpacity(theme.brightness.isDark ? 0.18 : 0.08),
-                        background,
-                      );
-                      clippingButton = _buildLayerActionTooltip(
-                        message: clippingTooltip,
-                        detail: clippingDetail,
-                        child: IconButton(
-                          icon: const Icon(FluentIcons.subtract_shape),
-                          style: ButtonStyle(
-                            backgroundColor: WidgetStateProperty.resolveWith((
-                              states,
-                            ) {
-                              if (layerClipping) {
-                                return clippingActiveBackground;
-                              }
-                              if (states.contains(WidgetState.disabled)) {
-                                return theme.resources.controlFillColorDisabled;
-                              }
-                              return null;
-                            }),
-                          ),
-                          onPressed: layerLocked
-                              ? null
-                              : () => _handleLayerClippingToggle(layer),
-                        ),
-                      );
-                    }
-
-                    final bool canDelete = _layers.length > 1 && !layerLocked;
-                    final Widget deleteButton = _buildLayerActionTooltip(
-                      message: l10n.deleteLayerTitle,
-                      detail: l10n.deleteLayerDesc,
-                      child: IconButton(
-                        icon: const Icon(FluentIcons.delete),
-                        onPressed: canDelete
-                            ? () => _handleRemoveLayer(layer.id)
-                            : null,
-                      ),
-                    );
-                    Widget? trailingWidget;
-                    if (isSai2Layout) {
-                      final Widget lockToggleButton = _buildLayerActionTooltip(
-                        message: lockTooltip,
-                        detail: lockDetail,
-                        child: IconButton(
-                          icon: Icon(
-                            layerLocked ? FluentIcons.lock : FluentIcons.unlock,
-                          ),
-                          onPressed: () => _handleLayerLockToggle(layer),
-                        ),
-                      );
-                      trailingWidget = Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          deleteButton,
-                          const SizedBox(height: 4),
-                          lockToggleButton,
-                        ],
-                      );
-                    } else {
-                      final List<Widget> topRowButtons = <Widget>[];
-                      void addTopButton(Widget widget) {
-                        if (topRowButtons.isNotEmpty) {
-                          topRowButtons.add(const SizedBox(width: 4));
-                        }
-                        topRowButtons.add(widget);
-                      }
-
-                      if (clippingButton != null) {
-                        addTopButton(clippingButton);
-                      }
-                      if (lockButton != null) {
-                        addTopButton(lockButton);
-                      }
-                      addTopButton(deleteButton);
-
-                      Widget wrapIconButton({
-                        required Widget child,
-                        required String tooltip,
-                        String? detail,
-                      }) {
-                        return _buildLayerActionTooltip(
-                          message: tooltip,
-                          detail: detail,
-                          child: child,
-                        );
-                      }
-
-                      final Widget mergeButton = wrapIconButton(
-                        tooltip: l10n.mergeDown,
-                        detail: l10n.mergeDownDesc,
-                        child: IconButton(
-                          icon: const Icon(FluentIcons.download),
-                          onPressed: canMergeDown
-                              ? () => _handleMergeLayerDown(layer)
-                              : null,
-                        ),
-                      );
-                      final Widget duplicateButton = wrapIconButton(
-                        tooltip: l10n.duplicateLayer,
-                        detail: l10n.duplicateLayerDesc,
-                        child: IconButton(
-                          icon: const Icon(FluentIcons.copy),
-                          onPressed: () => _handleDuplicateLayer(layer),
-                        ),
-                      );
-                      final Widget placeholderButton = wrapIconButton(
-                        tooltip: l10n.more,
-                        detail: null,
-                        child: const IconButton(
-                          icon: Icon(FluentIcons.more),
-                          onPressed: null,
-                        ),
-                      );
-
-                      trailingWidget = Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: topRowButtons,
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              mergeButton,
-                              const SizedBox(width: 4),
-                              duplicateButton,
-                              const SizedBox(width: 4),
-                              placeholderButton,
-                            ],
-                          ),
-                        ],
-                      );
-                    }
-                    return material.ReorderableDragStartListener(
-                      key: ValueKey(layer.id),
-                      index: index,
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            left: layer.clippingMask ? 18 : 0,
-                            bottom: index == orderedLayers.length - 1 ? 0 : 8,
-                          ),
-                          child: _LayerTile(
-                            onTapDown: (_) => _handleLayerSelected(layer.id),
-                            onSecondaryTapDown: backendLayerSupported
-                                ? (details) => _showLayerContextMenu(
-                                      layer,
-                                      details.globalPosition,
-                                    )
-                                : null,
-                            backgroundColor: background,
-                            borderColor: tileBorder,
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  leadingButtons,
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Opacity(
-                                      opacity: contentOpacity,
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          _buildLayerNameRow(
-                                            theme: theme,
-                                            layer: layer,
-                                            isActive: isActive,
-                                            isRenaming:
-                                                !layerLocked &&
-                                                _renamingLayerId == layer.id,
-                                            isLocked: layerLocked,
-                                            isTextLayer: isTextLayer,
-                                          ),
-                                          const SizedBox(height: 6),
-                                          _LayerPreviewThumbnail(
-                                            image: layerPreview,
-                                            theme: theme,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  if (trailingWidget != null) ...[
-                                    const SizedBox(width: 8),
-                                    trailingWidget!,
-                                  ],
-                                ],
-                              ),
-                              if (layer.clippingMask)
-                                Positioned(
-                                  left: -10,
-                                  top: 6,
-                                  bottom: 6,
-                                  child: _ClippingMaskIndicator(
-                                    color: theme.accentColor.defaultBrushFor(
-                                      theme.brightness,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
                     );
                   },
                 ),
+              );
+
+              trailingWidget = Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: topRowButtons,
+                  ),
+                  SizedBox(height: rowSpacing),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      mergeButton,
+                      SizedBox(width: buttonSpacing),
+                      duplicateButton,
+                      SizedBox(width: buttonSpacing),
+                      placeholderButton,
+                    ],
+                  ),
+                ],
+              );
+            }
+            return KeyedSubtree(
+              key: ValueKey(layer.id),
+              child: material.ReorderableDragStartListener(
+                index: index,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: layer.clippingMask ? clippingIndent : 0,
+                    bottom: index == orderedLayers.length - 1 ? 0 : itemSpacing,
+                  ),
+                  child: _LayerTile(
+                    padding: tilePadding,
+                    onTapDown: (_) => _handleLayerSelected(layer.id),
+                    onSecondaryTapDown: backendLayerSupported
+                        ? (details) => _showLayerContextMenu(
+                              layer,
+                              details.globalPosition,
+                            )
+                        : null,
+                    backgroundColor: background,
+                    borderColor: tileBorder,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            leadingButtons,
+                            SizedBox(width: contentSpacing),
+                            Expanded(
+                              child: Opacity(
+                                opacity: contentOpacity,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildLayerNameRow(
+                                      theme: theme,
+                                      layer: layer,
+                                      isActive: isActive,
+                                      isRenaming: !layerLocked &&
+                                          _renamingLayerId == layer.id,
+                                      isLocked: layerLocked,
+                                      isTextLayer: isTextLayer,
+                                      textScale: nameTextScale,
+                                    ),
+                                    SizedBox(height: rowSpacing),
+                                    _LayerPreviewThumbnail(
+                                      image: layerPreview,
+                                      theme: theme,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            if (trailingWidget != null) ...[
+                              SizedBox(width: contentSpacing),
+                              trailingWidget!,
+                            ],
+                          ],
+                        ),
+                        if (layer.clippingMask)
+                          Positioned(
+                            left: -10,
+                            top: 6,
+                            bottom: 6,
+                            child: _ClippingMaskIndicator(
+                              color: theme.accentColor.defaultBrushFor(
+                                theme.brightness,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-        ),
-      ],
+            );
+          },
+        );
+
+        final Widget listContent = Localizations.override(
+          context: context,
+          delegates: const [GlobalMaterialLocalizations.delegate],
+          child: listView,
+        );
+        final Widget listHost = hasBoundedHeight
+            ? Scrollbar(
+                controller: _layerScrollController,
+                child: listContent,
+              )
+            : listContent;
+
+        final Widget listContainer = FlyoutTarget(
+          controller: _layerContextMenuController,
+          child: listHost,
+        );
+
+        return Column(
+          mainAxisSize: hasBoundedHeight ? MainAxisSize.max : MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 4),
+            if (isSai2Layout) ...[
+              _buildPanelDivider(theme),
+              const SizedBox(height: 6),
+            ] else
+              const SizedBox(height: 6),
+            if (layerControls != null) ...[
+              layerControls,
+              const SizedBox(height: 6),
+              _buildPanelDivider(theme),
+              const SizedBox(height: 6),
+            ],
+            if (hasBoundedHeight)
+              Expanded(child: listContainer)
+            else
+              listContainer,
+          ],
+        );
+      },
     );
   }
 
@@ -942,6 +1042,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
     required bool isRenaming,
     required bool isLocked,
     required bool isTextLayer,
+    double textScale = 1.0,
   }) {
     Widget name = _LayerNameView(
       layer: layer,
@@ -949,6 +1050,7 @@ extension _PaintingBoardLayerPanelDelegate on _PaintingBoardLayerMixin {
       isActive: isActive,
       isRenaming: isRenaming,
       isLocked: isLocked,
+      textScale: textScale,
       buildEditor: (style) => _buildInlineLayerRenameField(
         theme,
         isActive: isActive,

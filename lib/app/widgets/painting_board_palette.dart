@@ -117,110 +117,124 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
 
     int? result;
     try {
-      result = await showDialog<int>(
+      result = await showResponsiveDialog<int>(
         context: context,
         builder: (context) {
           final theme = FluentTheme.of(context);
           final l10n = context.l10n;
-          return ContentDialog(
-            title: Text(l10n.generatePaletteTitle),
-            content: StatefulBuilder(
-              builder: (context, setState) {
-                void handlePresetTap(int value) {
-                  setState(() {
-                    selectedCount = value;
-                    controller.value = TextEditingValue(
-                      text: value.toString(),
-                      selection: TextSelection.collapsed(
-                        offset: value.toString().length,
-                      ),
-                    );
-                  });
-                }
-
-                void handleTextChanged(String text) {
-                  final int? parsed = int.tryParse(text);
-                  setState(() {
-                    selectedCount = parsed ?? 0;
-                  });
-                }
-
-                final bool isValid =
-                    selectedCount >= _minPaletteColorCount &&
-                    selectedCount <= _maxPaletteColorCount;
-
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.generatePaletteDesc),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _defaultPaletteChoices
-                          .map((int choice) {
-                            final bool isActive = selectedCount == choice;
-                            final Widget button = isActive
-                                ? FilledButton(
-                                    onPressed: () => handlePresetTap(choice),
-                                    child: Text('$choice'),
-                                  )
-                                : Button(
-                                    onPressed: () => handlePresetTap(choice),
-                                    child: Text('$choice'),
-                                  );
-                            return SizedBox(width: 56, child: button);
-                          })
-                          .toList(growable: false),
+          final bool isMobile = isMobileOrPhone(context);
+          final Widget content = StatefulBuilder(
+            builder: (context, setState) {
+              void handlePresetTap(int value) {
+                setState(() {
+                  selectedCount = value;
+                  controller.value = TextEditingValue(
+                    text: value.toString(),
+                    selection: TextSelection.collapsed(
+                      offset: value.toString().length,
                     ),
-                    const SizedBox(height: 20),
-                    Text(l10n.customCount, style: theme.typography.caption),
-                    const SizedBox(height: 6),
-                    TextBox(
-                      controller: controller,
-                      focusNode: focusNode,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      keyboardType: TextInputType.number,
-                      onChanged: handleTextChanged,
-                      placeholder:
-                          l10n.paletteCountRange(_minPaletteColorCount, _maxPaletteColorCount),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.allowedRange(_minPaletteColorCount, _maxPaletteColorCount),
-                      style: theme.typography.caption,
-                    ),
-                    if (!isValid)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          l10n.enterValidColorCount,
-                          style: theme.typography.caption?.copyWith(
-                            color: Colors.red,
-                          ),
+                  );
+                });
+              }
+
+              void handleTextChanged(String text) {
+                final int? parsed = int.tryParse(text);
+                setState(() {
+                  selectedCount = parsed ?? 0;
+                });
+              }
+
+              final bool isValid =
+                  selectedCount >= _minPaletteColorCount &&
+                  selectedCount <= _maxPaletteColorCount;
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.generatePaletteDesc),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _defaultPaletteChoices
+                        .map((int choice) {
+                          final bool isActive = selectedCount == choice;
+                          final Widget button = isActive
+                              ? FilledButton(
+                                  onPressed: () => handlePresetTap(choice),
+                                  child: Text('$choice'),
+                                )
+                              : Button(
+                                  onPressed: () => handlePresetTap(choice),
+                                  child: Text('$choice'),
+                                );
+                          return SizedBox(width: 56, child: button);
+                        })
+                        .toList(growable: false),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(l10n.customCount, style: theme.typography.caption),
+                  const SizedBox(height: 6),
+                  TextBox(
+                    controller: controller,
+                    focusNode: focusNode,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    keyboardType: TextInputType.number,
+                    onChanged: handleTextChanged,
+                    placeholder:
+                        l10n.paletteCountRange(_minPaletteColorCount, _maxPaletteColorCount),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.allowedRange(_minPaletteColorCount, _maxPaletteColorCount),
+                    style: theme.typography.caption,
+                  ),
+                  if (!isValid)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        l10n.enterValidColorCount,
+                        style: theme.typography.caption?.copyWith(
+                          color: Colors.red,
                         ),
                       ),
-                  ],
-                );
-              },
+                    ),
+                ],
+              );
+            },
+          );
+          final List<Widget> actions = [
+            Button(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.cancel),
             ),
-            actions: [
-              Button(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(l10n.cancel),
-              ),
-              FilledButton(
-                onPressed: () {
-                  if (selectedCount < _minPaletteColorCount ||
-                      selectedCount > _maxPaletteColorCount) {
-                    return;
-                  }
-                  Navigator.of(context).pop(selectedCount);
-                },
-                child: Text(l10n.create),
-              ),
-            ],
+            FilledButton(
+              onPressed: () {
+                if (selectedCount < _minPaletteColorCount ||
+                    selectedCount > _maxPaletteColorCount) {
+                  return;
+                }
+                Navigator.of(context).pop(selectedCount);
+              },
+              child: Text(l10n.create),
+            ),
+          ];
+
+          if (isMobile) {
+            return MisarinDialog(
+              title: Text(l10n.generatePaletteTitle),
+              content: content,
+              actions: actions,
+              contentWidth: null,
+              maxWidth: 420,
+            );
+          }
+
+          return ContentDialog(
+            title: Text(l10n.generatePaletteTitle),
+            content: content,
+            actions: actions,
           );
         },
       );
@@ -353,6 +367,26 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
         _sanitizePaletteFileNameInput(fileName),
         option.extension,
       );
+    } else if (Platform.isAndroid || Platform.isIOS) {
+      final String? fileName = await showFileNameDialog(
+        context: context,
+        title: l10n.exportPaletteTitle,
+        suggestedFileName: _suggestPaletteFileName(
+          entry.title,
+          option.extension,
+        ),
+        confirmLabel: l10n.export,
+      );
+      if (fileName == null) {
+        return;
+      }
+      final String normalizedName = _normalizePaletteExportPath(
+        _sanitizePaletteFileNameInput(fileName),
+        option.extension,
+      );
+      normalizedPath = await MobileExportPaths.resolveExportPath(
+        normalizedName,
+      );
     } else {
       final String? outputPath = await FilePicker.platform.saveFile(
         dialogTitle: l10n.exportPaletteTitle,
@@ -413,6 +447,90 @@ mixin _PaintingBoardPaletteMixin on _PaintingBoardBase {
       return null;
     }
     _PaletteExportFormatOption selected = options.first;
+    if (isMobileOrPhone(context)) {
+      return showMobileBottomSheet<_PaletteExportFormatOption>(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) {
+          final FluentThemeData theme = FluentTheme.of(context);
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.selectExportFormat,
+                      style: theme.typography.subtitle
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      l10n.selectPaletteFormatDesc,
+                      style: theme.typography.body,
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: options.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 6),
+                        itemBuilder: (context, index) {
+                          final option = options[index];
+                          final bool isActive = option == selected;
+                          return RadioButton(
+                            checked: isActive,
+                            onChanged: (checked) {
+                              if (checked != true) {
+                                return;
+                              }
+                              setState(() => selected = option);
+                            },
+                            content: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${option.name} (.${option.extension.toUpperCase()})',
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  option.description,
+                                  style: theme.typography.caption,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Button(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text(l10n.cancel),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () =>
+                                Navigator.of(context).pop(selected),
+                            child: Text(l10n.next),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    }
     return showDialog<_PaletteExportFormatOption>(
       context: context,
       barrierDismissible: true,
